@@ -1,7 +1,7 @@
 // @ts-check
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { DEFINITIONS } from "../src/analytics/compute.mjs";
 import { RunStore } from "../src/core/runs.mjs";
 import { git } from "../src/util/git.mjs";
-import { makeRepo } from "./helpers.mjs";
+import { makeRepo, testTempDir } from "./helpers.mjs";
 
 const BIN = fileURLToPath(new URL("../bin/panagent.mjs", import.meta.url));
 
@@ -89,7 +89,7 @@ test("analytics reports recorded runs in text, JSON and Markdown with filters", 
 });
 
 test("init writes a starter config that validates, and refuses to overwrite", () => {
-  const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), "panagent-cli-")));
+  const root = testTempDir("cli");
   git(root, ["init", "-q"]);
   writeFileSync(
     path.join(root, "package.json"),
@@ -105,7 +105,7 @@ test("init writes a starter config that validates, and refuses to overwrite", ()
 
 test("repository runtimes require trust and explicit runtimes always win", () => {
   const repo = makeRepo();
-  const xdg = mkdtempSync(path.join(os.tmpdir(), "panagent-xdg-"));
+  const xdg = testTempDir("xdg");
   try {
     const repoConfig = path.join(repo.root, ".panagent", "runtimes.json");
     const userConfig = path.join(xdg, "panagent", "runtimes.json");

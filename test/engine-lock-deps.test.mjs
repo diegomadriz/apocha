@@ -1,7 +1,6 @@
 // @ts-check
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
-import os from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { runCheck } from "../src/checks/runner.mjs";
@@ -10,8 +9,8 @@ import { initialState } from "../src/core/context.mjs";
 import { runEngine } from "../src/core/engine.mjs";
 import { withLock } from "../src/core/lock.mjs";
 import { validateWorkflow } from "../src/core/workflow.mjs";
-import { createCandidate } from "../src/git/candidate.mjs";
-import { makeRepo } from "./helpers.mjs";
+
+import { testCandidate as createCandidate, makeRepo, testTempDir } from "./helpers.mjs";
 
 /** A context with only what the human and budget stages use. */
 function stubContext(workflow, state = initialState(workflow.start)) {
@@ -60,7 +59,7 @@ test("a rejected human stage routes to its reject target", async () => {
 });
 
 test("the lock serializes holders and recovers from a dead owner", async () => {
-  const dir = realpathSync(mkdtempSync(path.join(os.tmpdir(), "panagent-lock-")));
+  const dir = testTempDir("lock");
   const order = [];
   await Promise.all([
     withLock(dir, "a", async () => {

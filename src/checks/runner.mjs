@@ -1,8 +1,7 @@
 // @ts-check
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
-import os from "node:os";
+import { mkdirSync, realpathSync, rmSync } from "node:fs";
 import path from "node:path";
 import { resolveDenyPaths, SANDBOX_MARKER, wrapCommand } from "../sandbox/index.mjs";
 import { decodeCaptured } from "../util/bounded.mjs";
@@ -10,6 +9,7 @@ import { digestJson, sha256 } from "../util/digest.mjs";
 import { describeError } from "../util/errors.mjs";
 import { git, gitCommonDir } from "../util/git.mjs";
 import { isInside } from "../util/paths.mjs";
+import { makeTempDir, removeTempDir } from "../util/temp.mjs";
 import { prepareNpmDependencies } from "./dependencies.mjs";
 
 /**
@@ -124,165 +124,170 @@ export async function runCheck({
   const cleanup = () => {
     if (!workspace) return null;
     try {
-      rmSync(workspace, { recursive: true, force: true });
+      removeTempDir(workspace);
+      workspace = null;
       return null;
     } catch (error) {
       return `cleanup failed: ${error.message}`;
     }
   };
-  /** @type {{ command: string, args: string[], cwd: string, env: Record<string, string> }} */
-  let prepared;
   try {
-    workspace = realpathSync(mkdtempSync(path.join(os.tmpdir(), "panagent-check-")));
-    const execRoot = path.join(workspace, "tree");
-    const home = path.join(workspace, "home");
-    const tmp = path.join(workspace, "tmp");
-    for (const dir of [execRoot, home, tmp]) mkdirSync(dir, { mode: 0o700 });
-    materialize(candidate.root, execRoot, config.paths.forbidden);
-    const cwd = check.cwd === "." ? execRoot : path.resolve(execRoot, check.cwd);
-    if (!isInside(cwd, execRoot))
-      return infraResult(check.id, definitionDigest, backend, "check cwd escapes the tree");
-    mkdirSync(cwd, { recursive: true });
-
-    const sourceRoot = realpathSync(candidate.repository_root);
-    let extraPath = [];
-    let nodePath = null;
-    let sourceBin = null;
-    if (check.dependencies === "npm") {
-      const deps = prepareNpmDependencies({
-        candidateRoot: candidate.root,
-        sourceRoot,
-        baseCommit: candidate.base_commit,
-        cwd: check.cwd,
-        execCwd: cwd,
-      });
-      extraPath = [path.join(deps.node_modules, ".bin")];
-      nodePath = deps.node_modules;
-      sourceBin = deps.source_bin;
-    }
-    const hostPath = (process.env.PATH ?? "")
-      .split(path.delimiter)
-      .filter((entry) => entry && !(sourceBin && path.resolve(entry) === sourceBin));
-    /** @type {Record<string, string>} */
-    const env = {};
-    for (const key of ENV_PASSTHROUGH)
-      if (process.env[key] !== undefined) env[key] = /** @type {string} */ (process.env[key]);
-    Object.assign(env, {
-      PATH: [...extraPath, ...hostPath].join(path.delimiter),
-      HOME: home,
-      TMPDIR: tmp,
-      TMP: tmp,
-      TEMP: tmp,
-      XDG_CACHE_HOME: path.join(home, ".cache"),
-      XDG_CONFIG_HOME: path.join(home, ".config"),
-      CI: "1",
-      ...(backend === "none" ? {} : { [SANDBOX_MARKER]: backend }),
-      ...(nodePath ? { NODE_PATH: nodePath } : {}),
-      ...check.env,
-    });
-    const argv = check.run.map((part) => part.replaceAll("{source}", sourceRoot));
-    const commonDir = realpathSync(gitCommonDir(sourceRoot));
-    const denyRead = resolveDenyPaths([
-      ...config.sandbox.deny_read,
-      ...sourceSecretFiles(sourceRoot),
-      realpathSync(candidate.root),
-      commonDir,
-      path.join(sourceRoot, ".git"),
-      ...config.paths.forbidden.map((scope) => path.join(sourceRoot, scope)),
-    ]).filter((entry) => !isInside(workspace, entry));
-    const network = check.network || config.sandbox.network === "allow";
-    const wrapped = wrapCommand(backend, { writable: [workspace], denyRead, network, cwd }, argv);
-    prepared = { ...wrapped, cwd, env };
-  } catch (error) {
-    const cleanupError = cleanup();
-    const detail = describeError(error);
-    const status = detail.error_class === "integrity" ? "fail" : "infra_error";
-    const result = infraResult(
-      check.id,
-      definitionDigest,
-      backend,
-      cleanupError ?? `${detail.code}: ${detail.message}`,
-    );
-    return { ...result, status, duration_ms: Date.now() - started };
-  }
-
-  return await new Promise((resolve) => {
-    const capture = { stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) };
-    const bytes = { stdout: 0, stderr: 0 };
-    const hashes = { stdout: createHash("sha256"), stderr: createHash("sha256") };
-    let settled = false;
-    let timedOut = false;
-    /** @type {NodeJS.Timeout | undefined} */
-    let timer;
-    const finish = (
-      /** @type {{ status: CheckResult["status"], exit_code: number | null, error: string | null }} */ outcome,
-    ) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      const cleanupError = cleanup();
-      if (cleanupError)
-        outcome = { status: "infra_error", exit_code: outcome.exit_code, error: cleanupError };
-      const stdoutDigest = hashes.stdout.digest("hex");
-      const stderrDigest = hashes.stderr.digest("hex");
-      const stdout = decodeCaptured(capture.stdout);
-      const stderr = decodeCaptured(capture.stderr);
-      resolve({
-        id: check.id,
-        ...outcome,
-        stdout,
-        stderr,
-        stdout_truncated: bytes.stdout > Buffer.byteLength(stdout),
-        stderr_truncated: bytes.stderr > Buffer.byteLength(stderr),
-        output_digest: sha256(`${stdoutDigest}\n${stderrDigest}`),
-        definition_digest: definitionDigest,
-        sandbox: backend,
-        duration_ms: Date.now() - started,
-      });
-    };
-    const collect = (/** @type {"stdout" | "stderr"} */ stream, /** @type {Buffer} */ chunk) => {
-      hashes[stream].update(chunk);
-      bytes[stream] += chunk.length;
-      const room = maxOutputBytes - capture[stream].length;
-      if (room > 0) capture[stream] = Buffer.concat([capture[stream], chunk.subarray(0, room)]);
-    };
-    let child;
+    /** @type {{ command: string, args: string[], cwd: string, env: Record<string, string> }} */
+    let prepared;
     try {
-      child = spawn(prepared.command, prepared.args, {
-        cwd: prepared.cwd,
-        env: prepared.env,
-        stdio: ["ignore", "pipe", "pipe"],
-        detached: true,
-      });
-    } catch (error) {
-      finish({
-        status: "infra_error",
-        exit_code: null,
-        error: `spawn failed: ${error.code ?? error.message}`,
-      });
-      return;
-    }
-    child.stdout.on("data", (chunk) => collect("stdout", chunk));
-    child.stderr.on("data", (chunk) => collect("stderr", chunk));
-    timer = setTimeout(() => {
-      timedOut = true;
-      try {
-        process.kill(-child.pid, "SIGKILL");
-      } catch {
-        child.kill("SIGKILL");
+      workspace = makeTempDir("check");
+      const execRoot = path.join(workspace, "tree");
+      const home = path.join(workspace, "home");
+      const tmp = path.join(workspace, "tmp");
+      for (const dir of [execRoot, home, tmp]) mkdirSync(dir, { mode: 0o700 });
+      materialize(candidate.root, execRoot, config.paths.forbidden);
+      const cwd = check.cwd === "." ? execRoot : path.resolve(execRoot, check.cwd);
+      if (!isInside(cwd, execRoot))
+        return infraResult(check.id, definitionDigest, backend, "check cwd escapes the tree");
+      mkdirSync(cwd, { recursive: true });
+
+      const sourceRoot = realpathSync(candidate.repository_root);
+      let extraPath = [];
+      let nodePath = null;
+      let sourceBin = null;
+      if (check.dependencies === "npm") {
+        const deps = prepareNpmDependencies({
+          candidateRoot: candidate.root,
+          sourceRoot,
+          baseCommit: candidate.base_commit,
+          cwd: check.cwd,
+          execCwd: cwd,
+        });
+        extraPath = [path.join(deps.node_modules, ".bin")];
+        nodePath = deps.node_modules;
+        sourceBin = deps.source_bin;
       }
-    }, check.timeout_ms);
-    child.on("error", (error) =>
-      finish({
-        status: "infra_error",
-        exit_code: null,
-        error: `spawn failed: ${/** @type {any} */ (error).code ?? error.message}`,
-      }),
-    );
-    child.on("close", (code, signal) => {
-      if (timedOut) finish({ status: "infra_error", exit_code: code, error: "timeout" });
-      else if (signal) finish({ status: "infra_error", exit_code: code, error: `signal ${signal}` });
-      else finish({ status: code === 0 ? "pass" : "fail", exit_code: code, error: null });
+      const hostPath = (process.env.PATH ?? "")
+        .split(path.delimiter)
+        .filter((entry) => entry && !(sourceBin && path.resolve(entry) === sourceBin));
+      /** @type {Record<string, string>} */
+      const env = {};
+      for (const key of ENV_PASSTHROUGH)
+        if (process.env[key] !== undefined) env[key] = /** @type {string} */ (process.env[key]);
+      Object.assign(env, {
+        PATH: [...extraPath, ...hostPath].join(path.delimiter),
+        HOME: home,
+        TMPDIR: tmp,
+        TMP: tmp,
+        TEMP: tmp,
+        XDG_CACHE_HOME: path.join(home, ".cache"),
+        XDG_CONFIG_HOME: path.join(home, ".config"),
+        CI: "1",
+        ...(backend === "none" ? {} : { [SANDBOX_MARKER]: backend }),
+        ...(nodePath ? { NODE_PATH: nodePath } : {}),
+        ...check.env,
+      });
+      const argv = check.run.map((part) => part.replaceAll("{source}", sourceRoot));
+      const commonDir = realpathSync(gitCommonDir(sourceRoot));
+      const denyRead = resolveDenyPaths([
+        ...config.sandbox.deny_read,
+        ...sourceSecretFiles(sourceRoot),
+        realpathSync(candidate.root),
+        commonDir,
+        path.join(sourceRoot, ".git"),
+        ...config.paths.forbidden.map((scope) => path.join(sourceRoot, scope)),
+      ]).filter((entry) => !isInside(workspace, entry));
+      const network = check.network || config.sandbox.network === "allow";
+      const wrapped = wrapCommand(backend, { writable: [workspace], denyRead, network, cwd }, argv);
+      prepared = { ...wrapped, cwd, env };
+    } catch (error) {
+      const cleanupError = cleanup();
+      const detail = describeError(error);
+      const status = detail.error_class === "integrity" ? "fail" : "infra_error";
+      const result = infraResult(
+        check.id,
+        definitionDigest,
+        backend,
+        cleanupError ?? `${detail.code}: ${detail.message}`,
+      );
+      return { ...result, status, duration_ms: Date.now() - started };
+    }
+
+    return await new Promise((resolve) => {
+      const capture = { stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) };
+      const bytes = { stdout: 0, stderr: 0 };
+      const hashes = { stdout: createHash("sha256"), stderr: createHash("sha256") };
+      let settled = false;
+      let timedOut = false;
+      /** @type {NodeJS.Timeout | undefined} */
+      let timer;
+      const finish = (
+        /** @type {{ status: CheckResult["status"], exit_code: number | null, error: string | null }} */ outcome,
+      ) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        const cleanupError = cleanup();
+        if (cleanupError)
+          outcome = { status: "infra_error", exit_code: outcome.exit_code, error: cleanupError };
+        const stdoutDigest = hashes.stdout.digest("hex");
+        const stderrDigest = hashes.stderr.digest("hex");
+        const stdout = decodeCaptured(capture.stdout);
+        const stderr = decodeCaptured(capture.stderr);
+        resolve({
+          id: check.id,
+          ...outcome,
+          stdout,
+          stderr,
+          stdout_truncated: bytes.stdout > Buffer.byteLength(stdout),
+          stderr_truncated: bytes.stderr > Buffer.byteLength(stderr),
+          output_digest: sha256(`${stdoutDigest}\n${stderrDigest}`),
+          definition_digest: definitionDigest,
+          sandbox: backend,
+          duration_ms: Date.now() - started,
+        });
+      };
+      const collect = (/** @type {"stdout" | "stderr"} */ stream, /** @type {Buffer} */ chunk) => {
+        hashes[stream].update(chunk);
+        bytes[stream] += chunk.length;
+        const room = maxOutputBytes - capture[stream].length;
+        if (room > 0) capture[stream] = Buffer.concat([capture[stream], chunk.subarray(0, room)]);
+      };
+      let child;
+      try {
+        child = spawn(prepared.command, prepared.args, {
+          cwd: prepared.cwd,
+          env: prepared.env,
+          stdio: ["ignore", "pipe", "pipe"],
+          detached: true,
+        });
+      } catch (error) {
+        finish({
+          status: "infra_error",
+          exit_code: null,
+          error: `spawn failed: ${error.code ?? error.message}`,
+        });
+        return;
+      }
+      child.stdout.on("data", (chunk) => collect("stdout", chunk));
+      child.stderr.on("data", (chunk) => collect("stderr", chunk));
+      timer = setTimeout(() => {
+        timedOut = true;
+        try {
+          process.kill(-child.pid, "SIGKILL");
+        } catch {
+          child.kill("SIGKILL");
+        }
+      }, check.timeout_ms);
+      child.on("error", (error) =>
+        finish({
+          status: "infra_error",
+          exit_code: null,
+          error: `spawn failed: ${/** @type {any} */ (error).code ?? error.message}`,
+        }),
+      );
+      child.on("close", (code, signal) => {
+        if (timedOut) finish({ status: "infra_error", exit_code: code, error: "timeout" });
+        else if (signal) finish({ status: "infra_error", exit_code: code, error: `signal ${signal}` });
+        else finish({ status: code === 0 ? "pass" : "fail", exit_code: code, error: null });
+      });
     });
-  });
+  } finally {
+    if (workspace) removeTempDir(workspace);
+  }
 }

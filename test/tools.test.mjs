@@ -1,21 +1,12 @@
 // @ts-check
 import assert from "node:assert/strict";
-import {
-  existsSync,
-  linkSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
-import os from "node:os";
+import { existsSync, linkSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { normalizeProjectConfig } from "../src/config/project.mjs";
-import { createCandidate } from "../src/git/candidate.mjs";
+
 import { createProjectTools, readSession, TOOL_LIMITS } from "../src/tools/project-tools.mjs";
-import { makeRepo } from "./helpers.mjs";
+import { testCandidate as createCandidate, makeRepo, testTempDir } from "./helpers.mjs";
 
 /**
  * @param {Partial<import("../src/tools/project-tools.mjs").SessionConfig>} overrides
@@ -31,7 +22,7 @@ function setup(overrides = {}, files = {}) {
     },
   });
   const candidate = createCandidate(repo.root, "main");
-  const sessionDir = realpathSync(mkdtempSync(path.join(os.tmpdir(), "panagent-session-")));
+  const sessionDir = testTempDir("session");
   const project = normalizeProjectConfig(
     {
       version: 1,

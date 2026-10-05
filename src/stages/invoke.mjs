@@ -1,6 +1,5 @@
 // @ts-check
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import os from "node:os";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { effectiveProtectedPaths } from "../config/task.mjs";
 import { toolDefinitions } from "../tools/definitions.mjs";
@@ -8,6 +7,7 @@ import { readSession, TOOL_LIMITS } from "../tools/project-tools.mjs";
 import { digestJson } from "../util/digest.mjs";
 import { describeError, HarnessError } from "../util/errors.mjs";
 import { writeJsonAtomic } from "../util/fs-safe.mjs";
+import { makeTempDir, removeTempDir } from "../util/temp.mjs";
 import { GENERATOR } from "../version.mjs";
 
 /** @param {"implementer" | "reviewer"} role */
@@ -72,19 +72,19 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
       session_dir: sessionDir,
     };
     writeJsonAtomic(sessionFile, session);
-    const cwd = mkdtempSync(path.join(os.tmpdir(), "panagent-agent-"));
+    const cwd = makeTempDir("agent", { runId: ctx.runId });
     const started = Date.now();
-    ctx.event("agent.started", {
-      role,
-      invocation: index,
-      adapter: adapter.name,
-      model: roleConfig.model ?? null,
-    });
     /** @type {any} */
     let run = null;
     /** @type {unknown} */
     let failure = null;
     try {
+      ctx.event("agent.started", {
+        role,
+        invocation: index,
+        adapter: adapter.name,
+        model: roleConfig.model ?? null,
+      });
       run = await adapter.run({
         role,
         model: roleConfig.model,
@@ -102,7 +102,7 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
     } catch (error) {
       failure = error;
     } finally {
-      rmSync(cwd, { recursive: true, force: true });
+      removeTempDir(cwd);
     }
     const { trace, result } = readSession(sessionDir);
     const runtime = run?.runtime ?? /** @type {any} */ (failure)?.details?.runtime ?? null;

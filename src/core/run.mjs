@@ -165,6 +165,7 @@ export async function startRun(options) {
   await withLock(dir, `reserve ${batchRef}`, () => reserveBatchRef(repositoryRoot, batchRef, baseCommit));
   let created = false;
   let candidate;
+  let paused = false;
   try {
     store.create(runId, {
       workflow: workflow.id,
@@ -187,7 +188,7 @@ export async function startRun(options) {
     });
 
     created = true;
-    candidate = createCandidate(repositoryRoot, baseCommit);
+    candidate = createCandidate(repositoryRoot, baseCommit, { runId });
     store.update(runId, { candidate_root: candidate.root });
 
     const ctx = buildContext({
@@ -220,7 +221,9 @@ export async function startRun(options) {
       sandbox: sandboxBackend,
     });
     warnUnsandboxedChecks(ctx);
-    return finish(ctx, await runEngine(ctx));
+    const summary = finish(ctx, await runEngine(ctx));
+    paused = summary.outcome === "PAUSED";
+    return summary;
   } catch (error) {
     const detail = describeError(error);
     if (created) {
@@ -233,8 +236,9 @@ export async function startRun(options) {
       });
     }
     deleteRef(repositoryRoot, batchRef, baseCommit);
-    candidate?.cleanup();
     throw error;
+  } finally {
+    if (!paused) candidate?.cleanup();
   }
 }
 
@@ -297,17 +301,35 @@ export async function resumeRun(options) {
     onEvent: options.onEvent,
     state,
   });
-  store.update(options.runId, {
-    outcome: "RUNNING",
-    pid: process.pid,
-    runtime_config_digest_on_resume: runtimes.digest,
-  });
-  ctx.event("run.resumed", {
-    stage: state.stage,
-    ...(options.decision ? { decision: options.decision } : {}),
-  });
-  warnUnsandboxedChecks(ctx);
-  return finish(ctx, await runEngine(ctx));
+  let paused = false;
+  try {
+    store.update(options.runId, {
+      outcome: "RUNNING",
+      pid: process.pid,
+      runtime_config_digest_on_resume: runtimes.digest,
+    });
+    ctx.event("run.resumed", {
+      stage: state.stage,
+      ...(options.decision ? { decision: options.decision } : {}),
+    });
+    warnUnsandboxedChecks(ctx);
+    const summary = finish(ctx, await runEngine(ctx));
+    paused = summary.outcome === "PAUSED";
+    return summary;
+  } catch (error) {
+    const detail = describeError(error);
+    store.update(options.runId, {
+      outcome: "ERROR",
+      reason: detail.message,
+      error_class: detail.error_class,
+      code: detail.code,
+      finished_at: new Date().toISOString(),
+    });
+    deleteRef(repositoryRoot, record.batch_ref, record.base_commit);
+    throw error;
+  } finally {
+    if (!paused) ctx.candidate.cleanup();
+  }
 }
 
 /** @param {import("./context.mjs").RunContext} ctx */
@@ -364,13 +386,6 @@ function finish(ctx, result) {
   const paused = result.outcome === "PAUSED";
   if (!paused && result.outcome !== "PASSED")
     deleteRef(ctx.repositoryRoot, ctx.batchRef, ctx.candidate.base_commit);
-  if (!paused) {
-    try {
-      ctx.candidate.cleanup();
-    } catch (error) {
-      ctx.event("cleanup.failed", { message: describeError(error).message });
-    }
-  }
   const summary = {
     run_id: ctx.runId,
     workflow: ctx.workflow.id,

@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import { linkSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { createCandidate, digestBetweenCommits, snapshotCandidate } from "../src/git/candidate.mjs";
+import { digestBetweenCommits, snapshotCandidate } from "../src/git/candidate.mjs";
 import { landBranch } from "../src/git/land.mjs";
 import { assertBatchRef, promoteCandidate, reserveBatchRef } from "../src/git/promotion.mjs";
 import { verifyReceipt, writeReceipt } from "../src/git/receipts.mjs";
 import { git, gitText, resolveCommit } from "../src/util/git.mjs";
-import { makeRepo } from "./helpers.mjs";
+import { testCandidate as createCandidate, makeRepo } from "./helpers.mjs";
 
 const NOTES = "refs/notes/panagent";
 const BATCH = "refs/heads/panagent/batch/t";

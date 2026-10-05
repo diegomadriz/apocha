@@ -1,7 +1,7 @@
 // @ts-check
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { chmodSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
+import { chmodSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -11,10 +11,10 @@ import { codexArgs, DISABLED_FEATURES, inspectCodexEvent } from "../src/adapters
 import { inspectPiEvent, piArgs } from "../src/adapters/pi/index.mjs";
 import { classifyProviderMessage, compareVersions, runJsonlProcess } from "../src/adapters/process.mjs";
 import { normalizeProjectConfig } from "../src/config/project.mjs";
-import { createCandidate } from "../src/git/candidate.mjs";
+
 import { HarnessError } from "../src/util/errors.mjs";
 import { writeJsonAtomic } from "../src/util/fs-safe.mjs";
-import { makeRepo } from "./helpers.mjs";
+import { testCandidate as createCandidate, makeRepo, testTempDir } from "./helpers.mjs";
 
 /** @type {import("../src/adapters/contract.mjs").Invocation} */
 const invocation = {
@@ -209,7 +209,7 @@ test("provider messages about limits pause instead of failing", () => {
 
 /** Write an executable node script. @param {string} body */
 function script(body) {
-  const dir = realpathSync(mkdtempSync(path.join(os.tmpdir(), "panagent-fake-runtime-")));
+  const dir = testTempDir("fake-runtime");
   const file = path.join(dir, "runtime.mjs");
   writeFileSync(file, `#!/usr/bin/env node\n${body}`);
   chmodSync(file, 0o755);
@@ -266,7 +266,7 @@ test("runJsonlProcess streams events, kills on violation, and times out", async 
 test("the MCP tool server lists role tools and serves calls over stdio", async () => {
   const repo = makeRepo();
   const candidate = createCandidate(repo.root, "main");
-  const sessionDir = realpathSync(mkdtempSync(path.join(os.tmpdir(), "panagent-mcp-")));
+  const sessionDir = testTempDir("mcp");
   const sessionFile = path.join(sessionDir, "session.json");
   writeJsonAtomic(sessionFile, {
     version: 1,

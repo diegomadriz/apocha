@@ -2,15 +2,31 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { after } from "node:test";
 import { normalizeRuntimeConfig } from "../src/config/runtime.mjs";
+import { createCandidate } from "../src/git/candidate.mjs";
 import { git } from "../src/util/git.mjs";
+
+/** Create a fixture directory and register cleanup even if setup fails. @param {string} kind */
+export function testTempDir(kind) {
+  const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), `panagent-${kind}-`)));
+  after(() => rmSync(root, { recursive: true, force: true }));
+  return root;
+}
+
+/** @param {string} repositoryRoot @param {string} base */
+export function testCandidate(repositoryRoot, base) {
+  const candidate = createCandidate(repositoryRoot, base);
+  after(() => candidate.cleanup());
+  return candidate;
+}
 
 /**
  * Create a throwaway Git repository with a committed panagent.config.json.
  * @param {{ files?: Record<string, string>, config?: Record<string, any> }} [options]
  */
 export function makeRepo(options = {}) {
-  const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), "panagent-test-repo-")));
+  const root = testTempDir("test-repo");
   git(root, ["init", "-q", "-b", "main"]);
   git(root, ["config", "user.name", "Test User"]);
   git(root, ["config", "user.email", "test@example.invalid"]);

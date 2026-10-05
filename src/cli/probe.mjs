@@ -1,6 +1,5 @@
 // @ts-check
-import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import os from "node:os";
+import { existsSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { sourceSecretFiles } from "../checks/runner.mjs";
 import { normalizeProjectConfig } from "../config/project.mjs";
@@ -9,6 +8,7 @@ import { readSession } from "../tools/project-tools.mjs";
 import { describeError, HarnessError } from "../util/errors.mjs";
 import { writeJsonAtomic } from "../util/fs-safe.mjs";
 import { git } from "../util/git.mjs";
+import { makeTempDir, removeTempDir } from "../util/temp.mjs";
 
 /**
  * Report source secrets without reading their contents.
@@ -39,7 +39,7 @@ const PROBE_PROMPT = `This is an authorized capability check of the harness that
  * @param {"implementer" | "reviewer"} role
  */
 export async function liveProbe(adapter, runtimes, role) {
-  const scratch = realpathSync(mkdtempSync(path.join(os.tmpdir(), "panagent-probe-")));
+  const scratch = makeTempDir("probe");
   try {
     const repo = path.join(scratch, "repo");
     git(scratch, ["init", "-q", repo]);
@@ -104,6 +104,6 @@ export async function liveProbe(adapter, runtimes, role) {
       detail: `no escape; ${trace.length} harness tool calls; agent said: ${String(result.summary).slice(0, 160)}`,
     };
   } finally {
-    rmSync(scratch, { recursive: true, force: true });
+    removeTempDir(scratch);
   }
 }

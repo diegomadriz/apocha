@@ -1,11 +1,11 @@
 // @ts-check
-import { existsSync, lstatSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
-import os from "node:os";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { sha256 } from "../util/digest.mjs";
 import { HarnessError } from "../util/errors.mjs";
 import { git, gitBuffer, gitText, resolveCommit } from "../util/git.mjs";
 import { canonicalPath, isInside } from "../util/paths.mjs";
+import { makeTempDir, removeTempDir } from "../util/temp.mjs";
 
 /**
  * A candidate is a private, no-hardlink clone of the source repository,
@@ -19,7 +19,7 @@ import { canonicalPath, isInside } from "../util/paths.mjs";
 /**
  * @param {string} repositoryRoot
  * @param {string} base ref or OID
- * @param {{ parent?: string }} [options] parent directory for the clone (defaults to the OS temp dir)
+ * @param {{ runId?: string }} [options]
  * @returns {Candidate}
  */
 export function createCandidate(repositoryRoot, base, options = {}) {
@@ -27,7 +27,8 @@ export function createCandidate(repositoryRoot, base, options = {}) {
   const baseCommit = resolveCommit(repository, base);
   if (!baseCommit)
     throw new HarnessError("config", "unknown_base", `base does not resolve to a commit: ${base}`);
-  const root = realpathSync(mkdtempSync(path.join(options.parent ?? os.tmpdir(), "panagent-candidate-")));
+  const workspace = makeTempDir("candidate", options);
+  const root = path.join(workspace, "tree");
   try {
     git(repository, [
       "clone",
@@ -42,7 +43,7 @@ export function createCandidate(repositoryRoot, base, options = {}) {
     git(root, ["remote", "remove", "origin"]);
     git(root, ["-c", "advice.detachedHead=false", "checkout", "--quiet", "--detach", baseCommit]);
   } catch (error) {
-    rmSync(root, { recursive: true, force: true });
+    removeTempDir(workspace);
     throw error;
   }
   return attachCandidate(repository, root, baseCommit);
@@ -63,7 +64,7 @@ export function attachCandidate(repository, root, baseCommit) {
     base_commit: baseCommit,
     cleanup() {
       if (cleaned) return;
-      rmSync(root, { recursive: true, force: true });
+      removeTempDir(path.basename(root) === "tree" ? path.dirname(root) : root);
       if (existsSync(root)) throw new HarnessError("infra", "cleanup_failed", "candidate cleanup failed");
       cleaned = true;
     },

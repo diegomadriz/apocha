@@ -1,14 +1,14 @@
 // @ts-check
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { runCheck } from "../src/checks/runner.mjs";
 import { normalizeProjectConfig } from "../src/config/project.mjs";
-import { createCandidate } from "../src/git/candidate.mjs";
+
 import { bwrapArgs, detectBackend, resolveBackend, seatbeltProfile } from "../src/sandbox/index.mjs";
-import { makeRepo } from "./helpers.mjs";
+import { testCandidate as createCandidate, makeRepo, testTempDir } from "./helpers.mjs";
 
 const backend = detectBackend();
 const skip = backend ? false : "no sandbox backend on this host";
@@ -102,7 +102,7 @@ test("a sandboxed check runs normally inside its workspace", { skip }, async () 
 });
 
 test("a sandboxed check cannot read denied paths", { skip }, async () => {
-  const secretDir = realpathSync(mkdtempSync(path.join(os.tmpdir(), "panagent-secret-")));
+  const secretDir = testTempDir("secret");
   writeFileSync(path.join(secretDir, "token"), "s3cret");
   try {
     const result = await sandboxed(
