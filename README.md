@@ -40,7 +40,7 @@ task.json ─► candidate (private clone at the base commit)
   runtime uses one anyway. `panagent doctor --live` asks each runtime to escape and reports
   whether it could.
 - **Untrusted code runs sandboxed.** Checks execute code an agent may have written, so they run
-  in a fresh copy of the tree (no `.git`, no untracked files, no forbidden paths) under Linux bubblewrap or macOS Seatbelt: no writes outside the workspace and no reads of credential stores or secret files in the checkout. On Linux the check starts from an empty filesystem and network namespace. On macOS the profile denies outbound network and the listed paths but allows everything else, so local services such as DNS, loopback ports, or the Docker socket can still be reached. Linux gives the stronger isolation.
+  in a fresh copy of the tree (no `.git`, no untracked files, no forbidden paths) under Linux bubblewrap or macOS Seatbelt: no writes outside the workspace and no reads of credential stores or secret files in the checkout. Both give the check a read-only view of the rest of the host. On Linux the check also runs with no network, so it cannot reach DNS or services on the machine. On macOS the profile denies outbound network but still allows DNS and loopback ports. On both, a local Unix socket such as Docker's may still be reachable.
 - **Evidence is bound to content.** The candidate is identified by a SHA-256 over its base and
   full diff, rechecked after checks, after review, and before promotion. A receipt records that
   digest with the check definitions, configuration, prompts, and runtimes used, and
