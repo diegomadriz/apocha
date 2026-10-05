@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "roles": {
+    "implementer": { "adapter": "codex", "model": "gpt-6.1-sol", "effort": "medium" },
+    "reviewer": { "adapter": "claude-code", "model": "claude-sonnet-5-5", "effort": "high" }
+  },
+  "adapters": {
+    "codex": { "command": "codex", "min_version": "0.160.0" },
+    "claude-code": { "command": "claude", "min_version": "2.1.289" },
+    "pi": { "command": "pi", "min_version": "1.0.2", "provider": "openai-codex" }
+  },
+  "budgets": { "timeout_ms": 1200000, "max_tool_calls": 150 },
+  "retry": { "infra": 1 }
+}
