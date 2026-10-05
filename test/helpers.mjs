@@ -72,12 +72,20 @@ export function valueTask(overrides = {}) {
 
 /** Reviewer handler that passes, echoing the digest from the bundle. */
 export const passReviewer = async ({ bundle, call }) => {
-  await call("submit_result", { decision: "PASS", findings: [], candidate_digest: bundle.candidate.candidate_digest });
+  await call("submit_result", {
+    decision: "PASS",
+    findings: [],
+    candidate_digest: bundle.candidate.candidate_digest,
+  });
 };
 
 /** Implementer handler that writes `value` into src/value.txt. */
-export const writeValue = (value) => async ({ call }) => {
-  const current = await call("read_files", { paths: ["src/value.txt"] });
-  await call("apply_patch", { edits: [{ path: "src/value.txt", old_text: current.files[0].content, new_text: `${value}\n` }] });
-  await call("submit_result", { summary: `set value to ${value}` });
-};
+export const writeValue =
+  (value) =>
+  async ({ call }) => {
+    const current = await call("read_files", { paths: ["src/value.txt"] });
+    await call("apply_patch", {
+      edits: [{ path: "src/value.txt", old_text: current.files[0].content, new_text: `${value}\n` }],
+    });
+    await call("submit_result", { summary: `set value to ${value}` });
+  };

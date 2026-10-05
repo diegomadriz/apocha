@@ -19,12 +19,23 @@ function adapters(implementer, reviewer = passReviewer) {
   return { implementer: fake, reviewer: fake };
 }
 
-const base = (root, extra = {}) => ({ cwd: root, base: "main", batch: "set-value", message: "Set value to 2", runtimes: fakeRuntimes(), ...extra });
+const base = (root, extra = {}) => ({
+  cwd: root,
+  base: "main",
+  batch: "set-value",
+  message: "Set value to 2",
+  runtimes: fakeRuntimes(),
+  ...extra,
+});
 
 test("a passing run promotes the candidate and writes a verifiable receipt", async () => {
   const repo = makeRepo();
   try {
-    const summary = await startRun({ ...base(repo.root), task: valueTask(), adapters: adapters(writeValue(2)) });
+    const summary = await startRun({
+      ...base(repo.root),
+      task: valueTask(),
+      adapters: adapters(writeValue(2)),
+    });
     assert.equal(summary.outcome, "PASSED", summary.reason ?? "");
     assert.equal(summary.repairs, 0);
     const head = resolveCommit(repo.root, "refs/heads/panagent/batch/set-value");
@@ -36,7 +47,12 @@ test("a passing run promotes the candidate and writes a verifiable receipt", asy
     assert.equal(receipt.receipt.checks[0].id, "test");
     assert.equal(receipt.receipt.governance.edits_allowed, false);
     // land fast-forwards main onto the receipted batch head
-    const landed = landBranch({ repositoryRoot: repo.root, notesRef: "refs/notes/panagent", source: "panagent/batch/set-value", target: "main" });
+    const landed = landBranch({
+      repositoryRoot: repo.root,
+      notesRef: "refs/notes/panagent",
+      source: "panagent/batch/set-value",
+      target: "main",
+    });
     assert.equal(landed.commits.length, 1);
     assert.equal(resolveCommit(repo.root, "main"), head);
   } finally {
@@ -52,7 +68,11 @@ test("a failing check is repaired with failure-first findings", async () => {
       seen.push(context.bundle.findings);
       await writeValue(context.attempt === 0 ? 3 : 2)(context);
     };
-    const summary = await startRun({ ...base(repo.root), task: valueTask(), adapters: adapters(implementer) });
+    const summary = await startRun({
+      ...base(repo.root),
+      task: valueTask(),
+      adapters: adapters(implementer),
+    });
     assert.equal(summary.outcome, "PASSED", summary.reason ?? "");
     assert.equal(summary.repairs, 1);
     assert.equal(seen[1].length, 1);
@@ -66,7 +86,11 @@ test("a failing check is repaired with failure-first findings", async () => {
 test("repair budget exhaustion escalates and releases the batch ref", async () => {
   const repo = makeRepo();
   try {
-    const summary = await startRun({ ...base(repo.root), task: valueTask({ max_repair_attempts: 0 }), adapters: adapters(writeValue(3)) });
+    const summary = await startRun({
+      ...base(repo.root),
+      task: valueTask({ max_repair_attempts: 0 }),
+      adapters: adapters(writeValue(3)),
+    });
     assert.equal(summary.outcome, "ESCALATED");
     assert.match(summary.reason ?? "", /repairs budget exhausted/);
     assert.equal(resolveCommit(repo.root, "refs/heads/panagent/batch/set-value"), null);
@@ -85,17 +109,30 @@ test("reviewer FIX findings go back to the implementer", async () => {
       reviews += 1;
       assert.match(bundle.diff, /src\/value\.txt/);
       const decision = reviews === 1 ? "FIX" : "PASS";
-      const findings = reviews === 1 ? [{ id: "add-note", reason: "also mention the change in README.md", path: "README.md" }] : [];
-      await call("submit_result", { decision, findings, candidate_digest: bundle.candidate.candidate_digest });
+      const findings =
+        reviews === 1
+          ? [{ id: "add-note", reason: "also mention the change in README.md", path: "README.md" }]
+          : [];
+      await call("submit_result", {
+        decision,
+        findings,
+        candidate_digest: bundle.candidate.candidate_digest,
+      });
     };
     const implementer = async (context) => {
       if (context.attempt === 0) return writeValue(2)(context);
       assert.equal(context.bundle.findings[0].id, "add-note");
       const readme = await context.call("read_files", { paths: ["src/value.txt"] });
-      await context.call("apply_patch", { edits: [{ path: "src/value.txt", old_text: readme.files[0].content, new_text: "2\n\n" }] });
+      await context.call("apply_patch", {
+        edits: [{ path: "src/value.txt", old_text: readme.files[0].content, new_text: "2\n\n" }],
+      });
       await context.call("submit_result", { summary: "addressed review" });
     };
-    const summary = await startRun({ ...base(repo.root), task: valueTask(), adapters: adapters(implementer, reviewer) });
+    const summary = await startRun({
+      ...base(repo.root),
+      task: valueTask(),
+      adapters: adapters(implementer, reviewer),
+    });
     assert.equal(summary.outcome, "PASSED", summary.reason ?? "");
     assert.equal(summary.repairs, 1);
   } finally {
@@ -107,12 +144,19 @@ test("the tools refuse paths outside allowed_paths", async () => {
   const repo = makeRepo();
   try {
     const implementer = async ({ call }) => {
-      await assert.rejects(call("apply_patch", { edits: [{ path: "README.md", old_text: "# fixture\n", new_text: "x\n" }] }), /outside allowed_paths/);
+      await assert.rejects(
+        call("apply_patch", { edits: [{ path: "README.md", old_text: "# fixture\n", new_text: "x\n" }] }),
+        /outside allowed_paths/,
+      );
       await assert.rejects(call("read_files", { paths: ["private/secret.txt"] }), /not readable/);
       await call("apply_patch", { edits: [{ path: "src/value.txt", old_text: "1\n", new_text: "2\n" }] });
       await call("submit_result", { summary: "done" });
     };
-    const summary = await startRun({ ...base(repo.root), task: valueTask(), adapters: adapters(implementer) });
+    const summary = await startRun({
+      ...base(repo.root),
+      task: valueTask(),
+      adapters: adapters(implementer),
+    });
     assert.equal(summary.outcome, "PASSED");
   } finally {
     repo.cleanup();
@@ -129,7 +173,10 @@ test("a change smuggled past the tools fails the structural checks", async () =>
     };
     const summary = await startRun({ ...base(repo.root), task: valueTask(), adapters: adapters(escaped) });
     assert.equal(summary.outcome, "FAILED");
-    assert.deepEqual(summary.checks.find((check) => check.id === "allowed-scope"), { id: "allowed-scope", status: "fail" });
+    assert.deepEqual(
+      summary.checks.find((check) => check.id === "allowed-scope"),
+      { id: "allowed-scope", status: "fail" },
+    );
   } finally {
     repo.cleanup();
   }
@@ -157,15 +204,29 @@ test("a usage limit pauses the run and resume continues it", async () => {
   try {
     let limited = true;
     const implementer = async (context) => {
-      if (limited) throw new HarnessError("usage_limited", "limit", "You've hit your usage limit. Try again at 9:00 PM.", { retryAfter: "9:00 PM" });
+      if (limited)
+        throw new HarnessError(
+          "usage_limited",
+          "limit",
+          "You've hit your usage limit. Try again at 9:00 PM.",
+          { retryAfter: "9:00 PM" },
+        );
       await writeValue(2)(context);
     };
     const first = await startRun({ ...base(repo.root), task: valueTask(), adapters: adapters(implementer) });
     assert.equal(first.outcome, "PAUSED");
     assert.match(first.reason ?? "", /retry after 9:00 PM/);
-    assert.ok(resolveCommit(repo.root, "refs/heads/panagent/batch/set-value"), "batch ref stays reserved while paused");
+    assert.ok(
+      resolveCommit(repo.root, "refs/heads/panagent/batch/set-value"),
+      "batch ref stays reserved while paused",
+    );
     limited = false;
-    const second = await resumeRun({ cwd: repo.root, runId: first.run_id, runtimes: fakeRuntimes(), adapters: adapters(implementer) });
+    const second = await resumeRun({
+      cwd: repo.root,
+      runId: first.run_id,
+      runtimes: fakeRuntimes(),
+      adapters: adapters(implementer),
+    });
     assert.equal(second.outcome, "PASSED", second.reason ?? "");
     const events = new RunStore(repo.root).events(first.run_id).map((event) => event.type);
     assert.ok(events.includes("run.paused") && events.includes("run.resumed"));
@@ -186,7 +247,11 @@ test("infra errors from the runtime are retried once and recorded", async () => 
     const summary = await startRun({ ...base(repo.root), task: valueTask(), adapters: adapters(flaky) });
     assert.equal(summary.outcome, "PASSED", summary.reason ?? "");
     assert.equal(summary.retries, 1);
-    const receipt = verifyReceipt(repo.root, "refs/notes/panagent", /** @type {string} */ (summary.promoted_head));
+    const receipt = verifyReceipt(
+      repo.root,
+      "refs/notes/panagent",
+      /** @type {string} */ (summary.promoted_head),
+    );
     assert.equal(receipt.receipt.retries, 1);
   } finally {
     repo.cleanup();
@@ -199,7 +264,11 @@ test("a policy violation escalates without retry", async () => {
     let calls = 0;
     const rogue = async () => {
       calls += 1;
-      throw new HarnessError("policy_violation", "foreign_tool", "runtime called a tool outside the harness: shell");
+      throw new HarnessError(
+        "policy_violation",
+        "foreign_tool",
+        "runtime called a tool outside the harness: shell",
+      );
     };
     const summary = await startRun({ ...base(repo.root), task: valueTask(), adapters: adapters(rogue) });
     assert.equal(summary.outcome, "ESCALATED");
@@ -214,7 +283,9 @@ test("governance paths are protected unless edits are allowed with a reason", as
   const repo = makeRepo({ files: { "AGENTS.md": "rules\n" } });
   try {
     const editRules = async ({ call }) => {
-      const result = await call("apply_patch", { edits: [{ path: "AGENTS.md", old_text: "rules\n", new_text: "new rules\n" }] }).catch((error) => error);
+      const result = await call("apply_patch", {
+        edits: [{ path: "AGENTS.md", old_text: "rules\n", new_text: "new rules\n" }],
+      }).catch((error) => error);
       if (result instanceof Error) {
         await call("apply_patch", { edits: [{ path: "src/value.txt", old_text: "1\n", new_text: "2\n" }] });
       } else {
@@ -228,7 +299,12 @@ test("governance paths are protected unless edits are allowed with a reason", as
     assert.equal(gitText(repo.root, ["show", `${blocked.promoted_head}:AGENTS.md`]), "rules");
 
     await assert.rejects(
-      startRun({ ...base(repo.root, { batch: "rules-2" }), task, adapters: adapters(editRules), allowGovernanceEdits: true }),
+      startRun({
+        ...base(repo.root, { batch: "rules-2" }),
+        task,
+        adapters: adapters(editRules),
+        allowGovernanceEdits: true,
+      }),
       /--reason/,
     );
     const allowed = await startRun({
@@ -240,8 +316,16 @@ test("governance paths are protected unless edits are allowed with a reason", as
     });
     assert.equal(allowed.outcome, "PASSED", allowed.reason ?? "");
     assert.equal(gitText(repo.root, ["show", `${allowed.promoted_head}:AGENTS.md`]), "new rules");
-    const receipt = verifyReceipt(repo.root, "refs/notes/panagent", /** @type {string} */ (allowed.promoted_head)).receipt;
-    assert.deepEqual(receipt.governance, { edits_allowed: true, by: "Test User <test@example.invalid>", reason: "update agent rules" });
+    const receipt = verifyReceipt(
+      repo.root,
+      "refs/notes/panagent",
+      /** @type {string} */ (allowed.promoted_head),
+    ).receipt;
+    assert.deepEqual(receipt.governance, {
+      edits_allowed: true,
+      by: "Test User <test@example.invalid>",
+      reason: "update agent rules",
+    });
   } finally {
     repo.cleanup();
   }
@@ -271,7 +355,11 @@ test("integrate merges a topic, verifies, reviews, and promotes with two parents
       }),
     });
     assert.equal(summary.outcome, "PASSED", summary.reason ?? "");
-    const receipt = verifyReceipt(repo.root, "refs/notes/panagent", /** @type {string} */ (summary.promoted_head));
+    const receipt = verifyReceipt(
+      repo.root,
+      "refs/notes/panagent",
+      /** @type {string} */ (summary.promoted_head),
+    );
     assert.equal(receipt.valid, true, receipt.reason ?? "");
     assert.equal(receipt.receipt.parents[1], topic);
     assert.equal(receipt.receipt.workflow, "integrate");
@@ -284,7 +372,11 @@ test("metrics count every run, not only receipts", async () => {
   const repo = makeRepo();
   try {
     await startRun({ ...base(repo.root), task: valueTask(), adapters: adapters(writeValue(2)) });
-    await startRun({ ...base(repo.root, { batch: "second" }), task: valueTask({ max_repair_attempts: 0 }), adapters: adapters(writeValue(3)) });
+    await startRun({
+      ...base(repo.root, { batch: "second" }),
+      task: valueTask({ max_repair_attempts: 0 }),
+      adapters: adapters(writeValue(3)),
+    });
     const metrics = computeMetrics(repo.root, { notesRef: "refs/notes/panagent" });
     assert.equal(metrics.runs.finished, 2);
     assert.equal(metrics.runs.first_attempt_pass_rate, 50);
