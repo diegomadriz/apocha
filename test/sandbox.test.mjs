@@ -135,6 +135,11 @@ socket.on("timeout", () => { console.log("BLOCKED timeout"); socket.destroy(); }
 socket.on("error", (e) => console.log("BLOCKED", e.code));`;
   const denied = await sandboxed(script);
   assert.match(denied.stdout, /BLOCKED/);
+  const loopback = await sandboxed(`import net from "node:net";
+const server = net.createServer((s) => s.end("pong")).listen(0, "127.0.0.1", () => {
+  net.connect(server.address().port, "127.0.0.1").on("data", (d) => { console.log("LOOPBACK", String(d)); server.close(); process.exit(0); });
+});`);
+  assert.match(loopback.stdout, /LOOPBACK pong/, loopback.stderr);
 });
 
 test("forbidden paths are not materialized for checks", { skip }, async () => {

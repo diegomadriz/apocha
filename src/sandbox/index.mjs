@@ -95,7 +95,10 @@ export function seatbeltProfile(policy) {
     lines.push(
       "(deny network*)",
       '(allow network* (remote ip "localhost:*"))',
-      '(allow network-bind (local ip "localhost:*"))',
+      // Bundlers such as Turbopack bind worker ports. Listening is allowed on loopback
+      // addresses only, and outbound connections stay on loopback.
+      "(allow network-bind)",
+      '(allow network-inbound (local ip "localhost:*"))',
       "(allow network* (remote unix-socket))",
     );
   }
