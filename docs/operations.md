@@ -54,6 +54,26 @@ Two views, kept apart on purpose:
 Reporting only the delivery view overstates success, since a task that never passes leaves no
 receipt. Publish both, with their definitions and date range.
 
+## Analytics
+
+`panagent analytics` reports the current repository's recorded run window, outcomes,
+task delivery and first-run rates, repair distribution, check failures and durations,
+review decisions and findings per fix, runtime pass rates and token usage, tool errors
+and run_check pass rates by role, and median and p90 run durations.
+
+```bash
+panagent analytics
+panagent analytics --since 2026-01-01 --until 2026-01-31 --workflow code-delivery
+panagent analytics --json
+panagent analytics --format md
+```
+
+`--since YYYY-MM-DD` and `--until YYYY-MM-DD` filter by inclusive UTC run creation
+dates; `--workflow <id>` selects an exact workflow ID. `--format text|md` selects
+text (the default) or Markdown. `--json` prints the analytics object with definitions.
+Every rate's definition is printed by `--json` and `--format md`. Missing values
+appear as `n/a` in text and Markdown.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |

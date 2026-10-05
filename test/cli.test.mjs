@@ -6,6 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { DEFINITIONS } from "../src/analytics/compute.mjs";
+import { RunStore } from "../src/core/runs.mjs";
 import { git } from "../src/util/git.mjs";
 import { makeRepo } from "./helpers.mjs";
 
@@ -27,6 +29,63 @@ test("help, version, and unknown commands", () => {
   const unknown = cli(os.tmpdir(), ["frobnicate"]);
   assert.equal(unknown.code, 2);
   assert.match(unknown.stderr, /unknown command/);
+});
+
+test("analytics reports recorded runs in text, JSON and Markdown with filters", () => {
+  const repo = makeRepo();
+  try {
+    const store = new RunStore(repo.root);
+    for (const [index, workflow] of ["code-delivery", "integrate", "code-delivery"].entries()) {
+      const id = `analytics-20260101T000000Z-000${index}`;
+      store.create(id, {
+        task_id: `task-${index}`,
+        workflow,
+        created_at: `2026-01-0${index + 1}T23:59:59Z`,
+      });
+      store.update(id, { outcome: index === 2 ? "FAILED" : "PASSED" });
+    }
+    const text = cli(repo.root, ["analytics"]);
+    assert.equal(text.code, 0, text.stderr);
+    assert.match(text.stdout, /window: runs=3/);
+    assert.match(text.stdout, /PASSED=2/);
+    const json = cli(repo.root, ["analytics", "--json"]);
+    assert.equal(json.code, 0, json.stderr);
+    const result = JSON.parse(json.stdout);
+    assert.equal(result.window.runs, 3);
+    assert.deepEqual(result.definitions, DEFINITIONS);
+    const md = cli(repo.root, ["analytics", "--format", "md"]);
+    assert.equal(md.code, 0, md.stderr);
+    assert.match(md.stdout, /## Window/);
+    assert.match(md.stdout, /## Definitions/);
+    assert.match(cli(repo.root, ["analytics", "--format", "text"]).stdout, /window: runs=3/);
+    const filtered = cli(repo.root, [
+      "analytics",
+      "--json",
+      "--since",
+      "2026-01-02",
+      "--until",
+      "2026-01-03",
+      "--workflow",
+      "code-delivery",
+    ]);
+    assert.equal(filtered.code, 0, filtered.stderr);
+    assert.equal(JSON.parse(filtered.stdout).window.runs, 1);
+    assert.deepEqual(JSON.parse(filtered.stdout).outcomes.by_outcome, { FAILED: 1 });
+    assert.match(cli(repo.root, ["help"]).stdout, /analytics.*--since/);
+    for (const args of [
+      ["--since", "bad"],
+      ["--since", "2026-02-30"],
+      ["--until", "2026-1-01"],
+      ["--until", "2026-13-01"],
+      ["--format", "html"],
+    ]) {
+      const bad = cli(repo.root, ["analytics", ...args]);
+      assert.equal(bad.code, 2);
+      assert.match(bad.stderr, /usage:/);
+    }
+  } finally {
+    repo.cleanup();
+  }
 });
 
 test("init writes a starter config that validates, and refuses to overwrite", () => {

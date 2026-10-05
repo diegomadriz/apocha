@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { collectRunFacts } from "../src/analytics/collect.mjs";
 import { computeAnalytics, DEFINITIONS } from "../src/analytics/compute.mjs";
+import { formatAnalyticsMarkdown, formatAnalyticsText } from "../src/analytics/report.mjs";
 import { RunStore } from "../src/core/runs.mjs";
 import { makeRepo } from "./helpers.mjs";
 
@@ -285,6 +286,93 @@ test("computes every statistics section, earliest task runs, finished rates and 
         passed: outcome === "PASSED" ? 1 : 0,
       })),
     );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test("first task runs exclude unfinished runs and use creation order", () => {
+  const repo = makeRepo();
+  try {
+    const store = new RunStore(repo.root);
+    for (const [index, outcome] of ["RUNNING", "PAUSED", "PASSED", "FAILED"].entries()) {
+      addRun(store, index + 1, {
+        outcome,
+        created_at: `2026-01-0${index + 1}T00:00:00Z`,
+      });
+    }
+    // The collector lists newest first; the earliest finished run passed.
+    const result = computeAnalytics(collectRunFacts(repo.root));
+    assert.equal(result.tasks.tasks, 1);
+    assert.equal(result.tasks.first_run_pass_rate, 100);
+    assert.equal(result.tasks.first_run_clean_rate, 100);
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test("findings per fix excludes PASS-only and unfinished reviews", () => {
+  const repo = makeRepo();
+  try {
+    const store = new RunStore(repo.root);
+    const fix = addRun(store, 1, { outcome: "FAILED" });
+    store.event(fix, "review.finished", { decision: "FIX", findings: 2 });
+    store.event(fix, "review.finished", { decision: "FIX", findings: 4 });
+    const pass = addRun(store, 2, { outcome: "PASSED" });
+    store.event(pass, "review.finished", { decision: "PASS", findings: 10 });
+    const running = addRun(store, 3);
+    store.event(running, "review.finished", { decision: "FIX", findings: 20 });
+    const result = computeAnalytics(collectRunFacts(repo.root));
+    assert.equal(result.review.findings_per_fix, 3);
+    assert.equal(result.review.fix_rate, 66.7);
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test("reports show rates, converted durations, runtime usage and all definitions", () => {
+  const repo = makeRepo();
+  try {
+    const store = new RunStore(repo.root);
+    const id = addRun(store, 1, {
+      outcome: "PASSED",
+      finished_at: "2026-01-01T00:02:00Z",
+      state: {
+        runtimes: { implementer: { adapter: "fake", model: null } },
+        usage: { implementer: { input_tokens: 100, output_tokens: 20 } },
+      },
+    });
+    store.event(id, "check.finished", { id: "test", status: "fail", duration_ms: 2500 });
+    store.event(id, "review.finished", { decision: "FIX", findings: 2 });
+    sessions(store, id);
+    const result = computeAnalytics(collectRunFacts(repo.root));
+    const text = formatAnalyticsText(result);
+    assert.match(text, /window: runs=1, first run=2026-01-01/);
+    assert.match(text, /outcomes: group=All runs, counts=PASSED=1/);
+    assert.match(text, /delivered rate=100%/);
+    assert.match(text, /repairs: distribution=0=1, 1=0, 2=0/);
+    assert.match(text, /checks: check=test, runs=1, fail rate=100%, median seconds=2.5/);
+    assert.match(text, /decisions=FIX=1, fix rate=100%, findings per fix=2/);
+    assert.match(
+      text,
+      /role=implementer, adapter=fake, model=n\/a, runs=1, pass rate=100%, median minutes=2, input tokens=100, output tokens=20/,
+    );
+    assert.match(text, /error rate=20%, run_check calls=3, run_check pass rate=33.3%/);
+    assert.match(text, /run median seconds=120, run p90 seconds=120/);
+    const md = formatAnalyticsMarkdown(result, { definitions: DEFINITIONS });
+    assert.match(md, /## Checks\n\n\| Check \| Runs \| Fail rate \| Median seconds \|/);
+    assert.match(md, /\| test \| 1 \| 100% \| 2.5 \|/);
+    assert.match(md, /## Definitions/);
+    for (const [key, definition] of Object.entries(DEFINITIONS))
+      assert.ok(md.includes(`| ${key} | ${definition} |`));
+    for (const report of [
+      formatAnalyticsText(computeAnalytics([])),
+      formatAnalyticsMarkdown(computeAnalytics([]), { definitions: DEFINITIONS }),
+    ]) {
+      assert.ok(report.includes("n/a"));
+      assert.ok(!report.includes("null"));
+      assert.ok(!report.includes("n/a%"));
+    }
   } finally {
     repo.cleanup();
   }

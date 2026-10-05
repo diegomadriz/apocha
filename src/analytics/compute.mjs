@@ -52,8 +52,8 @@ export function computeAnalytics(facts) {
   const ordered = [...facts].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const taskRuns = finished.filter((fact) => fact.workflow === "code-delivery");
   const groups = groupBy(taskRuns, (fact) => fact.task_id);
-  const first = [...groups.values()].map((runs) =>
-    ordered.find((run) => run.workflow === "code-delivery" && run.task_id === runs[0].task_id),
+  const first = [...groups.values()].map(
+    (runs) => [...runs].sort((a, b) => a.created_at.localeCompare(b.created_at))[0],
   );
   const delivered = [...groups.values()].filter((runs) =>
     runs.some((run) => run.outcome === "PASSED"),
@@ -156,7 +156,9 @@ export function computeAnalytics(facts) {
       by_decision: byDecision,
       fix_rate: percent(byDecision.FIX ?? 0, decisions.length),
       findings_per_fix: byDecision.FIX
-        ? finished.reduce((sum, fact) => sum + fact.review_findings, 0) / byDecision.FIX
+        ? finished
+            .filter((fact) => fact.review_decisions.includes("FIX"))
+            .reduce((sum, fact) => sum + fact.review_findings, 0) / byDecision.FIX
         : null,
     },
     runtimes: [...runtimeGroups.values()].map(({ role, adapter, model, facts: runs }) => {
@@ -217,8 +219,9 @@ export const DEFINITIONS = Object.freeze({
   outcomes: "Outcomes group all runs by outcome and workflow, and finished runs by recorded error class.",
   tasks: "Tasks group finished code-delivery runs by exact task ID in creation order.",
   delivered_rate: "Delivered tasks as a percentage of tasks with finished code-delivery runs.",
-  first_run_clean_rate: "Tasks whose earliest run passed without repairs as a percentage of tasks.",
-  first_run_pass_rate: "Tasks whose earliest run passed as a percentage of tasks.",
+  first_run_clean_rate:
+    "Tasks whose earliest finished code-delivery run passed without repairs as a percentage of tasks.",
+  first_run_pass_rate: "Tasks whose earliest finished code-delivery run passed as a percentage of tasks.",
   runs_per_delivered: "Finished code-delivery runs divided by delivered tasks.",
   repairs: "Repair counts group passed code-delivery runs by their number of repair rounds.",
   no_repair_rate: "Passed code-delivery runs with no repairs as a percentage of passed code-delivery runs.",
@@ -228,7 +231,8 @@ export const DEFINITIONS = Object.freeze({
   fail_rate: "Failed check executions as a percentage of check executions in finished runs.",
   review: "Review decisions and findings count review events in finished runs.",
   fix_rate: "FIX decisions as a percentage of review decisions in finished runs.",
-  findings_per_fix: "Review findings in finished runs divided by their FIX decisions.",
+  findings_per_fix:
+    "Review findings from finished runs with at least one FIX review divided by FIX decisions in finished runs.",
   runtimes: "Runs with recorded runtimes group by role, adapter, and model, summing role usage.",
   pass_rate: "Passed runs as a percentage of finished runs in each runtime group.",
   tools: "Tool calls group by session role, with nearest-rank medians over runs recording that role.",

@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { adapterForRole } from "../adapters/index.mjs";
+import { collectRunFacts } from "../analytics/collect.mjs";
+import { computeAnalytics, DEFINITIONS } from "../analytics/compute.mjs";
+import { formatAnalyticsMarkdown, formatAnalyticsText } from "../analytics/report.mjs";
 import { loadProjectConfig, loadProjectConfigAt, PROJECT_CONFIG_FILE } from "../config/project.mjs";
 import { loadRuntimeConfig } from "../config/runtime.mjs";
 import { validateTask } from "../config/task.mjs";
@@ -40,6 +43,8 @@ Commands:
   show <run-id> [--events]      Show one run
   resume <run-id> [--decision approve|reject]   Resume a paused run
   metrics [--ref <ref>] [--json]  Outcomes over all runs, and delivery stats from receipts
+  analytics [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--workflow <id>]
+      [--json] [--format text|md]  Analytics over recorded runs in this repository
   version                       Print the version
 
 Exit codes: 0 passed, 2 usage or config error, 10 paused, 20 not passed, 30 error.
@@ -296,6 +301,45 @@ export async function main(argv) {
       });
       print(values.json ? summary : formatSummary(summary));
       return exitFor(summary);
+    }
+    case "analytics": {
+      const { values } = parse(
+        {
+          since: { type: "string" },
+          until: { type: "string" },
+          workflow: { type: "string" },
+          format: { type: "string" },
+        },
+        false,
+      );
+      for (const option of ["since", "until"]) {
+        const value = values[option];
+        if (value === undefined) continue;
+        const timestamp = Date.parse(value);
+        if (
+          !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+          !Number.isFinite(timestamp) ||
+          new Date(timestamp).toISOString().slice(0, 10) !== value
+        )
+          throw new HarnessError("config", "usage", `usage: --${option} must be a valid YYYY-MM-DD date`);
+      }
+      if (values.format !== undefined && !["text", "md"].includes(values.format))
+        throw new HarnessError("config", "usage", "usage: --format must be text or md");
+      const analytics = computeAnalytics(
+        collectRunFacts(repositoryRoot(cwd), {
+          since: values.since,
+          until: values.until,
+          workflow: values.workflow,
+        }),
+      );
+      print(
+        values.json
+          ? { ...analytics, definitions: DEFINITIONS }
+          : values.format === "md"
+            ? formatAnalyticsMarkdown(analytics, { definitions: DEFINITIONS })
+            : formatAnalyticsText(analytics),
+      );
+      return EXIT.ok;
     }
     case "metrics": {
       const { values } = parse({ notes: { type: "string" }, ref: { type: "string" } }, false);
