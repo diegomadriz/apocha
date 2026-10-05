@@ -20,7 +20,8 @@ export const DEFINITIONS = Object.freeze({
     "Finished task runs (code-delivery) that PASSED with zero repairs, divided by all finished task runs.",
   harness_error_rate:
     "Finished runs that ended as ERROR (infra, provider, or tool-protocol failures), divided by all finished runs.",
-  delivery: "A promoted commit with a valid receipt, excluding integrations.",
+  delivery: "A promoted commit with a receipt, excluding integrations.",
+  integration: "A receipt on a merge commit (two or more parents): a topic integrated onto a base.",
   delivery_repairs: "Repair rounds recorded in a delivery's receipt (0, 1, or 2).",
 });
 
@@ -29,7 +30,8 @@ const percent = (part, whole) => (whole ? Math.round((1000 * part) / whole) / 10
 
 /**
  * @param {string} repositoryRoot
- * @param {{ notesRef: string }} options
+ * @param {{ notesRef: string, reachableFrom?: string }} options when `reachableFrom` is set,
+ *   only receipts on commits reachable from that ref count (for example, what has landed on main)
  */
 export function computeMetrics(repositoryRoot, options) {
   const runs = new RunStore(repositoryRoot).list();
@@ -43,7 +45,14 @@ export function computeMetrics(repositoryRoot, options) {
   };
 
   const notes = git(repositoryRoot, ["notes", `--ref=${options.notesRef}`, "list"], { allowFailure: true });
-  const commits =
+  const reachable = options.reachableFrom
+    ? new Set(
+        String(git(repositoryRoot, ["rev-list", options.reachableFrom]).stdout)
+          .trim()
+          .split("\n"),
+      )
+    : null;
+  const allCommits =
     notes.status === 0
       ? String(notes.stdout)
           .trim()
@@ -51,6 +60,7 @@ export function computeMetrics(repositoryRoot, options) {
           .filter(Boolean)
           .map((line) => line.split(" ")[1])
       : [];
+  const commits = reachable ? allCommits.filter((commit) => reachable.has(commit)) : allCommits;
   const repairs = { 0: 0, 1: 0, 2: 0 };
   let deliveries = 0;
   let integrations = 0;
@@ -95,6 +105,9 @@ export function computeMetrics(repositoryRoot, options) {
       harness_error_rate: percent(finished.filter((run) => run.outcome === "ERROR").length, finished.length),
     },
     deliveries: {
+      scope: options.reachableFrom
+        ? `receipts on commits reachable from ${options.reachableFrom}`
+        : `all receipts under ${options.notesRef}`,
       receipts: commits.length,
       deliveries,
       integrations,

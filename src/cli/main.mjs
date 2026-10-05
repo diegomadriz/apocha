@@ -39,7 +39,7 @@ Commands:
   runs [--json]                 List runs, newest first
   show <run-id> [--events]      Show one run
   resume <run-id> [--decision approve|reject]   Resume a paused run
-  metrics [--json]              Outcomes over all runs, and delivery stats from receipts
+  metrics [--ref <ref>] [--json]  Outcomes over all runs, and delivery stats from receipts
   version                       Print the version
 
 Exit codes: 0 passed, 2 usage or config error, 10 paused, 20 not passed, 30 error.
@@ -292,10 +292,10 @@ export async function main(argv) {
       return exitFor(summary);
     }
     case "metrics": {
-      const { values } = parse({ notes: { type: "string" } }, false);
+      const { values } = parse({ notes: { type: "string" }, ref: { type: "string" } }, false);
       const root = repositoryRoot(cwd);
       const notesRef = values.notes ?? loadProjectConfig(root).refs.notes;
-      const metrics = computeMetrics(root, { notesRef });
+      const metrics = computeMetrics(root, { notesRef, reachableFrom: values.ref });
       if (values.json) print(metrics);
       else {
         const r = metrics.runs;
