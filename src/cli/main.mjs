@@ -37,7 +37,7 @@ Commands:
       [--runtimes <file>] [--allow-governance-edits --reason <text>] [--json] [--quiet]
   integrate <topic>             Merge a topic onto a base, verify, review, and promote
       --onto <ref> --batch <name> [--message <text|@file>] [--checks a,b] [--max-repairs 0|1|2]
-  land <source> --target <branch>   Fast-forward a branch whose commits all carry valid receipts (never pushes)
+  land <source> --target <branch> [--keep-batch]   Fast-forward a branch whose commits all carry valid receipts (never pushes)
   receipt <commit>              Verify and print a receipt
   runs [--json]                 List runs, newest first
   show <run-id> [--events]      Show one run
@@ -285,7 +285,10 @@ export async function main(argv) {
       });
     }
     case "land": {
-      const { values, positionals } = parse({ target: { type: "string" } });
+      const { values, positionals } = parse({
+        target: { type: "string" },
+        "keep-batch": { type: "boolean" },
+      });
       if (positionals.length !== 1 || !values.target)
         throw new HarnessError("config", "usage", "land needs <source> --target <branch>");
       const root = repositoryRoot(cwd);
@@ -298,6 +301,8 @@ export async function main(argv) {
         landBranch({
           repositoryRoot: root,
           notesRef: config.refs.notes,
+          batchPrefix: config.refs.batch_prefix,
+          keepBatch: Boolean(values["keep-batch"]),
           source: positionals[0],
           target: /** @type {string} */ (values.target),
         }),
@@ -307,6 +312,11 @@ export async function main(argv) {
           ? result
           : `landed ${result.commits.length} commit(s) on ${result.target}: ${result.old_head.slice(0, 12)} -> ${result.new_head.slice(0, 12)}`,
       );
+      if (!values.json) {
+        for (const entry of result.retired) print(`retired ${entry.ref} ${entry.oid}`);
+        for (const entry of result.kept) print(`kept ${entry.ref} ${entry.oid}: ${entry.reason}`);
+        print(`land record: ${result.record}`);
+      }
       return EXIT.ok;
     }
     case "receipt": {

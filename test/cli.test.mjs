@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { DEFINITIONS } from "../src/analytics/compute.mjs";
 import { RunStore } from "../src/core/runs.mjs";
-import { git } from "../src/util/git.mjs";
+import { git, resolveCommit } from "../src/util/git.mjs";
 import { makeRepo, testTempDir } from "./helpers.mjs";
 
 const BIN = fileURLToPath(new URL("../bin/panagent.mjs", import.meta.url));
@@ -268,9 +268,21 @@ test("run with a scripted fake runtime warns when auto has no sandbox and passes
     assert.match(runs.stdout, /^PASSED\s+cli-run-/m);
     const metrics = cli(repo.root, ["metrics", "--json"]);
     assert.equal(JSON.parse(metrics.stdout).runs.by_outcome.PASSED, 1);
+    const kept = cli(repo.root, ["land", "panagent/batch/cli-run", "--target", "main", "--keep-batch"]);
+    assert.equal(kept.code, 0, kept.stderr);
+    assert.match(kept.stdout, /kept .*keep-batch/);
+    assert.equal(resolveCommit(repo.root, "refs/heads/panagent/batch/cli-run"), summary.promoted_head);
+    // Restore the target to exercise retirement on another fast-forward.
+    git(repo.root, ["reset", "--hard", `${summary.promoted_head}^`]);
     const land = cli(repo.root, ["land", "panagent/batch/cli-run", "--target", "main"]);
     assert.equal(land.code, 0, land.stderr);
     assert.match(land.stdout, /landed 1 commit/);
+    assert.ok(land.stdout.includes(`retired refs/heads/panagent/batch/cli-run ${summary.promoted_head}`));
+    assert.match(land.stdout, /land record: .*panagent\/lands\/.*\.json/);
+    assert.equal(resolveCommit(repo.root, "refs/heads/panagent/batch/cli-run"), null);
+    const afterLand = cli(repo.root, ["receipt", summary.promoted_head]);
+    assert.equal(afterLand.code, 0, afterLand.stderr);
+    assert.equal(JSON.parse(afterLand.stdout).valid, true);
   } finally {
     repo.cleanup();
   }

@@ -47,7 +47,19 @@ The digests let two results be compared honestly: same `policy_digest` and
   own receipt; the topic commits they merge are covered by it);
 - fast-forwards the target with a compare-and-swap, or, if the target is checked out in a clean
   worktree, fast-forwards that worktree;
+- retires the landed batch ref and identified integrated topic batch refs under the configured
+  `refs.batch_prefix`, using compare-and-swap deletion; `--keep-batch` skips retirement;
+- keeps the target, moved refs, refs outside the prefix, symbolic refs, refs checked out in any
+  worktree, and batch refs of RUNNING or PAUSED runs;
+- prints each retired ref and its old OID, and writes a JSON land record under
+  `<git-common-dir>/panagent/lands/` with tips, commits, retirements, and reasons for kept refs;
 - never pushes.
+
+Receipts are notes on commits, independent of batch refs. After retirement,
+`panagent receipt <commit-oid>` still verifies the landed commit. To restore a batch ref,
+take its name and old OID from the land output or record and run
+`git update-ref <ref> <old-oid> ""`. The empty expected old value prevents overwriting
+a ref recreated since retirement.
 
 ## Legacy receipts
 

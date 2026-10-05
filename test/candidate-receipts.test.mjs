@@ -1,8 +1,9 @@
 // @ts-check
 import assert from "node:assert/strict";
-import { linkSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { linkSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
+import { RunStore } from "../src/core/runs.mjs";
 import { digestBetweenCommits, snapshotCandidate } from "../src/git/candidate.mjs";
 import { landBranch } from "../src/git/land.mjs";
 import { assertBatchRef, promoteCandidate, reserveBatchRef } from "../src/git/promotion.mjs";
@@ -243,10 +244,134 @@ test("land refuses unreceipted commits and fast-forwards receipted ones", () => 
     // main is checked out in the fixture worktree: land fast-forwards it in place.
     const landed = landBranch({ repositoryRoot: repo.root, notesRef: NOTES, source: BATCH, target: "main" });
     assert.deepEqual(landed.commits, [p.promoted_head]);
+    assert.equal(resolveCommit(repo.root, BATCH), null);
+    assert.deepEqual(landed.retired, [{ ref: BATCH, oid: p.promoted_head }]);
+    const record = JSON.parse(readFileSync(landed.record, "utf8"));
+    assert.equal(record.target, "main");
+    assert.equal(record.old_head, p.old_head);
+    assert.equal(record.new_head, p.promoted_head);
+    assert.deepEqual(record.commits, landed.commits);
+    assert.deepEqual(record.retired, landed.retired);
+    assert.equal(verifyReceipt(repo.root, NOTES, p.promoted_head).valid, true);
     assert.equal(gitText(repo.root, ["rev-parse", "HEAD"]), p.promoted_head);
     assert.equal(gitText(repo.root, ["show", "HEAD:src/value.txt"]), "2");
   } finally {
     repo.cleanup();
+  }
+});
+
+test("land preserves batch refs requested, checked out, active, or outside the prefix", () => {
+  for (const reason of ["keep-batch", "worktree", "RUNNING", "PAUSED", "prefix", "target"]) {
+    const repo = makeRepo();
+    try {
+      const p = promoted(repo);
+      writeReceipt(repo.root, NOTES, receiptFor(p));
+      if (reason === "worktree")
+        git(repo.root, ["worktree", "add", path.join(repo.root, "checkout"), "panagent/batch/t"]);
+      if (reason === "RUNNING" || reason === "PAUSED")
+        new RunStore(repo.root).create("active-20261005T000000Z-abcd", {
+          batch_ref: BATCH,
+          outcome: reason,
+        });
+      const result = landBranch({
+        repositoryRoot: repo.root,
+        notesRef: NOTES,
+        source: BATCH,
+        target: reason === "target" ? "panagent/batch/t" : "main",
+        keepBatch: reason === "keep-batch",
+        batchPrefix: reason === "prefix" ? "refs/heads/other/" : undefined,
+      });
+      assert.equal(resolveCommit(repo.root, BATCH), p.promoted_head, reason);
+      assert.equal(result.retired.length, 0, reason);
+      assert.equal(result.kept.length, 1, reason);
+      assert.match(result.kept[0].reason, /keep-batch|worktree|RUNNING|PAUSED|prefix|target/);
+    } finally {
+      repo.cleanup();
+    }
+  }
+});
+
+test("land keeps and reports a source ref moved by the target's post-merge hook", () => {
+  const repo = makeRepo();
+  try {
+    const p = promoted(repo);
+    writeReceipt(repo.root, NOTES, receiptFor(p));
+    writeFileSync(
+      path.join(repo.root, ".git/hooks/post-merge"),
+      `#!/bin/sh
+git update-ref ${BATCH} ${p.old_head} ${p.promoted_head}
+`,
+      { mode: 0o755 },
+    );
+    const result = landBranch({
+      repositoryRoot: repo.root,
+      notesRef: NOTES,
+      source: BATCH,
+      target: "main",
+    });
+    assert.equal(resolveCommit(repo.root, "main"), p.promoted_head);
+    assert.equal(resolveCommit(repo.root, BATCH), p.old_head);
+    assert.deepEqual(result.retired, []);
+    assert.deepEqual(result.kept, [{ ref: BATCH, oid: p.promoted_head, reason: "ref moved" }]);
+    assert.deepEqual(JSON.parse(readFileSync(result.record, "utf8")).kept, result.kept);
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test("land retires integrated topic batches and preserves moved topics", () => {
+  for (const moved of [false, true]) {
+    const repo = makeRepo();
+    try {
+      const topic = promoted(repo);
+      writeReceipt(repo.root, NOTES, receiptFor(topic));
+      const store = new RunStore(repo.root);
+      store.create("t1-20261005T000000Z-abcd", {
+        batch_ref: BATCH,
+        promoted_head: topic.promoted_head,
+        outcome: "PASSED",
+      });
+      const head = gitText(repo.root, [
+        "commit-tree",
+        topic.tree,
+        "-p",
+        topic.old_head,
+        "-p",
+        topic.promoted_head,
+        "-m",
+        "Integrate topic",
+      ]);
+      const integration = "refs/heads/panagent/batch/integration";
+      git(repo.root, ["update-ref", integration, head]);
+      writeReceipt(
+        repo.root,
+        NOTES,
+        receiptFor(
+          {
+            ...topic,
+            promoted_head: head,
+            parents: [topic.old_head, topic.promoted_head],
+            digest: digestBetweenCommits(repo.root, topic.old_head, head),
+          },
+          { workflow: "integrate" },
+        ),
+      );
+      if (moved) git(repo.root, ["update-ref", BATCH, topic.old_head]);
+      const result = landBranch({
+        repositoryRoot: repo.root,
+        notesRef: NOTES,
+        source: integration,
+        target: "main",
+      });
+      assert.equal(resolveCommit(repo.root, integration), null);
+      assert.equal(resolveCommit(repo.root, BATCH), moved ? topic.old_head : null);
+      if (moved) assert.equal(result.kept[0].reason, "ref moved");
+      else assert.ok(result.retired.some((entry) => entry.ref === BATCH));
+      assert.equal(verifyReceipt(repo.root, NOTES, head).valid, true);
+      assert.equal(verifyReceipt(repo.root, NOTES, topic.promoted_head).valid, true);
+    } finally {
+      repo.cleanup();
+    }
   }
 });
 

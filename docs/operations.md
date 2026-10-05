@@ -25,6 +25,30 @@ Outcomes: `RUNNING`, `PASSED`, `FAILED`, `ESCALATED`, `PAUSED`, `ERROR`.
 A paused run keeps its candidate directory and its batch ref reservation. Resuming re-enters the
 stage that paused, with all earlier evidence.
 
+## Landing and retiring batches
+
+`panagent land <source> --target <branch>` fast-forwards the target after verifying receipts.
+It then retires the source when it is under the target configuration's `refs.batch_prefix`
+and still points to the landed tip. It also retires integrated topic batch refs identified
+from receipt parents and run records when their expected tips are ancestors of the target.
+Use `--keep-batch` to keep all batch refs.
+
+Retirement uses `git update-ref -d <ref> <expected-old-oid>`: a moved ref is kept and reported.
+The target, refs outside the batch prefix, symbolic refs, refs checked out in any worktree,
+and batch refs belonging to RUNNING or PAUSED runs are kept. Each retired ref is printed
+with its full old OID. Each land writes JSON under `<git-common-dir>/panagent/lands/`,
+including the target, old and new tips, landed commits, retired refs with OIDs, and kept
+refs with reasons.
+
+To restore a retired ref, use its name and OID from the output or land record:
+
+```bash
+git update-ref refs/heads/panagent/batch/example <old-oid> ""
+```
+
+The empty expected old value creates the ref only if it is still absent. Receipts remain
+Git notes on the commits; deleting or restoring a batch ref does not change them.
+
 ## Events
 
 `events.jsonl` has one JSON object per line with `at` and `type`. Types include `run.started`,

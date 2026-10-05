@@ -1,5 +1,9 @@
 // @ts-check
+import { mkdirSync } from "node:fs";
+import path from "node:path";
+import { newRunId, RunStore, stateDir } from "../core/runs.mjs";
 import { HarnessError } from "../util/errors.mjs";
+import { writeJsonAtomic } from "../util/fs-safe.mjs";
 import { git, gitText, isCanonicalRef, resolveCommit, updateRef } from "../util/git.mjs";
 import { verifyReceipt } from "./receipts.mjs";
 
@@ -9,9 +13,16 @@ import { verifyReceipt } from "./receipts.mjs";
  * checked out in a worktree, that worktree must be clean and is fast-forwarded
  * in place.
  *
- * @param {{ repositoryRoot: string, notesRef: string, source: string, target: string }} input
+ * @param {{ repositoryRoot: string, notesRef: string, source: string, target: string, batchPrefix?: string, keepBatch?: boolean }} input
  */
-export function landBranch({ repositoryRoot, notesRef, source, target }) {
+export function landBranch({
+  repositoryRoot,
+  notesRef,
+  source,
+  target,
+  batchPrefix = "refs/heads/panagent/batch/",
+  keepBatch = false,
+}) {
   if (typeof target !== "string" || !target || target.startsWith("-") || target.startsWith("refs/")) {
     throw new HarnessError("config", "invalid_target", "target must be a branch name");
   }
@@ -23,7 +34,6 @@ export function landBranch({ repositoryRoot, notesRef, source, target }) {
   const newHead = resolveCommit(repositoryRoot, source);
   if (!newHead)
     throw new HarnessError("config", "unknown_source", `source does not resolve to a commit: ${source}`);
-  if (oldHead === newHead) return { target, old_head: oldHead, new_head: newHead, commits: [] };
   const ancestor = git(repositoryRoot, ["merge-base", "--is-ancestor", oldHead, newHead], {
     allowFailure: true,
   });
@@ -35,6 +45,23 @@ export function landBranch({ repositoryRoot, notesRef, source, target }) {
   const firstParentChain = gitText(repositoryRoot, ["rev-list", "--first-parent", newHead]).split("\n");
   if (!firstParentChain.includes(oldHead))
     throw new HarnessError("config", "not_first_parent", "target is not on the source's first-parent chain");
+  const store = new RunStore(repositoryRoot);
+  const runs = store.list();
+  /** @type {Map<string, string>} */
+  const candidates = new Map();
+  const sourceRef = git(repositoryRoot, ["rev-parse", "--symbolic-full-name", "--verify", source], {
+    allowFailure: true,
+  });
+  const sourceName = String(sourceRef.stdout).trim();
+  if (sourceName) candidates.set(sourceName, newHead);
+  const batchRefs = gitText(repositoryRoot, [
+    "for-each-ref",
+    "--format=%(refname) %(objectname)",
+    batchPrefix,
+  ])
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => line.split(" "));
   for (const commit of commits) {
     const check = verifyReceipt(repositoryRoot, notesRef, commit);
     if (!check.valid)
@@ -43,6 +70,21 @@ export function landBranch({ repositoryRoot, notesRef, source, target }) {
         "invalid_receipt",
         `commit ${commit.slice(0, 12)} has no valid receipt: ${check.reason}`,
       );
+    // Integration receipts name the topic commits as additional parents.
+    for (const topic of check.receipt.parents.slice(1)) {
+      for (const [name, oid] of batchRefs) {
+        if (oid === topic) candidates.set(name, oid);
+      }
+      const topicReceipt = verifyReceipt(repositoryRoot, notesRef, topic);
+      for (const run of runs) {
+        if (
+          (run.promoted_head === topic ||
+            (topicReceipt.valid && run.run_id === topicReceipt.receipt.run_id)) &&
+          typeof run.batch_ref === "string"
+        )
+          candidates.set(run.batch_ref, topic);
+      }
+    }
   }
   const worktrees = gitText(repositoryRoot, ["worktree", "list", "--porcelain"]).split("\n\n");
   const checkout = worktrees.find((entry) => entry.split("\n").includes(`branch ${ref}`));
@@ -65,5 +107,46 @@ export function landBranch({ repositoryRoot, notesRef, source, target }) {
   } else {
     updateRef(repositoryRoot, ref, newHead, oldHead);
   }
-  return { target, old_head: oldHead, new_head: newHead, commits };
+  /** @type {{ ref: string, oid: string }[]} */
+  const retired = [];
+  /** @type {{ ref: string, oid: string, reason: string }[]} */
+  const kept = [];
+  for (const [name, oid] of candidates) {
+    let reason = null;
+    if (keepBatch) reason = "keep-batch";
+    else if (name === ref) reason = "target";
+    else if (!name.startsWith(batchPrefix) || name.length <= batchPrefix.length)
+      reason = "outside batch prefix";
+    else if (git(repositoryRoot, ["symbolic-ref", "-q", name], { allowFailure: true }).status === 0)
+      reason = "symbolic ref";
+    else if (
+      gitText(repositoryRoot, ["worktree", "list", "--porcelain"]).split("\n").includes(`branch ${name}`)
+    )
+      reason = "checked out in a worktree";
+    else if (
+      store
+        .list()
+        .some((run) => (run.outcome === "RUNNING" || run.outcome === "PAUSED") && run.batch_ref === name)
+    )
+      reason = "RUNNING or PAUSED run";
+    else if (resolveCommit(repositoryRoot, name) !== oid) reason = "ref moved";
+    else if (
+      git(repositoryRoot, ["merge-base", "--is-ancestor", oid, newHead], { allowFailure: true }).status !== 0
+    )
+      reason = "not an ancestor of target";
+    else {
+      const deletion = git(repositoryRoot, ["update-ref", "--no-deref", "-d", name, oid], {
+        allowFailure: true,
+      });
+      if (deletion.status !== 0) reason = "ref moved or deletion failed";
+    }
+    if (reason) kept.push({ ref: name, oid, reason });
+    else retired.push({ ref: name, oid });
+  }
+  const result = { target, old_head: oldHead, new_head: newHead, commits, retired, kept };
+  const directory = path.join(stateDir(repositoryRoot), "lands");
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const record = path.join(directory, `${newRunId("land")}.json`);
+  writeJsonAtomic(record, { ...result, created_at: new Date().toISOString() });
+  return { ...result, record };
 }
