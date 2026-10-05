@@ -12,7 +12,8 @@ import { RunStore } from "../core/runs.mjs";
  * runtimes: Record<string, { adapter: string, model?: string | null }>,
  * usage: Record<string, Record<string, number>>,
  * checks: { id: string, status: string, duration_ms: number | null, attempt: number }[],
- * review_decisions: string[], review_findings: number, stage_ms: Record<string, number>,
+ * review_decisions: string[], review_events: { decision: string, findings: number }[],
+ * review_findings: number, stage_ms: Record<string, number>,
  * tools: Record<string, ToolFacts>
  * }} RunFact
  */
@@ -55,6 +56,8 @@ export function collectRunFacts(repositoryRoot, { since, until, workflow } = {})
       const checks = [];
       /** @type {string[]} */
       const decisions = [];
+      /** @type {RunFact["review_events"]} */
+      const reviews = [];
       /** @type {Record<string, number>} */
       const stages = {};
       /** @type {Map<string, string[]>} */
@@ -73,7 +76,9 @@ export function collectRunFacts(repositoryRoot, { since, until, workflow } = {})
         }
         if (event.type === "review.finished") {
           decisions.push(event.decision);
-          findings += Array.isArray(event.findings) ? event.findings.length : (event.findings ?? 0);
+          const count = Array.isArray(event.findings) ? event.findings.length : (event.findings ?? 0);
+          reviews.push({ decision: event.decision, findings: count });
+          findings += count;
         }
         if (event.type === "stage.started") {
           const pending = starts.get(event.stage) ?? [];
@@ -139,6 +144,7 @@ export function collectRunFacts(repositoryRoot, { since, until, workflow } = {})
         usage: state.usage ?? {},
         checks,
         review_decisions: decisions,
+        review_events: reviews,
         review_findings: findings,
         stage_ms: stages,
         tools,

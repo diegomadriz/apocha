@@ -70,6 +70,9 @@ export function computeAnalytics(facts) {
   );
   const decisions = finished.flatMap((fact) => fact.review_decisions);
   const byDecision = counts(decisions);
+  const fixReviews = finished
+    .flatMap((fact) => fact.review_events)
+    .filter((review) => review.decision === "FIX");
   /** @type {Map<string, { role: string, adapter: string, model: string | null, facts: RunFact[] }>} */
   const runtimeGroups = new Map();
   for (const fact of facts) {
@@ -155,10 +158,8 @@ export function computeAnalytics(facts) {
       reviews: decisions.length,
       by_decision: byDecision,
       fix_rate: percent(byDecision.FIX ?? 0, decisions.length),
-      findings_per_fix: byDecision.FIX
-        ? finished
-            .filter((fact) => fact.review_decisions.includes("FIX"))
-            .reduce((sum, fact) => sum + fact.review_findings, 0) / byDecision.FIX
+      findings_per_fix: fixReviews.length
+        ? fixReviews.reduce((sum, review) => sum + review.findings, 0) / fixReviews.length
         : null,
     },
     runtimes: [...runtimeGroups.values()].map(({ role, adapter, model, facts: runs }) => {
@@ -232,7 +233,7 @@ export const DEFINITIONS = Object.freeze({
   review: "Review decisions and findings count review events in finished runs.",
   fix_rate: "FIX decisions as a percentage of review decisions in finished runs.",
   findings_per_fix:
-    "Review findings from finished runs with at least one FIX review divided by FIX decisions in finished runs.",
+    "Findings on FIX review events in finished runs divided by the number of those FIX review events.",
   runtimes: "Runs with recorded runtimes group by role, adapter, and model, summing role usage.",
   pass_rate: "Passed runs as a percentage of finished runs in each runtime group.",
   tools: "Tool calls group by session role, with nearest-rank medians over runs recording that role.",

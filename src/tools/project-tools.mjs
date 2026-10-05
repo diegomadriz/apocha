@@ -337,6 +337,11 @@ export function createProjectTools(session) {
       state.content =
         state.content.slice(0, first) + edit.new_text + state.content.slice(first + edit.old_text.length);
     }
+    // Validate all final contents before writing or deleting any file.
+    for (const [relative, state] of files) {
+      if (state.content !== null && Buffer.byteLength(state.content) > TOOL_LIMITS.maxPatchableFileBytes)
+        throw toolError(`${relative} would exceed the file size limit`, "too_large");
+    }
     const changed = [];
     for (const [relative, state] of files) {
       if (state.content === null) {
@@ -345,8 +350,6 @@ export function createProjectTools(session) {
           changed.push({ path: relative, action: "deleted" });
         }
       } else {
-        if (Buffer.byteLength(state.content) > TOOL_LIMITS.maxPatchableFileBytes)
-          throw toolError(`${relative} would exceed the file size limit`, "too_large");
         mkdirSync(path.dirname(state.absolute), { recursive: true });
         writeFileSync(state.absolute, state.content, { encoding: "utf8" });
         changed.push({ path: relative, action: state.existed ? "modified" : "created" });

@@ -14,7 +14,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { normalizeProjectConfig } from "../src/config/project.mjs";
 import { createCandidate } from "../src/git/candidate.mjs";
-import { createProjectTools, readSession } from "../src/tools/project-tools.mjs";
+import { createProjectTools, readSession, TOOL_LIMITS } from "../src/tools/project-tools.mjs";
 import { makeRepo } from "./helpers.mjs";
 
 /**
@@ -330,6 +330,25 @@ test("apply_patch is all-or-nothing and refuses protected, ambiguous, and missin
       ).error,
       /outside allowed_paths/,
     );
+  } finally {
+    s.cleanup();
+  }
+});
+
+test("apply_patch leaves files unchanged when the second file exceeds the size limit", async () => {
+  const original = `${"x".repeat(TOOL_LIMITS.maxPatchableFileBytes - 3)}end`;
+  const s = setup({}, { "src/limit.txt": original });
+  try {
+    const result = await s.tools.call("apply_patch", {
+      edits: [
+        { path: "src/a.txt", old_text: "alpha", new_text: "changed" },
+        { path: "src/limit.txt", old_text: "end", new_text: "longer" },
+      ],
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /would exceed the file size limit/);
+    assert.equal(readFileSync(path.join(s.root, "src/a.txt"), "utf8"), "alpha\nbeta\n");
+    assert.equal(readFileSync(path.join(s.root, "src/limit.txt"), "utf8"), original);
   } finally {
     s.cleanup();
   }

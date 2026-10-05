@@ -70,7 +70,7 @@ test("collects run metadata, event histories, stage totals and role tool traces"
     store.event(id, "verification.started");
     store.event(id, "check.finished", { id: "test", status: "pass", duration_ms: 200 });
     store.event(id, "review.finished", { decision: "FIX", findings: 2 });
-    store.event(id, "review.finished", { decision: "PASS", findings: 0 });
+    store.event(id, "review.finished", { decision: "PASS", findings: [{}, {}, {}, {}, {}] });
     sessions(store, id);
     const [fact] = collectRunFacts(repo.root);
     assert.deepEqual(fact, {
@@ -94,7 +94,11 @@ test("collects run metadata, event histories, stage totals and role tool traces"
         { id: "test", status: "pass", duration_ms: 200, attempt: 1 },
       ],
       review_decisions: ["FIX", "PASS"],
-      review_findings: 2,
+      review_events: [
+        { decision: "FIX", findings: 2 },
+        { decision: "PASS", findings: 5 },
+      ],
+      review_findings: 7,
       stage_ms: { agent: 3000 },
       tools: {
         implementer: {
@@ -114,6 +118,21 @@ test("collects run metadata, event histories, stage totals and role tool traces"
         },
       },
     });
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test("findings per fix counts only FIX findings in a run with FIX and PASS reviews", () => {
+  const repo = makeRepo();
+  try {
+    const store = new RunStore(repo.root);
+    const id = addRun(store, 1, { outcome: "PASSED" });
+    store.event(id, "review.finished", { decision: "FIX", findings: 2 });
+    store.event(id, "review.finished", { decision: "PASS", findings: 5 });
+    const facts = collectRunFacts(repo.root);
+    assert.equal(facts[0].review_findings, 7);
+    assert.equal(computeAnalytics(facts).review.findings_per_fix, 2);
   } finally {
     repo.cleanup();
   }
