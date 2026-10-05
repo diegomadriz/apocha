@@ -154,6 +154,21 @@ export async function startRun(options) {
   };
 
   const store = new RunStore(repositoryRoot);
+  // A run must not build on another run's batch while that run can still change it (H5).
+  const fullBase = String(
+    git(repositoryRoot, ["rev-parse", "--symbolic-full-name", options.base], { allowFailure: true }).stdout ??
+      "",
+  ).trim();
+  const unfinished = fullBase
+    ? store.activeRunsNaming(fullBase).filter((run) => run.batch_ref === fullBase)
+    : [];
+  if (unfinished.length) {
+    throw new HarnessError(
+      "config",
+      "base_in_flight",
+      `base ${options.base} is the batch of run ${unfinished[0].run_id}, which has not finished`,
+    );
+  }
   const runId = newRunId(task.task_id);
   const dir = stateDir(repositoryRoot);
   const digest = taskDigest(task);

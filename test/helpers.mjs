@@ -29,7 +29,7 @@ export function makeRepo(options = {}) {
     "README.md": "# fixture\n",
     "src/value.txt": "1\n",
     "check.mjs":
-      'import { readFileSync } from "node:fs";\nconst v = readFileSync("src/value.txt", "utf8").trim();\nif (v !== "2") { console.error(`src/value.txt:1 expected 2, got ${v}`); process.exit(1); }\n',
+      'import { readFileSync } from "node:fs";\nconst v = readFileSync("src/value.txt", "utf8").trim();\nif (v !== "2") { console.error("src/value.txt:1 expected 2, got " + v); process.exit(1); }\n',
     "private/secret.txt": "do not read\n",
     "panagent.config.json": `${JSON.stringify(config, null, 2)}\n`,
     ...(options.files ?? {}),

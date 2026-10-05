@@ -6,7 +6,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "style": { "noParameterAssign": "off", "useTemplate": "off" },
       "complexity": { "noForEach": "off" },
       "suspicious": { "noControlCharactersInRegex": "off", "noAssignInExpressions": "off" }

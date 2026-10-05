@@ -235,6 +235,27 @@ test("a usage limit pauses the run and resume continues it", async () => {
   }
 });
 
+test("a run cannot use the batch of a paused run as its base", async () => {
+  const repo = makeRepo();
+  try {
+    const limited = async () => {
+      throw new HarnessError("usage_limited", "limit", "usage limit reached");
+    };
+    const paused = await startRun({ ...base(repo.root), task: valueTask(), adapters: adapters(limited) });
+    assert.equal(paused.outcome, "PAUSED");
+    await assert.rejects(
+      startRun({
+        ...base(repo.root, { base: "panagent/batch/set-value", batch: "chained" }),
+        task: valueTask(),
+        adapters: adapters(writeValue(2)),
+      }),
+      /has not finished/,
+    );
+  } finally {
+    repo.cleanup();
+  }
+});
+
 test("infra errors from the runtime are retried once and recorded", async () => {
   const repo = makeRepo();
   try {
