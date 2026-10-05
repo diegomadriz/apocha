@@ -1,7 +1,7 @@
 // @ts-check
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -99,7 +99,62 @@ test("init writes a starter config that validates, and refuses to overwrite", ()
   assert.equal(first.code, 0, first.stderr);
   const config = JSON.parse(readFileSync(path.join(root, "panagent.config.json"), "utf8"));
   assert.deepEqual(Object.keys(config.checks).sort(), ["lint", "test"]);
+  assert.equal(config.sandbox.mode, "required");
   assert.equal(cli(root, ["init"]).code, 2);
+});
+
+test("repository runtimes require trust and explicit runtimes always win", () => {
+  const repo = makeRepo();
+  const xdg = mkdtempSync(path.join(os.tmpdir(), "panagent-xdg-"));
+  try {
+    const repoConfig = path.join(repo.root, ".panagent", "runtimes.json");
+    const userConfig = path.join(xdg, "panagent", "runtimes.json");
+    const explicitConfig = path.join(repo.root, "explicit-runtimes.json");
+    const raw = JSON.stringify({
+      version: 1,
+      roles: { implementer: { adapter: "fake" }, reviewer: { adapter: "fake" } },
+    });
+    for (const file of [repoConfig, userConfig, explicitConfig]) {
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(file, raw);
+    }
+    const env = { XDG_CONFIG_HOME: xdg, PANAGENT_TRUST_REPO_RUNTIMES: "" };
+    const source = (result) => JSON.parse(result.stdout).find((row) => row.name === "runtime config");
+    const ignored = cli(repo.root, ["doctor", "--json"], env);
+    assert.equal(source(ignored).detail, userConfig);
+    assert.match(
+      ignored.stderr,
+      /ignored repository runtime config.*--trust-repo-runtimes.*PANAGENT_TRUST_REPO_RUNTIMES=1/,
+    );
+    const flag = cli(repo.root, ["doctor", "--json", "--trust-repo-runtimes"], env);
+    assert.equal(source(flag).detail, repoConfig);
+    assert.equal(flag.stderr, "");
+    const trustedEnv = { ...env, PANAGENT_TRUST_REPO_RUNTIMES: "1" };
+    const trusted = cli(repo.root, ["doctor", "--json"], trustedEnv);
+    assert.equal(source(trusted).detail, repoConfig);
+    assert.equal(trusted.stderr, "");
+    const explicit = cli(repo.root, ["doctor", "--json", "--runtimes", explicitConfig], env);
+    assert.equal(source(explicit).detail, explicitConfig);
+    assert.equal(explicit.stderr, "");
+    const explicitTrusted = cli(
+      repo.root,
+      ["doctor", "--json", "--runtimes", explicitConfig, "--trust-repo-runtimes"],
+      trustedEnv,
+    );
+    assert.equal(source(explicitTrusted).detail, explicitConfig);
+    rmSync(userConfig);
+    writeFileSync(repoConfig, "invalid JSON must not be read without trust");
+    const missing = cli(repo.root, ["doctor", "--json"], env);
+    assert.equal(source(missing).ok, false);
+    assert.match(source(missing).detail, /no runtime config found.*--trust-repo-runtimes/);
+    assert.match(missing.stderr, /ignored repository runtime config/);
+    const missingExplicit = cli(repo.root, ["doctor", "--json", "--runtimes", userConfig], trustedEnv);
+    assert.equal(source(missingExplicit).ok, false);
+    assert.match(source(missingExplicit).detail, /runtime config not found/);
+  } finally {
+    repo.cleanup();
+    rmSync(xdg, { recursive: true, force: true });
+  }
 });
 
 test("validate prints the normalized task and rejects bad ones", () => {
@@ -136,8 +191,15 @@ test("validate prints the normalized task and rejects bad ones", () => {
   }
 });
 
-test("run with a scripted fake runtime passes end to end through the CLI", () => {
-  const repo = makeRepo();
+test("run with a scripted fake runtime warns when auto has no sandbox and passes", () => {
+  const repo = makeRepo({
+    config: {
+      version: 1,
+      checks: { test: { run: ["node", "check.mjs"] } },
+      default_checks: ["test"],
+      sandbox: { mode: "auto" },
+    },
+  });
   try {
     const script = path.join(repo.root, "..", `fake-${path.basename(repo.root)}.mjs`);
     writeFileSync(
@@ -172,22 +234,33 @@ test("run with a scripted fake runtime passes end to end through the CLI", () =>
         allowed_paths: ["src/"],
       }),
     );
-    const run = cli(repo.root, [
-      "run",
-      task,
-      "--base",
-      "main",
-      "--batch",
-      "cli-run",
-      "--message",
-      "Set value",
-      "--runtimes",
-      runtimes,
-      "--json",
-    ]);
+    const run = cli(
+      repo.root,
+      [
+        "run",
+        task,
+        "--base",
+        "main",
+        "--batch",
+        "cli-run",
+        "--message",
+        "Set value",
+        "--runtimes",
+        runtimes,
+        "--json",
+        "--quiet",
+      ],
+      { PANAGENT_SANDBOX: "1" },
+    );
     assert.equal(run.code, 0, run.stderr + run.stdout);
+    assert.match(run.stderr, /warning:.*no sandbox backend.*sandbox.mode.*required/);
     const summary = JSON.parse(run.stdout);
     assert.equal(summary.outcome, "PASSED");
+    const warning = new RunStore(repo.root)
+      .events(summary.run_id)
+      .find((event) => event.type === "sandbox.warning");
+    assert.equal(warning?.reason, "sandbox_unavailable");
+    assert.match(warning?.message ?? "", /without an OS sandbox/);
     const receipt = cli(repo.root, ["receipt", summary.promoted_head]);
     assert.equal(receipt.code, 0);
     assert.equal(JSON.parse(receipt.stdout).valid, true);

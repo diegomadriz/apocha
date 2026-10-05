@@ -85,6 +85,9 @@ from another harness can keep its existing refs, so its old receipts stay checka
 | `network` | `deny` (default), `allow` | Project-wide network default for checks |
 | `deny_read` | paths, `~/` allowed | Added to the built-in list of credential locations (`~/.ssh`, `~/.aws`, `~/.codex`, `~/.claude`, `~/.npmrc`, `~/.netrc`, `~/Library/Keychains`, and more) |
 
+`panagent init` writes mode `required`. In `auto` mode, a run with no available
+backend emits a warning event and a stderr warning suggesting `sandbox.mode: required`.
+
 ### `limits`
 
 | Field | Default | Meaning |
@@ -98,7 +101,12 @@ from another harness can keep its existing refs, so its old receipts stay checka
 ## Runtime config (`runtimes.json`)
 
 Schema: `schemas/runtime-config.schema.json`. Lookup order: `--runtimes <file>`, then
-`<repo>/.panagent/runtimes.json`, then `$XDG_CONFIG_HOME/panagent/runtimes.json`.
+`<repo>/.panagent/runtimes.json` only when opted in, then
+`$XDG_CONFIG_HOME/panagent/runtimes.json` (default `~/.config/panagent/runtimes.json`).
+An explicit `--runtimes <file>` always wins. Repository configs can choose executable
+commands, so they are ignored by default with a notice on stderr. To trust one, pass
+`--trust-repo-runtimes` to `run`, `integrate`, `resume`, or `doctor`, or set
+`PANAGENT_TRUST_REPO_RUNTIMES=1`.
 
 ```json
 {

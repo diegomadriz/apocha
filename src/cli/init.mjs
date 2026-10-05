@@ -50,13 +50,13 @@ export function initProject(root, options = {}) {
     checks,
     default_checks: Object.keys(checks),
     paths: { protected: [".github/"], governance: ["AGENTS.md"], forbidden: [] },
-    sandbox: { mode: "auto", network: "deny" },
+    sandbox: { mode: "required", network: "deny" },
   };
   normalizeProjectConfig(config, root);
   writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`);
   return `wrote ${PROJECT_CONFIG_FILE} with checks: ${Object.keys(checks).join(", ")}
 next:
   1. review the checks and paths (docs/configuration.md)
-  2. choose runtimes in .panagent/runtimes.json or ~/.config/panagent/runtimes.json
+  2. choose runtimes in ~/.config/panagent/runtimes.json (or use --runtimes <file>)
   3. panagent doctor`;
 }

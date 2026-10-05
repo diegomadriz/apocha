@@ -38,6 +38,7 @@ import { newRunId, RunStore, stateDir } from "./runs.mjs";
  *   batch: string,
  *   message: string,
  *   runtimesPath?: string,
+ *   trustRepoRuntimes?: boolean,
  *   runtimes?: import("../config/runtime.mjs").RuntimeConfig,
  *   adapters?: { implementer: import("../adapters/contract.mjs").Adapter, reviewer: import("../adapters/contract.mjs").Adapter },
  *   allowGovernanceEdits?: boolean,
@@ -56,7 +57,8 @@ export async function startRun(options) {
   if (!baseCommit)
     throw new HarnessError("config", "unknown_base", `base does not resolve to a commit: ${options.base}`);
   const config = loadProjectConfigAt(repositoryRoot, baseCommit);
-  const runtimes = options.runtimes ?? loadRuntimeConfig(repositoryRoot, options.runtimesPath);
+  const runtimes =
+    options.runtimes ?? loadRuntimeConfig(repositoryRoot, options.runtimesPath, options.trustRepoRuntimes);
   if (typeof options.message !== "string" || !options.message.trim())
     throw new HarnessError("config", "invalid_message", "a commit message is required");
 
@@ -217,6 +219,7 @@ export async function startRun(options) {
       batch_ref: batchRef,
       sandbox: sandboxBackend,
     });
+    warnUnsandboxedChecks(ctx);
     return finish(ctx, await runEngine(ctx));
   } catch (error) {
     const detail = describeError(error);
@@ -237,7 +240,7 @@ export async function startRun(options) {
 
 /**
  * Resume a PAUSED run from the stage it paused in.
- * @param {{ cwd: string, runId: string, decision?: "approve" | "reject", runtimesPath?: string, runtimes?: import("../config/runtime.mjs").RuntimeConfig, adapters?: StartOptions["adapters"], signal?: AbortSignal, onEvent?: StartOptions["onEvent"] }} options
+ * @param {{ cwd: string, runId: string, decision?: "approve" | "reject", runtimesPath?: string, trustRepoRuntimes?: boolean, runtimes?: import("../config/runtime.mjs").RuntimeConfig, adapters?: StartOptions["adapters"], signal?: AbortSignal, onEvent?: StartOptions["onEvent"] }} options
  */
 export async function resumeRun(options) {
   const repositoryRoot = findRoot(options.cwd);
@@ -254,7 +257,8 @@ export async function resumeRun(options) {
   }
   const workflow = getWorkflow(record.workflow);
   const config = loadProjectConfigAt(repositoryRoot, record.base_commit);
-  const runtimes = options.runtimes ?? loadRuntimeConfig(repositoryRoot, options.runtimesPath);
+  const runtimes =
+    options.runtimes ?? loadRuntimeConfig(repositoryRoot, options.runtimesPath, options.trustRepoRuntimes);
   const state = record.state;
   if (state.awaiting) {
     if (!options.decision)
@@ -302,7 +306,19 @@ export async function resumeRun(options) {
     stage: state.stage,
     ...(options.decision ? { decision: options.decision } : {}),
   });
+  warnUnsandboxedChecks(ctx);
   return finish(ctx, await runEngine(ctx));
+}
+
+/** @param {import("./context.mjs").RunContext} ctx */
+function warnUnsandboxedChecks(ctx) {
+  if (ctx.config.sandbox.mode === "auto" && ctx.sandboxBackend === "none") {
+    ctx.event("sandbox.warning", {
+      reason: "sandbox_unavailable",
+      message:
+        "checks will execute without an OS sandbox because no sandbox backend is available; set sandbox.mode to required to refuse unsandboxed checks",
+    });
+  }
 }
 
 /** @param {Record<string, any>} input @returns {import("./context.mjs").RunContext} */

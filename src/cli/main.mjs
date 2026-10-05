@@ -47,6 +47,8 @@ Commands:
       [--json] [--format text|md]  Analytics over recorded runs in this repository
   version                       Print the version
 
+Runtime options (run, integrate, resume, doctor): --runtimes <file> --trust-repo-runtimes
+
 Exit codes: 0 passed, 2 usage or config error, 10 paused, 20 not passed, 30 error.
 Docs: docs/ in the package, starting with docs/architecture.md.
 `;
@@ -65,8 +67,12 @@ function print(value) {
 
 /** Progress lines on stderr. @param {boolean} quiet */
 function progress(quiet) {
-  if (quiet) return undefined;
   return (/** @type {Record<string, any>} */ event) => {
+    if (event.type === "sandbox.warning") {
+      process.stderr.write(`warning: ${event.message}\n`);
+      return;
+    }
+    if (quiet) return;
     const interesting = {
       "run.started": () => `run started: ${event.workflow} ${event.task_id} (sandbox: ${event.sandbox})`,
       "stage.started": () => `-> ${event.stage}`,
@@ -173,10 +179,18 @@ export async function main(argv) {
       return EXIT.ok;
     }
     case "doctor": {
-      const { values } = parse({ live: { type: "boolean" }, runtimes: { type: "string" } }, false);
+      const { values } = parse(
+        {
+          live: { type: "boolean" },
+          runtimes: { type: "string" },
+          "trust-repo-runtimes": { type: "boolean" },
+        },
+        false,
+      );
       return doctor(cwd, {
         live: Boolean(values.live),
         runtimesPath: values.runtimes,
+        trustRepoRuntimes: Boolean(values["trust-repo-runtimes"]),
         json: Boolean(values.json),
       });
     }
@@ -198,6 +212,7 @@ export async function main(argv) {
         batch: { type: "string" },
         message: { type: "string" },
         runtimes: { type: "string" },
+        "trust-repo-runtimes": { type: "boolean" },
         "allow-governance-edits": { type: "boolean" },
         reason: { type: "string" },
       });
@@ -217,6 +232,7 @@ export async function main(argv) {
           batch: values.batch,
           message: textOrFile(values.message),
           runtimesPath: values.runtimes,
+          trustRepoRuntimes: Boolean(values["trust-repo-runtimes"]),
           allowGovernanceEdits: Boolean(values["allow-governance-edits"]),
           governanceReason: values.reason,
           signal,
@@ -234,6 +250,7 @@ export async function main(argv) {
         checks: { type: "string" },
         "max-repairs": { type: "string" },
         runtimes: { type: "string" },
+        "trust-repo-runtimes": { type: "boolean" },
         "allow-governance-edits": { type: "boolean" },
         reason: { type: "string" },
       });
@@ -252,6 +269,7 @@ export async function main(argv) {
             ? textOrFile(values.message)
             : `Integrate ${positionals[0]} into ${values.onto}`,
           runtimesPath: values.runtimes,
+          trustRepoRuntimes: Boolean(values["trust-repo-runtimes"]),
           allowGovernanceEdits: Boolean(values["allow-governance-edits"]),
           governanceReason: values.reason,
           integration: {
@@ -322,7 +340,11 @@ export async function main(argv) {
       return EXIT.ok;
     }
     case "resume": {
-      const { values, positionals } = parse({ decision: { type: "string" }, runtimes: { type: "string" } });
+      const { values, positionals } = parse({
+        decision: { type: "string" },
+        runtimes: { type: "string" },
+        "trust-repo-runtimes": { type: "boolean" },
+      });
       if (positionals.length !== 1) throw new HarnessError("config", "usage", "resume needs a run id");
       if (values.decision && !["approve", "reject"].includes(values.decision))
         throw new HarnessError("config", "usage", "--decision must be approve or reject");
@@ -332,6 +354,7 @@ export async function main(argv) {
           runId: positionals[0],
           decision: /** @type {any} */ (values.decision),
           runtimesPath: values.runtimes,
+          trustRepoRuntimes: Boolean(values["trust-repo-runtimes"]),
           signal,
           onEvent: progress(Boolean(values.quiet || values.json)),
         });
@@ -411,7 +434,7 @@ export async function main(argv) {
 
 /**
  * @param {string} cwd
- * @param {{ live: boolean, runtimesPath?: string, json: boolean }} options
+ * @param {{ live: boolean, runtimesPath?: string, trustRepoRuntimes?: boolean, json: boolean }} options
  */
 async function doctor(cwd, options) {
   /** @type {{ name: string, ok: boolean, detail: string }[]} */
@@ -456,7 +479,7 @@ async function doctor(cwd, options) {
   }
   if (root) {
     try {
-      const runtimes = loadRuntimeConfig(root, options.runtimesPath);
+      const runtimes = loadRuntimeConfig(root, options.runtimesPath, options.trustRepoRuntimes);
       record("runtime config", true, runtimes.source);
       for (const role of /** @type {const} */ (["implementer", "reviewer"])) {
         const adapter = adapterForRole(runtimes, role);
