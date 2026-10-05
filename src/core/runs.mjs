@@ -114,7 +114,15 @@ export class RunStore {
       .filter((name) => existsSync(path.join(this.root, name, "run.json")))
       .map((name) => {
         try {
-          return JSON.parse(readFileSync(path.join(this.root, name, "run.json"), "utf8"));
+          const run = JSON.parse(readFileSync(path.join(this.root, name, "run.json"), "utf8"));
+          if (run.outcome === "RUNNING" && Number.isInteger(run.pid) && run.pid > 0) {
+            try {
+              process.kill(run.pid, 0);
+            } catch (error) {
+              if (/** @type {NodeJS.ErrnoException} */ (error).code === "ESRCH") run.stale = true;
+            }
+          }
+          return run;
         } catch {
           return { run_id: name, outcome: "ERROR", unreadable: true };
         }
@@ -126,6 +134,7 @@ export class RunStore {
   activeRunsNaming(ref) {
     return this.list().filter(
       (run) =>
+        !run.stale &&
         (run.outcome === "RUNNING" || run.outcome === "PAUSED") &&
         (run.batch_ref === ref || run.base_ref === ref),
     );

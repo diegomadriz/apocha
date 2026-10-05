@@ -266,7 +266,9 @@ export async function main(argv) {
       if (values.json) print(list.map(({ state: _state, task: _task, ...run }) => run));
       else
         for (const run of list)
-          print(`${run.outcome.padEnd(9)} ${run.run_id}  ${run.workflow}  ${run.reason ?? ""}`.trimEnd());
+          print(
+            `${(run.stale ? "STALE" : run.outcome).padEnd(9)} ${run.run_id}  ${run.workflow}  ${run.reason ?? ""}`.trimEnd(),
+          );
       return EXIT.ok;
     }
     case "show": {
