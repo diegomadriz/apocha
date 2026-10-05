@@ -20,7 +20,7 @@ import { describeError, HarnessError } from "../util/errors.mjs";
 import { repositoryRoot, resolveCommit } from "../util/git.mjs";
 import { GENERATOR } from "../version.mjs";
 import { initProject } from "./init.mjs";
-import { liveProbe } from "./probe.mjs";
+import { liveProbe, sourceSecretsProbe } from "./probe.mjs";
 
 export const EXIT = Object.freeze({ ok: 0, usage: 2, paused: 10, notPassed: 20, error: 30 });
 
@@ -446,6 +446,14 @@ async function doctor(cwd, options) {
     record("git repository", true, root);
   } catch (error) {
     record("git repository", false, describeError(error).message);
+  }
+  if (root) {
+    try {
+      const secrets = sourceSecretsProbe(root);
+      record("source secret files", secrets.ok, secrets.detail);
+    } catch (error) {
+      record("source secret files", false, describeError(error).message);
+    }
   }
   let config = null;
   if (root) {

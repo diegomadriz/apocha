@@ -16,7 +16,7 @@ const skip = backend ? false : "no sandbox backend on this host";
 /**
  * Run a one-off node script as a check inside the sandbox.
  * @param {string} script
- * @param {{ network?: boolean, denyRead?: string[] }} [options]
+ * @param {{ network?: boolean, denyRead?: string[], sourceFiles?: Record<string, string> }} [options]
  */
 async function sandboxed(script, options = {}) {
   const repo = makeRepo({ files: { "probe.mjs": script } });
@@ -38,6 +38,8 @@ async function sandboxed(script, options = {}) {
   );
   const candidate = createCandidate(repo.root, "main");
   try {
+    for (const [relative, content] of Object.entries(options.sourceFiles ?? {}))
+      writeFileSync(path.join(repo.root, relative), content);
     return await runCheck({
       check: config.checks.probe,
       candidate,
@@ -112,6 +114,17 @@ test("a sandboxed check cannot read denied paths", { skip }, async () => {
   } finally {
     rmSync(secretDir, { recursive: true, force: true });
   }
+});
+
+test("a sandboxed check cannot read an untracked source secret file", { skip }, async () => {
+  const result = await sandboxed(
+    `import { readFileSync } from "node:fs"; import path from "node:path";
+try { console.log(readFileSync(path.join(process.argv[2], ".env.local"), "utf8")); }
+catch { console.log("DENIED"); }`,
+    { sourceFiles: { ".env.local": "source-secret" } },
+  );
+  assert.equal(result.status, "pass", result.stderr);
+  assert.doesNotMatch(result.stdout, /source-secret/);
 });
 
 test("a sandboxed check cannot write outside its workspace", { skip }, async () => {

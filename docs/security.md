@@ -29,12 +29,18 @@ index (no `.git`, no untracked or ignored files, no forbidden paths), under an O
 | Backend | Platform | Policy |
 |---|---|---|
 | Seatbelt | macOS (`/usr/bin/sandbox-exec`) | Writes only in the check workspace (its tree, scratch `HOME`, and `TMPDIR`). Reads denied for credential stores, the candidate clone, the source `.git`, and forbidden paths. Outbound network only to loopback; listening only on loopback. |
-| bubblewrap | Linux | Read-only root, writable workspace, tmpfs over denied directories, `--unshare-net` unless the check allows network, `--unshare-pid`, `--die-with-parent` |
+| bubblewrap | Linux | Read-only root, writable workspace, tmpfs over denied directories, read-only `/dev/null` over denied files, `--unshare-net` unless the check allows network, `--unshare-pid`, `--die-with-parent` |
 | none | anywhere | Scratch `HOME` and `TMPDIR` and the env allowlist still apply. Recorded as `none` in the receipt. Set `sandbox.mode: "required"` to refuse running without a backend. |
 
 The default deny list covers `~/.ssh`, `~/.aws`, `~/.azure`, `~/.config/gcloud`, `~/.config/gh`,
 `~/.codex`, `~/.claude`, `~/.pi`, `~/.gnupg`, `~/.netrc`, `~/.npmrc`, `~/.pypirc`, `~/.docker`,
 `~/.kube`, `~/.git-credentials`, and `~/Library/Keychains`. Add more with `sandbox.deny_read`.
+
+Sandboxed checks also deny reads of untracked files in the source checkout, including ignored
+files, whose basenames match `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, or
+`id_ed25519*`, at any depth (for example `apps/web/.env.local`). Tracked files are excluded
+from this discovery. `panagent doctor` reports the count and relative paths of the files found.
+This default applies to both Seatbelt and bubblewrap; without an OS sandbox it cannot block reads.
 
 ## Known gaps
 

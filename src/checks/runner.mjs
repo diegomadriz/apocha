@@ -27,6 +27,27 @@ import { prepareNpmDependencies } from "./dependencies.mjs";
 const EMPTY = sha256(Buffer.alloc(0));
 const ENV_PASSTHROUGH = ["PATH", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE", "TERM", "TZ"];
 
+/**
+ * Untracked source files, including ignored files, with secret-looking basenames.
+ * @param {string} sourceRoot
+ * @returns {string[]}
+ */
+export function sourceSecretFiles(sourceRoot) {
+  const patterns = [".env", ".env.*", "*.pem", "*.key", "id_rsa*", "id_ed25519*"];
+  const listed = git(sourceRoot, [
+    "ls-files",
+    "--others",
+    "-z",
+    "--",
+    ...patterns.map((pattern) => `:(top,glob)**/${pattern}`),
+  ]);
+  return String(listed.stdout)
+    .split("\0")
+    .filter(Boolean)
+    .map((relative) => path.resolve(sourceRoot, relative))
+    .sort();
+}
+
 /** Digest of a check definition, recorded in receipts so a changed command is visible. @param {import("../config/project.mjs").CheckDefinition} check */
 export function checkDefinitionDigest(check) {
   return digestJson({
@@ -163,6 +184,7 @@ export async function runCheck({
     const commonDir = realpathSync(gitCommonDir(sourceRoot));
     const denyRead = resolveDenyPaths([
       ...config.sandbox.deny_read,
+      ...sourceSecretFiles(sourceRoot),
       realpathSync(candidate.root),
       commonDir,
       path.join(sourceRoot, ".git"),
