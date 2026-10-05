@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { adapterForRole } from "../adapters/index.mjs";
-import { loadProjectConfig, PROJECT_CONFIG_FILE } from "../config/project.mjs";
+import { loadProjectConfig, loadProjectConfigAt, PROJECT_CONFIG_FILE } from "../config/project.mjs";
 import { loadRuntimeConfig } from "../config/runtime.mjs";
 import { validateTask } from "../config/task.mjs";
 import { withLock } from "../core/lock.mjs";
@@ -232,7 +232,11 @@ export async function main(argv) {
       if (positionals.length !== 1 || !values.target)
         throw new HarnessError("config", "usage", "land needs <source> --target <branch>");
       const root = repositoryRoot(cwd);
-      const config = loadProjectConfig(root);
+      // The target branch's own config names the notes ref its receipts live under.
+      const targetCommit = resolveCommit(root, `refs/heads/${values.target}`);
+      if (!targetCommit)
+        throw new HarnessError("config", "unknown_target", `target branch does not exist: ${values.target}`);
+      const config = loadProjectConfigAt(root, targetCommit);
       const result = await withLock(stateDir(root), `land ${values.target}`, () =>
         landBranch({
           repositoryRoot: root,

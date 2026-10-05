@@ -112,7 +112,6 @@ export function seatbeltProfile(policy) {
       '(literal "/dev/tty")',
       '(regex #"^/dev/fd/")',
       '(regex #"^/dev/tty")',
-      '(regex #"^/private/var/folders/")',
     ].join(" ")})`,
   );
   if (policy.denyRead.length) {

@@ -2,7 +2,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { adapterForRole } from "../adapters/index.mjs";
-import { loadProjectConfig } from "../config/project.mjs";
+import { loadProjectConfigAt } from "../config/project.mjs";
 import { loadRuntimeConfig } from "../config/runtime.mjs";
 import { taskDigest, validateTask } from "../config/task.mjs";
 import { attachCandidate, createCandidate } from "../git/candidate.mjs";
@@ -30,18 +30,6 @@ import { newRunId, RunStore, stateDir } from "./runs.mjs";
  */
 
 /**
- * Read a file from a commit (the base commit's config governs a run).
- * @param {string} root
- * @param {string} commit
- */
-function fileAtCommit(root, commit) {
-  return (/** @type {string} */ relative) => {
-    const result = git(root, ["show", `${commit}:${relative}`], { allowFailure: true });
-    return result.status === 0 ? String(result.stdout) : null;
-  };
-}
-
-/**
  * @typedef {{
  *   cwd: string,
  *   workflow?: "code-delivery" | "integrate",
@@ -67,7 +55,7 @@ export async function startRun(options) {
   const baseCommit = resolveCommit(repositoryRoot, options.base);
   if (!baseCommit)
     throw new HarnessError("config", "unknown_base", `base does not resolve to a commit: ${options.base}`);
-  const config = loadProjectConfig(repositoryRoot, { readFile: fileAtCommit(repositoryRoot, baseCommit) });
+  const config = loadProjectConfigAt(repositoryRoot, baseCommit);
   const runtimes = options.runtimes ?? loadRuntimeConfig(repositoryRoot, options.runtimesPath);
   if (typeof options.message !== "string" || !options.message.trim())
     throw new HarnessError("config", "invalid_message", "a commit message is required");
@@ -257,9 +245,7 @@ export async function resumeRun(options) {
     );
   }
   const workflow = getWorkflow(record.workflow);
-  const config = loadProjectConfig(repositoryRoot, {
-    readFile: fileAtCommit(repositoryRoot, record.base_commit),
-  });
+  const config = loadProjectConfigAt(repositoryRoot, record.base_commit);
   const runtimes = options.runtimes ?? loadRuntimeConfig(repositoryRoot, options.runtimesPath);
   const state = record.state;
   if (state.awaiting) {

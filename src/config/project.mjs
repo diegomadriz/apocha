@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { digestJson } from "../util/digest.mjs";
 import { HarnessError } from "../util/errors.mjs";
+import { git } from "../util/git.mjs";
 import { canonicalPath, hasGitComponent } from "../util/paths.mjs";
 import { assertValid } from "../util/schema.mjs";
 
@@ -194,4 +195,18 @@ export function selectChecks(config, changedFiles) {
     }
   }
   return Object.keys(config.checks).filter((id) => selected.has(id));
+}
+
+/**
+ * Load the project config as it is in a given commit.
+ * @param {string} root
+ * @param {string} commit
+ */
+export function loadProjectConfigAt(root, commit) {
+  return loadProjectConfig(root, {
+    readFile: (relative) => {
+      const result = git(root, ["show", `${commit}:${relative}`], { allowFailure: true });
+      return result.status === 0 ? String(result.stdout) : null;
+    },
+  });
 }
