@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Panagent project config (panagent.config.json)",
+  "title": "Apocha project config (apocha.config.json)",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "checks"],

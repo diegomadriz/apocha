@@ -8,7 +8,7 @@
   "default_checks": ["lint", "typecheck", "test"],
   "paths": {
     "protected": [".github/", "LICENSE"],
-    "governance": ["AGENTS.md", "src/prompts/", "schemas/", "panagent.config.json"],
+    "governance": ["AGENTS.md", "src/prompts/", "schemas/", "apocha.config.json"],
     "forbidden": []
   },
   "sandbox": { "mode": "auto", "network": "deny" }

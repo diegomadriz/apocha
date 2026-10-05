@@ -20,7 +20,7 @@ function alive(pid) {
 
 /**
  * @template T
- * @param {string} stateDir `<git-common-dir>/panagent`
+ * @param {string} stateDir `<git-common-dir>/apocha`
  * @param {string} purpose shown to a waiting process
  * @param {() => T | Promise<T>} body
  * @param {{ waitMs?: number }} [options]

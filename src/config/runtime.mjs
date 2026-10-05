@@ -34,10 +34,10 @@ export function runtimeConfigCandidates(repoRoot, explicit, trustRepoRuntimes = 
   if (explicit) return [path.resolve(explicit)];
   const xdg = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
   return [
-    ...(trustRepoRuntimes || process.env.PANAGENT_TRUST_REPO_RUNTIMES === "1"
-      ? [path.join(repoRoot, ".panagent", RUNTIME_CONFIG_FILE)]
+    ...(trustRepoRuntimes || process.env.APOCHA_TRUST_REPO_RUNTIMES === "1"
+      ? [path.join(repoRoot, ".apocha", RUNTIME_CONFIG_FILE)]
       : []),
-    path.join(xdg, "panagent", RUNTIME_CONFIG_FILE),
+    path.join(xdg, "apocha", RUNTIME_CONFIG_FILE),
   ];
 }
 
@@ -71,23 +71,23 @@ export function normalizeRuntimeConfig(raw, source) {
 
 /**
  * Load the runtime config. Lookup: explicit path, repository config only with
- * --trust-repo-runtimes or PANAGENT_TRUST_REPO_RUNTIMES=1, then
- * `$XDG_CONFIG_HOME/panagent/runtimes.json` (default `~/.config`).
+ * --trust-repo-runtimes or APOCHA_TRUST_REPO_RUNTIMES=1, then
+ * `$XDG_CONFIG_HOME/apocha/runtimes.json` (default `~/.config`).
  * @param {string} repoRoot
  * @param {string | undefined} [explicit]
  * @param {boolean} [trustRepoRuntimes]
  * @returns {RuntimeConfig}
  */
 export function loadRuntimeConfig(repoRoot, explicit, trustRepoRuntimes = false) {
-  const repoConfig = path.join(repoRoot, ".panagent", RUNTIME_CONFIG_FILE);
+  const repoConfig = path.join(repoRoot, ".apocha", RUNTIME_CONFIG_FILE);
   if (
     !explicit &&
     !trustRepoRuntimes &&
-    process.env.PANAGENT_TRUST_REPO_RUNTIMES !== "1" &&
+    process.env.APOCHA_TRUST_REPO_RUNTIMES !== "1" &&
     existsSync(repoConfig)
   ) {
     process.stderr.write(
-      `ignored repository runtime config ${repoConfig}; use --trust-repo-runtimes or PANAGENT_TRUST_REPO_RUNTIMES=1 to trust it\n`,
+      `ignored repository runtime config ${repoConfig}; use --trust-repo-runtimes or APOCHA_TRUST_REPO_RUNTIMES=1 to trust it\n`,
     );
   }
   for (const file of runtimeConfigCandidates(repoRoot, explicit, trustRepoRuntimes)) {
@@ -107,6 +107,6 @@ export function loadRuntimeConfig(repoRoot, explicit, trustRepoRuntimes = false)
   throw new HarnessError(
     "config",
     "missing_runtime_config",
-    "no runtime config found; use --runtimes <file>, create $XDG_CONFIG_HOME/panagent/runtimes.json (default ~/.config/panagent/runtimes.json), or trust .panagent/runtimes.json with --trust-repo-runtimes or PANAGENT_TRUST_REPO_RUNTIMES=1 (see docs/configuration.md)",
+    "no runtime config found; use --runtimes <file>, create $XDG_CONFIG_HOME/apocha/runtimes.json (default ~/.config/apocha/runtimes.json), or trust .apocha/runtimes.json with --trust-repo-runtimes or APOCHA_TRUST_REPO_RUNTIMES=1 (see docs/configuration.md)",
   );
 }

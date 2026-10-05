@@ -29,7 +29,7 @@ status, usage, model identity, error classification, and policy checks.
 
 | Runtime | Binding | Notes |
 |---|---|---|
-| Codex CLI | MCP over stdio (`src/adapters/mcp-server-main.mjs`) | configured with `-c mcp_servers.panagent.*` |
+| Codex CLI | MCP over stdio (`src/adapters/mcp-server-main.mjs`) | configured with `-c mcp_servers.apocha.*` |
 | Claude Code | MCP over stdio | `--mcp-config` with `--strict-mcp-config` |
 | Pi | Pi extension (`src/adapters/pi/extension.mjs`) | registers the same tools in-process |
 | fake | direct calls | for tests and demos |
@@ -54,7 +54,7 @@ runtime dependency, and only the tool server process loads it.
 - `code_mode_host` must stay enabled: Codex routes tool calls through it. Code mode has no
   filesystem access.
 - Stream check: any `command_execution`, `file_change`, `web_search`, collaboration item, or MCP
-  call to a server other than `panagent` (apart from Codex's own resource listing) ends the run
+  call to a server other than `apocha` (apart from Codex's own resource listing) ends the run
   with `policy_violation`.
 
 ### Claude Code (`claude -p`)
@@ -62,8 +62,8 @@ runtime dependency, and only the tool server process loads it.
 - Runs on your Claude sign-in or an API key, through the official CLI.
 - `--tools ""` removes every built-in tool. `--strict-mcp-config` with only the harness server.
   `--setting-sources ""`, `--disable-slash-commands`, `--no-session-persistence`, an empty
-  working directory, and permission mode `dontAsk` with only `mcp__panagent__*` allowed.
-- Stream check: the `init` event's tool list must contain only `mcp__panagent__*` tools, and the
+  working directory, and permission mode `dontAsk` with only `mcp__apocha__*` allowed.
+- Stream check: the `init` event's tool list must contain only `mcp__apocha__*` tools, and the
   harness server must be connected, before any work starts. Every assistant `tool_use` must be a
   harness tool.
 
@@ -79,7 +79,7 @@ runtime dependency, and only the tool server process loads it.
 ## Checking the lock-down
 
 ```bash
-panagent doctor --live
+apocha doctor --live
 ```
 
 For each configured role, `--live` starts the runtime in a scratch repository and asks the model
@@ -105,7 +105,7 @@ Adapters classify failures:
 1. Create `src/adapters/<name>/index.mjs` exporting `create<Name>Adapter(settings)` that returns
    `{ name, probe, run }`.
 2. Give the runtime the harness tools: point it at `mcp-server-main.mjs` with
-   `PANAGENT_SESSION=<invocation.sessionFile>` if it speaks MCP, or register
+   `APOCHA_SESSION=<invocation.sessionFile>` if it speaks MCP, or register
    `toolDefinitions(role)` with `createProjectTools(session)` in-process.
 3. Turn off every built-in capability the runtime has, run it in `invocation.cwd`, and pass
    `invocation.systemPrompt` and `invocation.taskPrompt`.
@@ -113,4 +113,4 @@ Adapters classify failures:
    the harness tools, and classify errors with `classifyProviderMessage`.
 5. Register it in `src/adapters/index.mjs` and `schemas/runtime-config.schema.json`.
 6. Add argument and stream-inspection tests to `test/adapters.test.mjs`, and run
-   `panagent doctor --live` against it.
+   `apocha doctor --live` against it.

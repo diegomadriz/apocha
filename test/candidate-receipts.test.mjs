@@ -11,8 +11,8 @@ import { verifyReceipt, writeReceipt } from "../src/git/receipts.mjs";
 import { git, gitText, resolveCommit } from "../src/util/git.mjs";
 import { testCandidate as createCandidate, makeRepo } from "./helpers.mjs";
 
-const NOTES = "refs/notes/panagent";
-const BATCH = "refs/heads/panagent/batch/t";
+const NOTES = "refs/notes/apocha";
+const BATCH = "refs/heads/apocha/batch/t";
 
 test("snapshot identity changes with content and is stable otherwise", () => {
   const repo = makeRepo();
@@ -83,8 +83,8 @@ function promoted(repo) {
 function receiptFor(p, overrides = {}) {
   const sha = "a".repeat(64);
   return {
-    schema: "panagent.receipt.v3",
-    generator: { name: "panagent", version: "0.1.0" },
+    schema: "apocha.receipt.v3",
+    generator: { name: "apocha", version: "0.1.0" },
     workflow: "code-delivery",
     run_id: "t-20261005T000000Z-abcd",
     task_id: "t1",
@@ -152,14 +152,14 @@ test("batch refs must sit under the configured prefix and be canonical", () => {
   const repo = makeRepo();
   try {
     assert.throws(
-      () => assertBatchRef(repo.root, "refs/heads/main", "refs/heads/panagent/batch/"),
+      () => assertBatchRef(repo.root, "refs/heads/main", "refs/heads/apocha/batch/"),
       /must be under/,
     );
     assert.throws(
-      () => assertBatchRef(repo.root, "refs/heads/panagent/batch/a..b", "refs/heads/panagent/batch/"),
+      () => assertBatchRef(repo.root, "refs/heads/apocha/batch/a..b", "refs/heads/apocha/batch/"),
       /canonical/,
     );
-    assert.equal(assertBatchRef(repo.root, BATCH, "refs/heads/panagent/batch/"), BATCH);
+    assert.equal(assertBatchRef(repo.root, BATCH, "refs/heads/apocha/batch/"), BATCH);
     reserveBatchRef(repo.root, BATCH, /** @type {string} */ (resolveCommit(repo.root, "main")));
     assert.throws(
       () => reserveBatchRef(repo.root, BATCH, /** @type {string} */ (resolveCommit(repo.root, "main"))),
@@ -267,7 +267,7 @@ test("land preserves batch refs requested, checked out, active, or outside the p
       const p = promoted(repo);
       writeReceipt(repo.root, NOTES, receiptFor(p));
       if (reason === "worktree")
-        git(repo.root, ["worktree", "add", path.join(repo.root, "checkout"), "panagent/batch/t"]);
+        git(repo.root, ["worktree", "add", path.join(repo.root, "checkout"), "apocha/batch/t"]);
       if (reason === "RUNNING" || reason === "PAUSED")
         new RunStore(repo.root).create("active-20261005T000000Z-abcd", {
           batch_ref: BATCH,
@@ -277,7 +277,7 @@ test("land preserves batch refs requested, checked out, active, or outside the p
         repositoryRoot: repo.root,
         notesRef: NOTES,
         source: BATCH,
-        target: reason === "target" ? "panagent/batch/t" : "main",
+        target: reason === "target" ? "apocha/batch/t" : "main",
         keepBatch: reason === "keep-batch",
         batchPrefix: reason === "prefix" ? "refs/heads/other/" : undefined,
       });
@@ -341,7 +341,7 @@ test("land retires integrated topic batches and preserves moved topics", () => {
         "-m",
         "Integrate topic",
       ]);
-      const integration = "refs/heads/panagent/batch/integration";
+      const integration = "refs/heads/apocha/batch/integration";
       git(repo.root, ["update-ref", integration, head]);
       writeReceipt(
         repo.root,

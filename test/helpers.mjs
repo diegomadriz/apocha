@@ -9,7 +9,7 @@ import { git } from "../src/util/git.mjs";
 
 /** Create a fixture directory and register cleanup even if setup fails. @param {string} kind */
 export function testTempDir(kind) {
-  const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), `panagent-${kind}-`)));
+  const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), `apocha-${kind}-`)));
   after(() => rmSync(root, { recursive: true, force: true }));
   return root;
 }
@@ -22,7 +22,7 @@ export function testCandidate(repositoryRoot, base) {
 }
 
 /**
- * Create a throwaway Git repository with a committed panagent.config.json.
+ * Create a throwaway Git repository with a committed apocha.config.json.
  * @param {{ files?: Record<string, string>, config?: Record<string, any> }} [options]
  */
 export function makeRepo(options = {}) {
@@ -47,7 +47,7 @@ export function makeRepo(options = {}) {
     "check.mjs":
       'import { readFileSync } from "node:fs";\nconst v = readFileSync("src/value.txt", "utf8").trim();\nif (v !== "2") { console.error("src/value.txt:1 expected 2, got " + v); process.exit(1); }\n',
     "private/secret.txt": "do not read\n",
-    "panagent.config.json": `${JSON.stringify(config, null, 2)}\n`,
+    "apocha.config.json": `${JSON.stringify(config, null, 2)}\n`,
     ...(options.files ?? {}),
   };
   for (const [relative, content] of Object.entries(files)) {

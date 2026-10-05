@@ -11,7 +11,7 @@ import { RunStore } from "../src/core/runs.mjs";
 import { git, resolveCommit } from "../src/util/git.mjs";
 import { makeRepo, testTempDir } from "./helpers.mjs";
 
-const BIN = fileURLToPath(new URL("../bin/panagent.mjs", import.meta.url));
+const BIN = fileURLToPath(new URL("../bin/apocha.mjs", import.meta.url));
 
 /** @param {string} cwd @param {string[]} args */
 function cli(cwd, args, env = {}) {
@@ -24,7 +24,7 @@ function cli(cwd, args, env = {}) {
 }
 
 test("help, version, and unknown commands", () => {
-  assert.match(cli(os.tmpdir(), ["--help"]).stdout, /Usage: panagent <command>/);
+  assert.match(cli(os.tmpdir(), ["--help"]).stdout, /Usage: apocha <command>/);
   assert.match(cli(os.tmpdir(), ["version"]).stdout, /^\d+\.\d+\.\d+/);
   const unknown = cli(os.tmpdir(), ["frobnicate"]);
   assert.equal(unknown.code, 2);
@@ -97,7 +97,7 @@ test("init writes a starter config that validates, and refuses to overwrite", ()
   );
   const first = cli(root, ["init"]);
   assert.equal(first.code, 0, first.stderr);
-  const config = JSON.parse(readFileSync(path.join(root, "panagent.config.json"), "utf8"));
+  const config = JSON.parse(readFileSync(path.join(root, "apocha.config.json"), "utf8"));
   assert.deepEqual(Object.keys(config.checks).sort(), ["lint", "test"]);
   assert.equal(config.sandbox.mode, "required");
   assert.equal(cli(root, ["init"]).code, 2);
@@ -107,8 +107,8 @@ test("repository runtimes require trust and explicit runtimes always win", () =>
   const repo = makeRepo();
   const xdg = testTempDir("xdg");
   try {
-    const repoConfig = path.join(repo.root, ".panagent", "runtimes.json");
-    const userConfig = path.join(xdg, "panagent", "runtimes.json");
+    const repoConfig = path.join(repo.root, ".apocha", "runtimes.json");
+    const userConfig = path.join(xdg, "apocha", "runtimes.json");
     const explicitConfig = path.join(repo.root, "explicit-runtimes.json");
     const raw = JSON.stringify({
       version: 1,
@@ -118,18 +118,18 @@ test("repository runtimes require trust and explicit runtimes always win", () =>
       mkdirSync(path.dirname(file), { recursive: true });
       writeFileSync(file, raw);
     }
-    const env = { XDG_CONFIG_HOME: xdg, PANAGENT_TRUST_REPO_RUNTIMES: "" };
+    const env = { XDG_CONFIG_HOME: xdg, APOCHA_TRUST_REPO_RUNTIMES: "" };
     const source = (result) => JSON.parse(result.stdout).find((row) => row.name === "runtime config");
     const ignored = cli(repo.root, ["doctor", "--json"], env);
     assert.equal(source(ignored).detail, userConfig);
     assert.match(
       ignored.stderr,
-      /ignored repository runtime config.*--trust-repo-runtimes.*PANAGENT_TRUST_REPO_RUNTIMES=1/,
+      /ignored repository runtime config.*--trust-repo-runtimes.*APOCHA_TRUST_REPO_RUNTIMES=1/,
     );
     const flag = cli(repo.root, ["doctor", "--json", "--trust-repo-runtimes"], env);
     assert.equal(source(flag).detail, repoConfig);
     assert.equal(flag.stderr, "");
-    const trustedEnv = { ...env, PANAGENT_TRUST_REPO_RUNTIMES: "1" };
+    const trustedEnv = { ...env, APOCHA_TRUST_REPO_RUNTIMES: "1" };
     const trusted = cli(repo.root, ["doctor", "--json"], trustedEnv);
     assert.equal(source(trusted).detail, repoConfig);
     assert.equal(trusted.stderr, "");
@@ -251,7 +251,7 @@ test("run with a scripted fake runtime warns when auto has no sandbox and passes
         "--json",
         "--quiet",
       ],
-      { PANAGENT_SANDBOX: "1" },
+      { APOCHA_SANDBOX: "1" },
     );
     assert.equal(run.code, 0, run.stderr + run.stdout);
     assert.match(run.stderr, /warning:.*no sandbox backend.*sandbox.mode.*required/);
@@ -269,18 +269,18 @@ test("run with a scripted fake runtime warns when auto has no sandbox and passes
     assert.match(runs.stdout, /^PASSED\s+cli-run-/m);
     const metrics = cli(repo.root, ["metrics", "--json"]);
     assert.equal(JSON.parse(metrics.stdout).runs.by_outcome.PASSED, 1);
-    const kept = cli(repo.root, ["land", "panagent/batch/cli-run", "--target", "main", "--keep-batch"]);
+    const kept = cli(repo.root, ["land", "apocha/batch/cli-run", "--target", "main", "--keep-batch"]);
     assert.equal(kept.code, 0, kept.stderr);
     assert.match(kept.stdout, /kept .*keep-batch/);
-    assert.equal(resolveCommit(repo.root, "refs/heads/panagent/batch/cli-run"), summary.promoted_head);
+    assert.equal(resolveCommit(repo.root, "refs/heads/apocha/batch/cli-run"), summary.promoted_head);
     // Restore the target to exercise retirement on another fast-forward.
     git(repo.root, ["reset", "--hard", `${summary.promoted_head}^`]);
-    const land = cli(repo.root, ["land", "panagent/batch/cli-run", "--target", "main"]);
+    const land = cli(repo.root, ["land", "apocha/batch/cli-run", "--target", "main"]);
     assert.equal(land.code, 0, land.stderr);
     assert.match(land.stdout, /landed 1 commit/);
-    assert.ok(land.stdout.includes(`retired refs/heads/panagent/batch/cli-run ${summary.promoted_head}`));
-    assert.match(land.stdout, /land record: .*panagent\/lands\/.*\.json/);
-    assert.equal(resolveCommit(repo.root, "refs/heads/panagent/batch/cli-run"), null);
+    assert.ok(land.stdout.includes(`retired refs/heads/apocha/batch/cli-run ${summary.promoted_head}`));
+    assert.match(land.stdout, /land record: .*apocha\/lands\/.*\.json/);
+    assert.equal(resolveCommit(repo.root, "refs/heads/apocha/batch/cli-run"), null);
     const afterLand = cli(repo.root, ["receipt", summary.promoted_head]);
     assert.equal(afterLand.code, 0, afterLand.stderr);
     assert.equal(JSON.parse(afterLand.stdout).valid, true);

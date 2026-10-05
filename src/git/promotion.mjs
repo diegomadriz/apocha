@@ -129,7 +129,7 @@ export function promoteCandidate({
   ).trim();
   if (!OID.test(head)) throw new HarnessError("infra", "commit_failed", "commit-tree returned no object id");
 
-  const transfer = `refs/panagent/transfer/${head}`;
+  const transfer = `refs/apocha/transfer/${head}`;
   try {
     git(candidate.root, ["update-ref", transfer, head]);
     git(source, ["fetch", "--no-tags", "--quiet", candidate.root, transfer]);

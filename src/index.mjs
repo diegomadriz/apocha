@@ -1,5 +1,5 @@
 // @ts-check
-// Programmatic API. The CLI (bin/panagent.mjs) is built on these exports.
+// Programmatic API. The CLI (bin/apocha.mjs) is built on these exports.
 
 export {
   createClaudeCodeAdapter,

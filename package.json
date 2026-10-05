@@ -1,10 +1,10 @@
 {
-  "name": "panagent",
+  "name": "apocha",
   "version": "0.1.0",
   "description": "A deterministic controller for coding agents: scoped tools, closed check catalogs, independent review, and Git receipts.",
   "license": "MIT",
   "type": "module",
-  "bin": { "panagent": "bin/panagent.mjs" },
+  "bin": { "apocha": "bin/apocha.mjs" },
   "exports": { ".": "./src/index.mjs" },
   "files": ["bin/", "src/", "schemas/", "README.md", "LICENSE"],
   "engines": { "node": ">=22" },

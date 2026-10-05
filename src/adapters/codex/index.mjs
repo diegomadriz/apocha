@@ -100,7 +100,7 @@ export function codexArgs(invocation, command) {
     "-c",
     `mcp_servers.${MCP_SERVER_NAME}.args=[${toml(MCP_ENTRY)}]`,
     "-c",
-    `mcp_servers.${MCP_SERVER_NAME}.env={ PANAGENT_SESSION = ${toml(invocation.sessionFile)} }`,
+    `mcp_servers.${MCP_SERVER_NAME}.env={ APOCHA_SESSION = ${toml(invocation.sessionFile)} }`,
     "-c",
     `mcp_servers.${MCP_SERVER_NAME}.required=true`,
     "-c",

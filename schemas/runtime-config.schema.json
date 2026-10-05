@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Panagent runtime config (which agent runtime and model each role uses)",
+  "title": "Apocha runtime config (which agent runtime and model each role uses)",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "roles"],

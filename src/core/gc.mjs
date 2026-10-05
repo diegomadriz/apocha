@@ -57,7 +57,7 @@ export function planGc(repositoryRoot, options = {}) {
   checkDays(options.keepDays, "keep-days");
   checkDays(options.abandonPausedDays, "abandon-paused-days");
   const common = realpathSync(gitCommonDir(repositoryRoot));
-  resolveInside(common, "panagent", { allowMissing: true });
+  resolveInside(common, "apocha", { allowMissing: true });
   const worktrees = gitText(repositoryRoot, ["worktree", "list", "--porcelain"]);
   const mainBranch = worktrees
     .split("\n\n")[0]
@@ -169,7 +169,7 @@ function itemKey(item) {
  * @param {string} repositoryRoot @param {GcPlan} plan
  */
 export async function applyGc(repositoryRoot, plan) {
-  resolveInside(gitCommonDir(repositoryRoot), "panagent", { allowMissing: true });
+  resolveInside(gitCommonDir(repositoryRoot), "apocha", { allowMissing: true });
   return withLock(stateDir(repositoryRoot), "gc", () => {
     const fresh = planGc(repositoryRoot, plan.options);
     const eligible = new Set(fresh.items.map(itemKey));

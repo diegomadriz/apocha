@@ -1,13 +1,13 @@
 # Architecture
 
-Panagent is a controller around agent runtimes. The controller owns every decision that matters
+Apocha is a controller around agent runtimes. The controller owns every decision that matters
 (state, verification, acceptance, promotion). Agents are workers that can only act through tools
 the controller provides.
 
 ## Components
 
 ```text
-bin/panagent.mjs ─► src/cli/            commands, progress output, exit codes
+bin/apocha.mjs ─► src/cli/            commands, progress output, exit codes
                      │
                      ▼
                     src/core/run.mjs     run lifecycle: inputs, batch ref, candidate, finalize
@@ -31,7 +31,7 @@ bin/panagent.mjs ─► src/cli/            commands, progress output, exit code
 
 | Directory | Responsibility |
 |---|---|
-| `src/config/` | Load and validate `panagent.config.json`, runtime configs, and task manifests against `schemas/` |
+| `src/config/` | Load and validate `apocha.config.json`, runtime configs, and task manifests against `schemas/` |
 | `src/core/` | Workflow validation, the engine, run lifecycle, run store and events, lock, metrics |
 | `src/core/gc.mjs` | Plan and apply cleanup of merged batch refs, orphan temp directories, and old session traces |
 | `src/core/status.mjs` | Read-only repository inventory and human status formatting |
@@ -75,7 +75,7 @@ Errors map to outcomes in one place (`src/core/engine.mjs`):
 | Error class | Run outcome | Why |
 |---|---|---|
 | `usage_limited` | `PAUSED` | Subscription or rate limits pass; the run resumes later |
-| human gate without a decision | `PAUSED` | Waits for `panagent resume --decision` |
+| human gate without a decision | `PAUSED` | Waits for `apocha resume --decision` |
 | `agent`, `integrity`, `policy_violation` | `ESCALATED` | A person should look at what the agent did |
 | `config`, `infra`, `provider`, `tool_protocol` | `ERROR` | The harness or its environment failed |
 
@@ -125,7 +125,7 @@ workflow, and the package version are hashed into `policy_digest` in every recei
 ## State on disk
 
 ```text
-<git-common-dir>/panagent/
+<git-common-dir>/apocha/
   lock                        held around ref mutations and land
   runs/<run-id>/
     run.json                  metadata and current state (atomic rewrite)

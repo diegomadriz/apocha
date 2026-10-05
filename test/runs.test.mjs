@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { newRunId, RunStore } from "../src/core/runs.mjs";
 import { makeRepo } from "./helpers.mjs";
 
-const BIN = fileURLToPath(new URL("../bin/panagent.mjs", import.meta.url));
+const BIN = fileURLToPath(new URL("../bin/apocha.mjs", import.meta.url));
 
 test("list marks dead RUNNING runs stale without changing stored records", () => {
   const repo = makeRepo();

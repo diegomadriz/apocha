@@ -27,7 +27,7 @@ export default {
 | `checks` | `pass`, `fail`, `violation`, `infra_error` | Structural checks (scope, protected paths), then the task's catalog checks, then a re-snapshot. A failure becomes findings for the next attempt. |
 | `review` | `PASS`, `FIX`, `ESCALATE`, `too_large` | Runs the reviewer on the verified candidate with the full diff; validates the decision and its digest binding |
 | `budget` | `available`, `exhausted` | Spends one unit of a counter (`repairs` is bounded by the task) |
-| `human` | `approve`, `reject` | Pauses the run until `panagent resume <run> --decision approve\|reject` |
+| `human` | `approve`, `reject` | Pauses the run until `apocha resume <run> --decision approve\|reject` |
 | `promote` | `done` | Commits onto the batch ref and writes the receipt, under the lock |
 | `seed` | `done`, `conflict`, `empty` | Deterministic preparation; in `integrate`, merges the topic and derives the task from what changed |
 
@@ -46,8 +46,8 @@ definition when:
 
 ## Built-in workflows
 
-- **`code-delivery`** (`panagent run`): above.
-- **`integrate`** (`panagent integrate`): `merge` (seed) → `verify` → `review` → `promote`, with
+- **`code-delivery`** (`apocha run`): above.
+- **`integrate`** (`apocha integrate`): `merge` (seed) → `verify` → `review` → `promote`, with
   `repair` → `implement` when the merged tree fails. The topic becomes the promoted commit's
   second parent. Checks come from `--checks` or from `check_selection` rules over the changed
   paths.

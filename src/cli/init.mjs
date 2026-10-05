@@ -5,7 +5,7 @@ import { normalizeProjectConfig, PROJECT_CONFIG_FILE } from "../config/project.m
 import { HarnessError } from "../util/errors.mjs";
 
 /**
- * Write a starter panagent.config.json. Detects an npm package (scripts become
+ * Write a starter apocha.config.json. Detects an npm package (scripts become
  * checks) or a Python project (pytest). Never overwrites without --force.
  *
  * @param {string} root
@@ -57,6 +57,6 @@ export function initProject(root, options = {}) {
   return `wrote ${PROJECT_CONFIG_FILE} with checks: ${Object.keys(checks).join(", ")}
 next:
   1. review the checks and paths (docs/configuration.md)
-  2. choose runtimes in ~/.config/panagent/runtimes.json (or use --runtimes <file>)
-  3. panagent doctor`;
+  2. choose runtimes in ~/.config/apocha/runtimes.json (or use --runtimes <file>)
+  3. apocha doctor`;
 }

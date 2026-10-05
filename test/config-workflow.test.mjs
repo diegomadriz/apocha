@@ -28,9 +28,9 @@ const config = normalizeProjectConfig(
 );
 
 test("project config fills defaults and always protects its own files", () => {
-  assert.equal(config.refs.batch_prefix, "refs/heads/panagent/batch/");
-  assert.ok(config.paths.governance.includes("panagent.config.json"));
-  assert.ok(config.paths.governance.includes(".panagent/"));
+  assert.equal(config.refs.batch_prefix, "refs/heads/apocha/batch/");
+  assert.ok(config.paths.governance.includes("apocha.config.json"));
+  assert.ok(config.paths.governance.includes(".apocha/"));
   assert.ok(config.sandbox.deny_read.includes("~/.ssh"));
   assert.equal(config.checks.test.dependencies, "none");
   assert.match(config.digest, /^[0-9a-f]{64}$/);

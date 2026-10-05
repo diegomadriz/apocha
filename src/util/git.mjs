@@ -78,7 +78,7 @@ export function commitIdentity(cwd, commit) {
 }
 
 /**
- * Validate a full ref name (for example `refs/heads/panagent/batch/x`).
+ * Validate a full ref name (for example `refs/heads/apocha/batch/x`).
  * @param {string} cwd
  * @param {string} ref
  */

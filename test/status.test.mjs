@@ -11,8 +11,8 @@ import { digestBetweenCommits } from "../src/git/candidate.mjs";
 import { commitIdentity, git, gitCommonDir, gitText } from "../src/util/git.mjs";
 import { makeRepo, testTempDir } from "./helpers.mjs";
 
-const BIN = fileURLToPath(new URL("../bin/panagent.mjs", import.meta.url));
-const PREFIX = "refs/heads/panagent/batch/";
+const BIN = fileURLToPath(new URL("../bin/apocha.mjs", import.meta.url));
+const PREFIX = "refs/heads/apocha/batch/";
 
 /** Snapshot file contents recursively, including the Git index and run store. @param {string} root */
 function snapshot(root) {
@@ -34,7 +34,7 @@ test("status reports batches, attention, records, disk and suggestions without w
   });
   const base = gitText(repo.root, ["rev-parse", "HEAD"]);
   git(repo.root, ["update-ref", PREFIX + "landed", base]);
-  git(repo.root, ["checkout", "-qb", "panagent/batch/ready"]);
+  git(repo.root, ["checkout", "-qb", "apocha/batch/ready"]);
   writeFileSync(path.join(repo.root, "src/value.txt"), "2\n");
   git(repo.root, ["commit", "-qam", "ready"]);
   const tip = gitText(repo.root, ["rev-parse", "HEAD"]);
@@ -54,14 +54,14 @@ test("status reports batches, attention, records, disk and suggestions without w
     implementer_invocations: 1,
     runtimes: {},
   };
-  git(repo.root, ["notes", "--ref=refs/notes/panagent", "add", "-m", JSON.stringify(receipt), tip]);
+  git(repo.root, ["notes", "--ref=refs/notes/apocha", "add", "-m", JSON.stringify(receipt), tip]);
   const store = new RunStore(repo.root);
   const paused = "paused-20260101T000000Z-0001";
   store.create(paused, { outcome: "PAUSED", state: { awaiting: "approval" } });
   store.create("passed-20260101T000000Z-0002", { outcome: "PASSED", promoted_head: tip });
   store.create("stale-20260101T000000Z-0003", { outcome: "RUNNING", pid: 2147483647 });
   store.create("running-20260101T000000Z-0004", { outcome: "RUNNING", pid: process.pid });
-  git(repo.root, ["checkout", "-qb", "panagent/batch/unreceipted"]);
+  git(repo.root, ["checkout", "-qb", "apocha/batch/unreceipted"]);
   writeFileSync(path.join(repo.root, "src/value.txt"), "3\n");
   git(repo.root, ["commit", "-qam", "unreceipted"]);
   git(repo.root, ["checkout", "-q", "main"]);
@@ -70,10 +70,10 @@ test("status reports batches, attention, records, disk and suggestions without w
   ).trim();
   git(repo.root, ["update-ref", PREFIX + "diverged", diverged]);
   writeFileSync(path.join(repo.root, "untracked.txt"), "dirty");
-  const owned = path.join(temporary, "panagent-owned");
+  const owned = path.join(temporary, "apocha-owned");
   mkdirSync(owned);
   writeFileSync(
-    path.join(owned, ".panagent-owner"),
+    path.join(owned, ".apocha-owner"),
     JSON.stringify({
       kind: "candidate",
       run_id: null,
@@ -117,7 +117,7 @@ test("status reports batches, attention, records, disk and suggestions without w
   assert.equal(status.runs.attention.find((run) => run.run_id === paused)?.awaiting, "approval");
   assert.ok(status.suggested_actions.includes(`land ${PREFIX}ready --target main`));
   assert.ok(status.suggested_actions.includes(`resume ${paused}`));
-  assert.ok(status.suggested_actions.includes("panagent gc"));
+  assert.ok(status.suggested_actions.includes("apocha gc"));
   assert.equal(status.last_land?.commits, 1);
   assert.equal(status.last_gc?.done, 1);
   assert.equal(status.disk.temp.owned.count, 1);
@@ -145,9 +145,9 @@ test("status reports batches, attention, records, disk and suggestions without w
   assert.ok(!human.stdout.includes(base));
   assert.ok(!human.stdout.includes(tip));
   assert.ok(human.stdout.includes("size=10 B"));
-  assert.ok(human.stdout.includes("  panagent land panagent/batch/ready --target main"));
-  assert.ok(human.stdout.includes(`  panagent resume ${paused}`));
-  assert.ok(human.stdout.includes("  panagent gc"));
+  assert.ok(human.stdout.includes("  apocha land apocha/batch/ready --target main"));
+  assert.ok(human.stdout.includes(`  apocha resume ${paused}`));
+  assert.ok(human.stdout.includes("  apocha gc"));
   const jsonBeforeFormatting = JSON.stringify(status);
   const sizes = formatStatusText({
     ...status,

@@ -6,14 +6,14 @@ example, that a path is canonical, or that a check ID exists).
 
 | Document | Where | Who changes it |
 |---|---|---|
-| Project config | `panagent.config.json` at the repository root | People, through a governance edit |
-| Runtime config | `.panagent/runtimes.json`, `~/.config/panagent/runtimes.json`, or `--runtimes <file>` | Each user |
-| Task manifest | anywhere; passed to `panagent run` | The person or system assigning work |
+| Project config | `apocha.config.json` at the repository root | People, through a governance edit |
+| Runtime config | `.apocha/runtimes.json`, `~/.config/apocha/runtimes.json`, or `--runtimes <file>` | Each user |
+| Task manifest | anywhere; passed to `apocha run` | The person or system assigning work |
 
-## Project config (`panagent.config.json`)
+## Project config (`apocha.config.json`)
 
 Schema: `schemas/project-config.schema.json`. The config is read from the **base commit** of each
-run. `panagent.config.json` and `.panagent/` are always governance paths.
+run. `apocha.config.json` and `.apocha/` are always governance paths.
 
 ```json
 {
@@ -33,7 +33,7 @@ run. `panagent.config.json` and `.panagent/` are always governance paths.
     "forbidden": ["private/"],
     "design_reference_prefix": "docs/design/"
   },
-  "refs": { "batch_prefix": "refs/heads/panagent/batch/", "notes": "refs/notes/panagent" },
+  "refs": { "batch_prefix": "refs/heads/apocha/batch/", "notes": "refs/notes/apocha" },
   "sandbox": { "mode": "auto", "network": "deny", "deny_read": ["~/.my-tokens"] },
   "limits": { "max_repair_attempts": 2, "default_repair_attempts": 1, "review_diff_bytes": 400000, "run_check_calls": 6, "check_output_bytes": 20000 }
 }
@@ -85,7 +85,7 @@ from another harness can keep its existing refs, so its old receipts stay checka
 | `network` | `deny` (default), `allow` | Project-wide network default for checks |
 | `deny_read` | paths, `~/` allowed | Added to the built-in list of credential locations (`~/.ssh`, `~/.aws`, `~/.codex`, `~/.claude`, `~/.npmrc`, `~/.netrc`, `~/Library/Keychains`, and more) |
 
-`panagent init` writes mode `required`. In `auto` mode, a run with no available
+`apocha init` writes mode `required`. In `auto` mode, a run with no available
 backend emits a warning event and a stderr warning suggesting `sandbox.mode: required`.
 
 ### `limits`
@@ -101,12 +101,12 @@ backend emits a warning event and a stderr warning suggesting `sandbox.mode: req
 ## Runtime config (`runtimes.json`)
 
 Schema: `schemas/runtime-config.schema.json`. Lookup order: `--runtimes <file>`, then
-`<repo>/.panagent/runtimes.json` only when opted in, then
-`$XDG_CONFIG_HOME/panagent/runtimes.json` (default `~/.config/panagent/runtimes.json`).
+`<repo>/.apocha/runtimes.json` only when opted in, then
+`$XDG_CONFIG_HOME/apocha/runtimes.json` (default `~/.config/apocha/runtimes.json`).
 An explicit `--runtimes <file>` always wins. Repository configs can choose executable
 commands, so they are ignored by default with a notice on stderr. To trust one, pass
 `--trust-repo-runtimes` to `run`, `integrate`, `resume`, or `doctor`, or set
-`PANAGENT_TRUST_REPO_RUNTIMES=1`.
+`APOCHA_TRUST_REPO_RUNTIMES=1`.
 
 ```json
 {

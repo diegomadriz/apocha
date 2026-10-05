@@ -49,14 +49,14 @@ test("codex runs read-only with every non-harness capability disabled", () => {
   assert.ok(!DISABLED_FEATURES.includes("code_mode_host"), "code mode routes tool calls and must stay on");
   assert.ok(args.includes('approval_policy="never"'));
   assert.ok(args.includes('web_search="disabled"'));
-  assert.ok(args.some((arg) => arg.includes('PANAGENT_SESSION = "/tmp/session/session.json"')));
+  assert.ok(args.some((arg) => arg.includes('APOCHA_SESSION = "/tmp/session/session.json"')));
   assert.equal(args.at(-1), "-");
 });
 
 test("codex events outside the harness are policy violations", () => {
   const state = { usage: null, errors: [] };
   inspectCodexEvent(
-    { type: "item.completed", item: { type: "mcp_tool_call", server: "panagent", tool: "read_files" } },
+    { type: "item.completed", item: { type: "mcp_tool_call", server: "apocha", tool: "read_files" } },
     state,
   );
   inspectCodexEvent(
@@ -85,21 +85,21 @@ test("claude runs with no built-in tools and checks its init tool list", () => {
   assert.equal(args[args.indexOf("--tools") + 1], "");
   assert.equal(args[args.indexOf("--setting-sources") + 1], "");
   assert.ok(args.includes("--strict-mcp-config"));
-  assert.equal(args[args.indexOf("--allowedTools") + 1], "mcp__panagent__*");
+  assert.equal(args[args.indexOf("--allowedTools") + 1], "mcp__apocha__*");
   const state = { usage: null, model: null, result: null, toolsChecked: false };
   inspectClaudeEvent(
     {
       type: "system",
       subtype: "init",
-      tools: ["mcp__panagent__read_files"],
-      mcp_servers: [{ name: "panagent", status: "connected" }],
+      tools: ["mcp__apocha__read_files"],
+      mcp_servers: [{ name: "apocha", status: "connected" }],
       model: "m",
     },
     state,
   );
   assert.equal(state.toolsChecked, true);
   assert.throws(
-    () => inspectClaudeEvent({ type: "system", subtype: "init", tools: ["Bash", "mcp__panagent__x"] }, state),
+    () => inspectClaudeEvent({ type: "system", subtype: "init", tools: ["Bash", "mcp__apocha__x"] }, state),
     /outside the harness: Bash/,
   );
   assert.throws(
@@ -113,7 +113,7 @@ test("claude runs with no built-in tools and checks its init tool list", () => {
   assert.throws(
     () =>
       inspectClaudeEvent(
-        { type: "system", subtype: "init", tools: [], mcp_servers: [{ name: "panagent", status: "failed" }] },
+        { type: "system", subtype: "init", tools: [], mcp_servers: [{ name: "apocha", status: "failed" }] },
         state,
       ),
     /status: failed/,
@@ -288,7 +288,7 @@ test("the MCP tool server lists role tools and serves calls over stdio", async (
   });
   const entry = fileURLToPath(new URL("../src/adapters/mcp-server-main.mjs", import.meta.url));
   const child = spawn(process.execPath, [entry], {
-    env: { ...process.env, PANAGENT_SESSION: sessionFile },
+    env: { ...process.env, APOCHA_SESSION: sessionFile },
     stdio: ["pipe", "pipe", "pipe"],
   });
   const responses = new Map();
@@ -318,7 +318,7 @@ test("the MCP tool server lists role tools and serves calls over stdio", async (
       params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "test", version: "1" } },
     });
     const init = await response(1);
-    assert.equal(init.result.serverInfo.name, "panagent");
+    assert.equal(init.result.serverInfo.name, "apocha");
     send({ jsonrpc: "2.0", method: "notifications/initialized" });
     send({ jsonrpc: "2.0", id: 2, method: "tools/list" });
     const names = (await response(2)).result.tools.map((tool) => tool.name).sort();

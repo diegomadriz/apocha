@@ -21,7 +21,7 @@ import {
  * - `--setting-sources ""`, `--disable-slash-commands`, no session persistence,
  *   and an empty working directory, so no project settings, hooks, skills, or
  *   CLAUDE.md from the repository are loaded;
- * - permission mode `dontAsk` with only `mcp__panagent__*` allowed;
+ * - permission mode `dontAsk` with only `mcp__apocha__*` allowed;
  * - the `init` event's tool list is checked before any work, and every
  *   assistant tool call is checked against the harness namespace.
  */
@@ -137,7 +137,7 @@ export function createClaudeCodeAdapter(settings = {}) {
               type: "stdio",
               command: process.execPath,
               args: [MCP_ENTRY],
-              env: { PANAGENT_SESSION: invocation.sessionFile },
+              env: { APOCHA_SESSION: invocation.sessionFile },
             },
           },
         }),

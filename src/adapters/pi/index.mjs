@@ -112,7 +112,7 @@ export function createPiAdapter(settings = {}) {
         command,
         args: piArgs(invocation, provider),
         cwd: invocation.cwd,
-        env: runtimeEnvironment({ PANAGENT_SESSION: invocation.sessionFile }),
+        env: runtimeEnvironment({ APOCHA_SESSION: invocation.sessionFile }),
         input: invocation.taskPrompt,
         timeoutMs: invocation.timeoutMs,
         signal: invocation.signal,

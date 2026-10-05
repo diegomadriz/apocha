@@ -4,14 +4,18 @@
 
 First release as a standalone package.
 
+- Renamed from Panagent before release. Repositories that still have `panagent.config.json` keep
+  working, and receipts written as `panagent.receipt.v3` still verify. Both old config names stay
+  governance paths.
+
 - Workflows as data, run by one engine: `code-delivery` and `integrate`, built from the stage
   kinds `agent`, `checks`, `review`, `budget`, `human`, `promote`, and `seed`.
 - Adapters for Codex CLI, Claude Code, and Pi, chosen per role in a runtime config, plus a
   scripted fake runtime for tests. Each runtime is limited to the harness tools, with stream
-  checks and a live lock-down probe (`panagent doctor --live`).
+  checks and a live lock-down probe (`apocha doctor --live`).
 - Harness tools served over MCP (official SDK, both protocol eras) or a Pi extension, including
   `read_base_file` and `run_check`.
-- Checks from a closed catalog in `panagent.config.json`, run in a fresh tree under Seatbelt or
+- Checks from a closed catalog in `apocha.config.json`, run in a fresh tree under Seatbelt or
   bubblewrap, with `npm` and `none` dependency policies.
 - The reviewer sees the full diff; oversized diffs escalate.
 - Every run is recorded with an append-only event log. Usage limits pause runs; `resume`
@@ -30,5 +34,5 @@ First release as a standalone package.
 - Sandboxed checks cannot read secret-looking untracked files in the source checkout.
 - Temporary directories carry an owner marker and are always removed.
 - `land` retires landed batch refs; `--keep-batch` preserves them.
-- New `panagent gc` and `panagent status` commands for cleanup and visibility into batches and runs.
+- New `apocha gc` and `apocha status` commands for cleanup and visibility into batches and runs.
 - Lifecycle documentation covers status, landing, and cleanup.

@@ -4,6 +4,6 @@
     "test": { "description": "Unit tests (node --test)", "run": ["node", "--test"], "cwd": ".", "timeout_ms": 60000 }
   },
   "default_checks": ["test"],
-  "paths": { "protected": ["panagent.config.json"], "governance": ["AGENTS.md"] },
+  "paths": { "protected": ["apocha.config.json"], "governance": ["AGENTS.md"] },
   "sandbox": { "mode": "auto", "network": "deny" }
 }

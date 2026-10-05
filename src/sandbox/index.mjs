@@ -27,11 +27,11 @@ import { expandHome } from "../util/paths.mjs";
 const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
 
 /** Set in every sandboxed check's environment; a process that sees it is already confined. */
-export const SANDBOX_MARKER = "PANAGENT_SANDBOX";
+export const SANDBOX_MARKER = "APOCHA_SANDBOX";
 
 /**
  * The OS sandbox available on this host, or null. Inside a sandboxed check
- * (for example Panagent's own test suite run as a check) nested sandboxes are
+ * (for example Apocha's own test suite run as a check) nested sandboxes are
  * not possible, and the outer sandbox already confines the process.
  * @returns {SandboxBackend | null}
  */

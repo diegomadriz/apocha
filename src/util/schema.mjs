@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { HarnessError, isObject } from "./errors.mjs";
 
 /**
- * A small validator for the JSON Schema (2020-12) subset Panagent's schemas use:
+ * A small validator for the JSON Schema (2020-12) subset Apocha's schemas use:
  * type, properties, required, additionalProperties, items, enum, const,
  * pattern, minLength/maxLength, minItems/maxItems, uniqueItems,
  * minimum/maximum, propertyNames, and local `$ref` into `$defs`.

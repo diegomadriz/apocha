@@ -20,7 +20,7 @@ export function landBranch({
   notesRef,
   source,
   target,
-  batchPrefix = "refs/heads/panagent/batch/",
+  batchPrefix = "refs/heads/apocha/batch/",
   keepBatch = false,
 }) {
   if (typeof target !== "string" || !target || target.startsWith("-") || target.startsWith("refs/")) {

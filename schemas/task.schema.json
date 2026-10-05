@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Panagent task manifest",
+  "title": "Apocha task manifest",
   "description": "One unit of agent work. A task names checks from the project catalog; it can never supply commands.",
   "type": "object",
   "additionalProperties": false,

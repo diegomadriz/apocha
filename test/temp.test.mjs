@@ -29,7 +29,7 @@ test("temp directories carry ownership and removal is idempotent", (t) => {
   t.after(() => removeTempDir(dir));
   assert.equal(dir, realpathSync(dir));
   assert.equal(path.dirname(dir), tmp);
-  const owner = JSON.parse(readFileSync(path.join(dir, ".panagent-owner"), "utf8"));
+  const owner = JSON.parse(readFileSync(path.join(dir, ".apocha-owner"), "utf8"));
   assert.deepEqual(owner, {
     kind: "unit-test",
     run_id: "run-1",
@@ -51,13 +51,13 @@ test("the inventory includes legacy and unreadable owners and excludes files", (
   const tmp = isolatedTemp(t);
   const owned = makeTempDir("unit");
   t.after(() => removeTempDir(owned));
-  assert.equal(JSON.parse(readFileSync(path.join(owned, ".panagent-owner"), "utf8")).run_id, null);
-  const legacy = path.join(tmp, "panagent-legacy-abcdef");
-  const broken = path.join(tmp, "panagent-broken-abcdef");
+  assert.equal(JSON.parse(readFileSync(path.join(owned, ".apocha-owner"), "utf8")).run_id, null);
+  const legacy = path.join(tmp, "apocha-legacy-abcdef");
+  const broken = path.join(tmp, "apocha-broken-abcdef");
   mkdirSync(legacy);
   mkdirSync(broken);
-  writeFileSync(path.join(broken, ".panagent-owner"), "{");
-  writeFileSync(path.join(tmp, "panagent-file"), "x");
+  writeFileSync(path.join(broken, ".apocha-owner"), "{");
+  writeFileSync(path.join(tmp, "apocha-file"), "x");
   mkdirSync(path.join(tmp, "unrelated"));
   const inventory = listTempDirs();
   assert.equal(inventory.length, 3);
@@ -82,7 +82,7 @@ test("the inventory includes legacy and unreadable owners and excludes files", (
 test("the inventory rejects owner markers with a non-string repository", (t) => {
   isolatedTemp(t);
   const dir = makeTempDir("unit");
-  const marker = path.join(dir, ".panagent-owner");
+  const marker = path.join(dir, ".apocha-owner");
   const owner = JSON.parse(readFileSync(marker, "utf8"));
   for (const repository of [null, 123, {}, []]) {
     writeFileSync(marker, JSON.stringify({ ...owner, repository }));

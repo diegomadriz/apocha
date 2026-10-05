@@ -94,7 +94,7 @@ test("bwrap arguments isolate the network and bind only the workspace writable",
 
 test("a sandboxed check runs normally inside its workspace", { skip }, async () => {
   const result = await sandboxed(
-    'import { writeFileSync, readFileSync } from "node:fs"; writeFileSync("out.txt", "x"); console.log(readFileSync("README.md", "utf8").trim()); console.log(process.env.HOME.includes("panagent-check-"));',
+    'import { writeFileSync, readFileSync } from "node:fs"; writeFileSync("out.txt", "x"); console.log(readFileSync("README.md", "utf8").trim()); console.log(process.env.HOME.includes("apocha-check-"));',
   );
   assert.equal(result.status, "pass", result.stderr);
   assert.match(result.stdout, /# fixture\ntrue/);
@@ -128,7 +128,7 @@ catch { console.log("DENIED"); }`,
 });
 
 test("a sandboxed check cannot write outside its workspace", { skip }, async () => {
-  const target = path.join(os.homedir(), `.panagent-sandbox-probe-${process.pid}`);
+  const target = path.join(os.homedir(), `.apocha-sandbox-probe-${process.pid}`);
   try {
     const result = await sandboxed(
       `import { writeFileSync } from "node:fs"; try { writeFileSync(${JSON.stringify(target)}, "x"); console.log("WROTE"); } catch (e) { console.log("DENIED", e.code); }`,

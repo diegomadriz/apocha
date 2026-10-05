@@ -3,16 +3,19 @@ import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFile
 import os from "node:os";
 import path from "node:path";
 
+/** Directory name prefix for every temporary directory Apocha creates. */
+export const TEMP_PREFIX = "apocha-";
+
 /** @typedef {{ kind: string, run_id: string | null, pid: number, created_at: string, repository?: string }} TempOwner */
 
 /** @param {string} kind @param {{ runId?: string, repository?: string }} [options] */
 export function makeTempDir(kind, { runId, repository } = {}) {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(kind)) throw new Error("invalid temp directory kind");
-  const dir = mkdtempSync(path.join(os.tmpdir(), `panagent-${kind}-`));
+  const dir = mkdtempSync(path.join(os.tmpdir(), `${TEMP_PREFIX}${kind}-`));
   try {
     const root = realpathSync(dir);
     writeFileSync(
-      path.join(root, ".panagent-owner"),
+      path.join(root, ".apocha-owner"),
       JSON.stringify({
         kind,
         run_id: runId ?? null,
@@ -36,13 +39,13 @@ export function removeTempDir(dir) {
 /** @returns {{ path: string, kind: string, owner: TempOwner | null }[]} */
 export function listTempDirs() {
   return readdirSync(os.tmpdir(), { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith("panagent-"))
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith(TEMP_PREFIX))
     .map((entry) => {
       const dir = path.join(os.tmpdir(), entry.name);
       /** @type {TempOwner | null} */
       let owner = null;
       try {
-        const parsed = JSON.parse(readFileSync(path.join(dir, ".panagent-owner"), "utf8"));
+        const parsed = JSON.parse(readFileSync(path.join(dir, ".apocha-owner"), "utf8"));
         if (
           parsed &&
           typeof parsed.kind === "string" &&
@@ -55,7 +58,11 @@ export function listTempDirs() {
       } catch {
         // Legacy directories and unreadable markers still appear in the inventory.
       }
-      return { path: dir, kind: owner?.kind ?? entry.name.slice(9).replace(/-[^-]+$/, ""), owner };
+      return {
+        path: dir,
+        kind: owner?.kind ?? entry.name.slice(TEMP_PREFIX.length).replace(/-[^-]+$/, ""),
+        owner,
+      };
     })
     .sort((a, b) => a.path.localeCompare(b.path));
 }

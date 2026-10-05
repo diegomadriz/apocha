@@ -8,7 +8,7 @@ import { gitCommonDir } from "../util/git.mjs";
 
 /**
  * The run store keeps every run, whatever its outcome, under
- * `<git-common-dir>/panagent/runs/<run-id>/`:
+ * `<git-common-dir>/apocha/runs/<run-id>/`:
  *
  * - `run.json`     metadata and current state (rewritten atomically)
  * - `events.jsonl` append-only event log; the history of every transition
@@ -23,7 +23,7 @@ export const TERMINAL = Object.freeze(new Set(["PASSED", "FAILED", "ESCALATED", 
 
 /** @param {string} repositoryRoot */
 export function stateDir(repositoryRoot) {
-  return path.join(gitCommonDir(repositoryRoot), "panagent");
+  return path.join(gitCommonDir(repositoryRoot), "apocha");
 }
 
 /** @param {string} taskId */

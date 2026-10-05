@@ -1,12 +1,12 @@
 # Working on this repository
 
-This file is for agents and people changing Panagent itself.
+This file is for agents and people changing Apocha itself.
 
 ## Map
 
 | Path | What lives there |
 |---|---|
-| `bin/panagent.mjs` | CLI entry; everything else is in `src/` |
+| `bin/apocha.mjs` | CLI entry; everything else is in `src/` |
 | `src/cli/` | Commands (`main.mjs`), `init`, and the live lock-down probe |
 | `src/core/` | Engine, run lifecycle, run store and events, lock, metrics, workflow validation |
 | `src/core/gc.mjs` | Cleanup plans and removal of leftover resources |
@@ -24,7 +24,7 @@ This file is for agents and people changing Panagent itself.
 | `schemas/` | JSON Schemas: the single source of truth for every document shape |
 | `docs/` | Architecture, configuration, adapters, workflows, receipts, security, operations |
 | `test/` | `node --test` suites; `helpers.mjs` builds throwaway repositories |
-| `examples/toy-node/` | A small project and task for trying Panagent |
+| `examples/toy-node/` | A small project and task for trying Apocha |
 
 Start with `docs/architecture.md`.
 
@@ -41,14 +41,14 @@ they skip inside an already-sandboxed check.
 
 ## How changes are made
 
-Changes go through Panagent itself. `panagent.config.json` defines the catalog (`lint`,
+Changes go through Apocha itself. `apocha.config.json` defines the catalog (`lint`,
 `typecheck`, `test`) and the protected and governance paths. Run tasks with
-`panagent run`, integrate with `panagent integrate`, and land with `panagent land`. Never push.
+`apocha run`, integrate with `apocha integrate`, and land with `apocha land`. Never push.
 
-Governance paths (`AGENTS.md`, `src/prompts/`, `schemas/`, `panagent.config.json`) change only
+Governance paths (`AGENTS.md`, `src/prompts/`, `schemas/`, `apocha.config.json`) change only
 with `--allow-governance-edits --reason "<why>"`, and a person reviews the result.
 
-Start with `panagent status` to see open batches and runs. After landing, `land` retires the batch branch. Finish with `panagent gc`, and run `panagent gc --apply` only when the plan lists nothing you still need. Do not leave worktrees, branches, or temp files of your own. Remove what you created before you finish.
+Start with `apocha status` to see open batches and runs. After landing, `land` retires the batch branch. Finish with `apocha gc`, and run `apocha gc --apply` only when the plan lists nothing you still need. Do not leave worktrees, branches, or temp files of your own. Remove what you created before you finish.
 
 ## Rules for code
 

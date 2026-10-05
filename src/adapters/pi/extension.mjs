@@ -6,13 +6,13 @@ import { createProjectTools } from "../../tools/project-tools.mjs";
 /**
  * Pi extension that registers the harness tools in-process. Loaded with
  * `--extension` while every built-in tool, extension, skill, and context file
- * is disabled. Environment: PANAGENT_SESSION = session config path.
+ * is disabled. Environment: APOCHA_SESSION = session config path.
  *
  * @param {any} pi Pi's ExtensionAPI
  */
-export default function registerPanagentTools(pi) {
-  const sessionFile = process.env.PANAGENT_SESSION;
-  if (!sessionFile) throw new Error("PANAGENT_SESSION is required");
+export default function registerApochaTools(pi) {
+  const sessionFile = process.env.APOCHA_SESSION;
+  if (!sessionFile) throw new Error("APOCHA_SESSION is required");
   const session = JSON.parse(readFileSync(sessionFile, "utf8"));
   const tools = createProjectTools(session);
   for (const definition of toolDefinitions(session.role)) {

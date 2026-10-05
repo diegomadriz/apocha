@@ -119,9 +119,7 @@ test("npm checks get the locked node_modules", async () => {
   const candidate = createCandidate(repo.root, "main");
   try {
     const config = normalizeProjectConfig(
-      JSON.parse(
-        String((await import("node:fs")).readFileSync(path.join(repo.root, "panagent.config.json"))),
-      ),
+      JSON.parse(String((await import("node:fs")).readFileSync(path.join(repo.root, "apocha.config.json")))),
       repo.root,
     );
     const result = await runCheck({ check: config.checks.uses_dep, candidate, config, backend: "none" });
@@ -138,9 +136,7 @@ test("npm checks fail when the candidate changes dependencies, and error when in
   const candidate = createCandidate(repo.root, "main");
   try {
     const config = normalizeProjectConfig(
-      JSON.parse(
-        String((await import("node:fs")).readFileSync(path.join(repo.root, "panagent.config.json"))),
-      ),
+      JSON.parse(String((await import("node:fs")).readFileSync(path.join(repo.root, "apocha.config.json")))),
       repo.root,
     );
     writeFileSync(
@@ -158,9 +154,7 @@ test("npm checks fail when the candidate changes dependencies, and error when in
   const candidate2 = createCandidate(stale.root, "main");
   try {
     const config = normalizeProjectConfig(
-      JSON.parse(
-        String((await import("node:fs")).readFileSync(path.join(stale.root, "panagent.config.json"))),
-      ),
+      JSON.parse(String((await import("node:fs")).readFileSync(path.join(stale.root, "apocha.config.json")))),
       stale.root,
     );
     const result = await runCheck({

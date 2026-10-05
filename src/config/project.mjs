@@ -7,8 +7,11 @@ import { git } from "../util/git.mjs";
 import { canonicalPath, hasGitComponent } from "../util/paths.mjs";
 import { assertValid } from "../util/schema.mjs";
 
-export const PROJECT_CONFIG_FILE = "panagent.config.json";
-export const LOCAL_CONFIG_DIR = ".panagent/";
+export const PROJECT_CONFIG_FILE = "apocha.config.json";
+export const LOCAL_CONFIG_DIR = ".apocha/";
+/** Config file and local directory names used before the rename from Panagent; still read and protected. */
+export const LEGACY_PROJECT_CONFIG_FILES = Object.freeze(["panagent.config.json"]);
+export const LEGACY_LOCAL_CONFIG_DIRS = Object.freeze([".panagent/"]);
 
 /** Credential locations no check may read, on top of the project's own list. */
 export const DEFAULT_DENY_READ = Object.freeze([
@@ -102,6 +105,8 @@ export function normalizeProjectConfig(raw, root) {
     ...new Set([
       PROJECT_CONFIG_FILE,
       LOCAL_CONFIG_DIR,
+      ...LEGACY_PROJECT_CONFIG_FILES,
+      ...LEGACY_LOCAL_CONFIG_DIRS,
       ...pathList(input.paths?.governance, "paths.governance"),
     ]),
   ];
@@ -124,8 +129,8 @@ export function normalizeProjectConfig(raw, root) {
       design_reference_prefix: designPrefix,
     },
     refs: {
-      batch_prefix: input.refs?.batch_prefix ?? "refs/heads/panagent/batch/",
-      notes: input.refs?.notes ?? "refs/notes/panagent",
+      batch_prefix: input.refs?.batch_prefix ?? "refs/heads/apocha/batch/",
+      notes: input.refs?.notes ?? "refs/notes/apocha",
     },
     sandbox: {
       mode: input.sandbox?.mode ?? "auto",
@@ -142,7 +147,7 @@ export function normalizeProjectConfig(raw, root) {
 }
 
 /**
- * Load `panagent.config.json` from a repository root, or from a specific
+ * Load `apocha.config.json` (or the legacy `panagent.config.json`) from a repository root, or from a specific
  * Git tree when `readFile` is supplied (the base commit's config governs a run,
  * never a config the candidate could have edited).
  *
@@ -151,18 +156,22 @@ export function normalizeProjectConfig(raw, root) {
  * @returns {ProjectConfig}
  */
 export function loadProjectConfig(root, options = {}) {
-  let text;
-  if (options.readFile) {
-    text = options.readFile(PROJECT_CONFIG_FILE);
-  } else {
-    const file = path.join(root, PROJECT_CONFIG_FILE);
-    text = existsSync(file) ? readFileSync(file, "utf8") : null;
+  /** @param {string} name */
+  const read = (name) => {
+    if (options.readFile) return options.readFile(name);
+    const file = path.join(root, name);
+    return existsSync(file) ? readFileSync(file, "utf8") : null;
+  };
+  let text = null;
+  for (const name of [PROJECT_CONFIG_FILE, ...LEGACY_PROJECT_CONFIG_FILES]) {
+    text = read(name);
+    if (text !== null) break;
   }
   if (text === null) {
     throw new HarnessError(
       "config",
       "missing_project_config",
-      `${PROJECT_CONFIG_FILE} not found; run 'panagent init'`,
+      `${PROJECT_CONFIG_FILE} not found; run 'apocha init'`,
     );
   }
   let raw;

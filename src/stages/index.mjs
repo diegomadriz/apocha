@@ -37,7 +37,7 @@ function runBudgetStage(stage, ctx) {
 
 /**
  * `human` stage: wait for an approve or reject decision given through
- * `panagent resume <run> --decision approve|reject`.
+ * `apocha resume <run> --decision approve|reject`.
  * @param {import("../core/workflow.mjs").StageDefinition} _stage
  * @param {import("../core/context.mjs").RunContext} ctx
  * @param {string} name

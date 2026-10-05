@@ -1,6 +1,6 @@
 # Receipts
 
-A receipt is a Git note (under `refs.notes`, default `refs/notes/panagent`) on each promoted
+A receipt is a Git note (under `refs.notes`, default `refs/notes/apocha`) on each promoted
 commit. It records what was verified, how, and by whom, in a form anyone can check against Git.
 
 ## Version 3
@@ -9,7 +9,7 @@ Schema: `schemas/receipt-v3.schema.json`.
 
 | Field | Meaning |
 |---|---|
-| `schema` | `panagent.receipt.v3` |
+| `schema` | `apocha.receipt.v3` |
 | `generator` | Package name and version that wrote it |
 | `workflow`, `run_id`, `task_id` | Which workflow and run produced the commit |
 | `task_digest` | SHA-256 of the normalized task: scope, criteria, checks, repair limit |
@@ -29,7 +29,7 @@ The digests let two results be compared honestly: same `policy_digest` and
 
 ## Verification
 
-`panagent receipt <commit>` and `land` check, in order:
+`apocha receipt <commit>` and `land` check, in order:
 
 1. the note parses and matches the schema (v3), or the legacy shape (v1, v2);
 2. `promoted_head` is the commit, and `tree` and `parents` match the commit object;
@@ -40,7 +40,7 @@ The digests let two results be compared honestly: same `policy_digest` and
 
 ## Landing
 
-`panagent land <source> --target <branch>`:
+`apocha land <source> --target <branch>`:
 
 - requires the target to be a first-parent ancestor of the source;
 - verifies the receipt of every first-parent commit between them (integration commits carry their
@@ -52,19 +52,19 @@ The digests let two results be compared honestly: same `policy_digest` and
 - keeps the target, moved refs, refs outside the prefix, symbolic refs, refs checked out in any
   worktree, and batch refs of RUNNING or PAUSED runs;
 - prints each retired ref and its old OID, and writes a JSON land record under
-  `<git-common-dir>/panagent/lands/` with tips, commits, retirements, and reasons for kept refs;
+  `<git-common-dir>/apocha/lands/` with tips, commits, retirements, and reasons for kept refs;
 - never pushes.
 
 Receipts are notes on commits, independent of batch refs. After retirement,
-`panagent receipt <commit-oid>` still verifies the landed commit. To restore a batch ref,
+`apocha receipt <commit-oid>` still verifies the landed commit. To restore a batch ref,
 take its name and old OID from the land output or record and run
 `git update-ref <ref> <old-oid> ""`. The empty expected old value prevents overwriting
 a ref recreated since retirement.
 
 ## Legacy receipts
 
-Versions 1 and 2 were written by the harness Panagent was extracted from. They verify with the
-same commit checks and the same recomputed digest, so a repository that switches to Panagent and
+Versions 1 and 2 were written by the harness Apocha was extracted from. They verify with the
+same commit checks and the same recomputed digest, so a repository that switches to Apocha and
 keeps its batch prefix and notes ref can land across both histories.
 
 ## Limits
@@ -73,4 +73,4 @@ keeps its batch prefix and notes ref can land across both histories.
   the commit's real content and passes the schema would verify. Signing (SSH or Sigstore) and an
   in-toto envelope are planned.
 - Notes do not travel with `git push` by default. Push the notes ref explicitly
-  (`git push origin refs/notes/panagent`) if receipts should be shared.
+  (`git push origin refs/notes/apocha`) if receipts should be shared.

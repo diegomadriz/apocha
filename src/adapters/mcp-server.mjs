@@ -14,13 +14,13 @@ import { MCP_SERVER_NAME } from "./mcp-names.mjs";
  *
  * This is the only module that imports the MCP SDK.
  *
- * Environment: PANAGENT_SESSION = path to the session config JSON written by the controller.
+ * Environment: APOCHA_SESSION = path to the session config JSON written by the controller.
  */
 
 export function startMcpToolServer() {
-  const sessionFile = process.env.PANAGENT_SESSION;
+  const sessionFile = process.env.APOCHA_SESSION;
   if (!sessionFile) {
-    process.stderr.write("PANAGENT_SESSION is required\n");
+    process.stderr.write("APOCHA_SESSION is required\n");
     process.exit(2);
   }
   const session = JSON.parse(readFileSync(sessionFile, "utf8"));
@@ -45,6 +45,6 @@ export function startMcpToolServer() {
       }
       return server;
     },
-    { onerror: (error) => process.stderr.write(`panagent mcp: ${error.message}\n`) },
+    { onerror: (error) => process.stderr.write(`apocha mcp: ${error.message}\n`) },
   );
 }

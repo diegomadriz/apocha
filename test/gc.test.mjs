@@ -20,7 +20,7 @@ import { RunStore } from "../src/core/runs.mjs";
 import { git, gitCommonDir, gitText, resolveCommit } from "../src/util/git.mjs";
 import { makeRepo, testTempDir } from "./helpers.mjs";
 
-const BIN = fileURLToPath(new URL("../bin/panagent.mjs", import.meta.url));
+const BIN = fileURLToPath(new URL("../bin/apocha.mjs", import.meta.url));
 
 test("gc dry run and apply preserve active refs and analytics and remove only eligible artifacts", async () => {
   const repo = makeRepo();
@@ -28,17 +28,17 @@ test("gc dry run and apply preserve active refs and analytics and remove only el
   const previous = process.env.TMPDIR;
   process.env.TMPDIR = temporary;
   try {
-    const prefix = "refs/heads/panagent/batch/";
+    const prefix = "refs/heads/apocha/batch/";
     const base = gitText(repo.root, ["rev-parse", "HEAD"]);
     for (const name of ["merged", "checked", "paused", "running", "moved"])
       git(repo.root, ["update-ref", prefix + name, base]);
-    git(repo.root, ["checkout", "-qb", "panagent/batch/unmerged"]);
+    git(repo.root, ["checkout", "-qb", "apocha/batch/unmerged"]);
     writeFileSync(path.join(repo.root, "extra.txt"), "unmerged");
     git(repo.root, ["add", "extra.txt"]);
     git(repo.root, ["commit", "-qm", "unmerged"]);
     const unmerged = gitText(repo.root, ["rev-parse", "HEAD"]);
     git(repo.root, ["checkout", "-q", "main"]);
-    git(repo.root, ["worktree", "add", "-q", path.join(temporary, "checkout"), "panagent/batch/checked"]);
+    git(repo.root, ["worktree", "add", "-q", path.join(temporary, "checkout"), "apocha/batch/checked"]);
     git(repo.root, ["update-ref", "refs/heads/outside", base]);
     const store = new RunStore(repo.root);
     const paused = "paused-20260101T000000Z-0001";
@@ -67,10 +67,10 @@ test("gc dry run and apply preserve active refs and analytics and remove only el
       writeFileSync(path.join(session, "tools.jsonl"), '{"tool":"run_check","ok":true,"status":"pass"}\n');
     }
     const makeTemp = (name, pid, runId = null) => {
-      const directory = path.join(temporary, `panagent-${name}`);
+      const directory = path.join(temporary, `apocha-${name}`);
       mkdirSync(directory);
       writeFileSync(
-        path.join(directory, ".panagent-owner"),
+        path.join(directory, ".apocha-owner"),
         JSON.stringify({
           kind: "candidate",
           run_id: runId,
@@ -85,14 +85,14 @@ test("gc dry run and apply preserve active refs and analytics and remove only el
     const dead = makeTemp("dead", 2147483647);
     const candidate = makeTemp("paused", 2147483647, paused);
     store.update(paused, { candidate_root: path.join(candidate, "tree") });
-    const legacy = path.join(temporary, "panagent-legacy");
+    const legacy = path.join(temporary, "apocha-legacy");
     mkdirSync(legacy);
     utimesSync(legacy, new Date("2020-01-01"), new Date("2020-01-01"));
-    const young = path.join(temporary, "panagent-young");
+    const young = path.join(temporary, "apocha-young");
     mkdirSync(young);
     const foreign = path.join(temporary, "foreign");
     mkdirSync(foreign);
-    symlinkSync(foreign, path.join(temporary, "panagent-link"));
+    symlinkSync(foreign, path.join(temporary, "apocha-link"));
     const before = collectRunFacts(repo.root);
     const snapshot = readFileSync(path.join(store.dir(paused), "run.json"), "utf8");
     const dry = spawnSync(process.execPath, [BIN, "gc"], { cwd: repo.root, encoding: "utf8" });
@@ -160,10 +160,10 @@ test("gc scopes dead owners to the repository and protects legacy run candidates
   const ownRepository = realpathSync(gitCommonDir(repo.root));
   const otherRepository = realpathSync(gitCommonDir(other.root));
   const makeTemp = (name, repository, pid = 2147483647) => {
-    const directory = path.join(temporary, `panagent-${name}`);
+    const directory = path.join(temporary, `apocha-${name}`);
     mkdirSync(directory);
     writeFileSync(
-      path.join(directory, ".panagent-owner"),
+      path.join(directory, ".apocha-owner"),
       JSON.stringify({
         kind: "candidate",
         run_id: null,
@@ -179,8 +179,8 @@ test("gc scopes dead owners to the repository and protects legacy run candidates
   const live = makeTemp("live", ownRepository, process.pid);
   const legacyOwner = makeTemp("legacy-owner", undefined);
   const youngLegacy = makeTemp("young-legacy", undefined);
-  const legacy = path.join(temporary, "panagent-unowned");
-  const candidate = path.join(temporary, "panagent-legacy-candidate");
+  const legacy = path.join(temporary, "apocha-unowned");
+  const candidate = path.join(temporary, "apocha-legacy-candidate");
   mkdirSync(legacy);
   mkdirSync(candidate);
   for (const directory of [legacyOwner, legacy, candidate])

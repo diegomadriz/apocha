@@ -26,12 +26,12 @@ import { liveProbe, sourceSecretsProbe } from "./probe.mjs";
 
 export const EXIT = Object.freeze({ ok: 0, usage: 2, paused: 10, notPassed: 20, error: 30 });
 
-const HELP = `panagent ${GENERATOR.version}: a deterministic controller for coding agents
+const HELP = `apocha ${GENERATOR.version}: a deterministic controller for coding agents
 
-Usage: panagent <command> [options]
+Usage: apocha <command> [options]
 
 Commands:
-  init                          Write a starter panagent.config.json for this repository
+  init                          Write a starter apocha.config.json for this repository
   doctor [--live]               Check git, config, runtimes, and the sandbox (--live probes each runtime's lock-down)
   validate <task.json>          Validate a task manifest against the schema and project config
   run <task.json>               Run the code-delivery workflow
@@ -483,7 +483,7 @@ export async function main(argv) {
             `  first-attempt pass rate: ${r.first_attempt_pass_rate ?? "n/a"}%   harness error rate: ${r.harness_error_rate ?? "n/a"}%`,
             `deliveries (receipts): ${d.deliveries}, integrations: ${d.integrations}`,
             `  repairs: 0=${d.repairs[0] ?? 0} 1=${d.repairs[1] ?? 0} 2=${d.repairs[2] ?? 0}   no repair: ${d.no_repair_rate ?? "n/a"}%   within one: ${d.within_one_repair_rate ?? "n/a"}%`,
-            "Definitions: panagent metrics --json",
+            "Definitions: apocha metrics --json",
           ].join("\n"),
         );
       }
@@ -580,7 +580,7 @@ export async function run(argv) {
     process.exitCode = await main(argv);
   } catch (error) {
     const detail = describeError(error);
-    process.stderr.write(`panagent: ${detail.message}\n`);
+    process.stderr.write(`apocha: ${detail.message}\n`);
     process.exitCode = detail.error_class === "config" ? EXIT.usage : EXIT.error;
   }
 }

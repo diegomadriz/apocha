@@ -107,7 +107,7 @@ export async function startRun(options) {
         acceptance_criteria: [
           "The merged tree passes its checks and the combined change is coherent with the base.",
         ],
-        allowed_paths: [".panagent-integration-pending"],
+        allowed_paths: [".apocha-integration-pending"],
         checks: [],
         max_repair_attempts: options.integration.maxRepairs ?? config.limits.default_repair_attempts,
       },

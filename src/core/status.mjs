@@ -184,7 +184,7 @@ export function repositoryStatus(repositoryRoot, options = {}) {
     .filter((batch) => batch.state === "ready")
     .map((batch) => `land ${batch.ref} --target ${name}`);
   if (batches.some((batch) => batch.state === "landed") || temp.orphan_count)
-    suggestedActions.push("panagent gc");
+    suggestedActions.push("apocha gc");
   for (const run of attention) if (run.state === "PAUSED") suggestedActions.push(`resume ${run.run_id}`);
   return {
     target: { branch: name, ref, tip, worktree, clean },
@@ -260,9 +260,9 @@ export function formatStatusText(status) {
     "Next actions",
     ...status.suggested_actions.map((action) => {
       const command = action.startsWith("land ")
-        ? `panagent ${action.replace("land refs/heads/", "land ")}`
+        ? `apocha ${action.replace("land refs/heads/", "land ")}`
         : action.startsWith("resume ")
-          ? `panagent ${action}`
+          ? `apocha ${action}`
           : action;
       return `  ${command}`;
     }),

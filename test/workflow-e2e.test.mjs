@@ -31,14 +31,14 @@ const base = (root, extra = {}) => ({
 test("a failed batch reservation leaves no RUNNING record", async () => {
   const repo = makeRepo();
   try {
-    git(repo.root, ["update-ref", "refs/heads/panagent/batch/set-value", "main"]);
+    git(repo.root, ["update-ref", "refs/heads/apocha/batch/set-value", "main"]);
     await assert.rejects(
       startRun({ ...base(repo.root), task: valueTask(), adapters: adapters(writeValue(2)) }),
       /batch|ref/,
     );
     assert.equal(new RunStore(repo.root).list().length, 0);
     assert.equal(
-      resolveCommit(repo.root, "refs/heads/panagent/batch/set-value"),
+      resolveCommit(repo.root, "refs/heads/apocha/batch/set-value"),
       resolveCommit(repo.root, "main"),
     );
   } finally {
@@ -69,7 +69,7 @@ test("aborting a fake adapter run records ERROR/infra/aborted", async () => {
     assert.equal(run.code, "aborted");
     assert.equal(run.state.error.code, "aborted");
     assert.ok(run.finished_at);
-    assert.equal(resolveCommit(repo.root, "refs/heads/panagent/batch/set-value"), null);
+    assert.equal(resolveCommit(repo.root, "refs/heads/apocha/batch/set-value"), null);
   } finally {
     repo.cleanup();
   }
@@ -85,10 +85,10 @@ test("a passing run promotes the candidate and writes a verifiable receipt", asy
     });
     assert.equal(summary.outcome, "PASSED", summary.reason ?? "");
     assert.equal(summary.repairs, 0);
-    const head = resolveCommit(repo.root, "refs/heads/panagent/batch/set-value");
+    const head = resolveCommit(repo.root, "refs/heads/apocha/batch/set-value");
     assert.equal(head, summary.promoted_head);
     assert.equal(gitText(repo.root, ["show", `${head}:src/value.txt`]), "2");
-    const receipt = verifyReceipt(repo.root, "refs/notes/panagent", /** @type {string} */ (head));
+    const receipt = verifyReceipt(repo.root, "refs/notes/apocha", /** @type {string} */ (head));
     assert.equal(receipt.valid, true, receipt.reason ?? "");
     assert.equal(receipt.version, 3);
     assert.equal(receipt.receipt.checks[0].id, "test");
@@ -96,8 +96,8 @@ test("a passing run promotes the candidate and writes a verifiable receipt", asy
     // land fast-forwards main onto the receipted batch head
     const landed = landBranch({
       repositoryRoot: repo.root,
-      notesRef: "refs/notes/panagent",
-      source: "panagent/batch/set-value",
+      notesRef: "refs/notes/apocha",
+      source: "apocha/batch/set-value",
       target: "main",
     });
     assert.equal(landed.commits.length, 1);
@@ -140,7 +140,7 @@ test("repair budget exhaustion escalates and releases the batch ref", async () =
     });
     assert.equal(summary.outcome, "ESCALATED");
     assert.match(summary.reason ?? "", /repairs budget exhausted/);
-    assert.equal(resolveCommit(repo.root, "refs/heads/panagent/batch/set-value"), null);
+    assert.equal(resolveCommit(repo.root, "refs/heads/apocha/batch/set-value"), null);
     const run = new RunStore(repo.root).read(summary.run_id);
     assert.equal(run.outcome, "ESCALATED");
   } finally {
@@ -264,7 +264,7 @@ test("a usage limit pauses the run and resume continues it", async () => {
     assert.equal(first.outcome, "PAUSED");
     assert.match(first.reason ?? "", /retry after 9:00 PM/);
     assert.ok(
-      resolveCommit(repo.root, "refs/heads/panagent/batch/set-value"),
+      resolveCommit(repo.root, "refs/heads/apocha/batch/set-value"),
       "batch ref stays reserved while paused",
     );
     limited = false;
@@ -292,7 +292,7 @@ test("a run cannot use the batch of a paused run as its base", async () => {
     assert.equal(paused.outcome, "PAUSED");
     await assert.rejects(
       startRun({
-        ...base(repo.root, { base: "panagent/batch/set-value", batch: "chained" }),
+        ...base(repo.root, { base: "apocha/batch/set-value", batch: "chained" }),
         task: valueTask(),
         adapters: adapters(writeValue(2)),
       }),
@@ -323,7 +323,7 @@ test("infra errors from the runtime are retried once and recorded", async () => 
     assert.equal(summary.retries, 1);
     const receipt = verifyReceipt(
       repo.root,
-      "refs/notes/panagent",
+      "refs/notes/apocha",
       /** @type {string} */ (summary.promoted_head),
     );
     assert.equal(receipt.receipt.retries, 1);
@@ -392,7 +392,7 @@ test("governance paths are protected unless edits are allowed with a reason", as
     assert.equal(gitText(repo.root, ["show", `${allowed.promoted_head}:AGENTS.md`]), "new rules");
     const receipt = verifyReceipt(
       repo.root,
-      "refs/notes/panagent",
+      "refs/notes/apocha",
       /** @type {string} */ (allowed.promoted_head),
     ).receipt;
     assert.deepEqual(receipt.governance, {
@@ -431,7 +431,7 @@ test("integrate merges a topic, verifies, reviews, and promotes with two parents
     assert.equal(summary.outcome, "PASSED", summary.reason ?? "");
     const receipt = verifyReceipt(
       repo.root,
-      "refs/notes/panagent",
+      "refs/notes/apocha",
       /** @type {string} */ (summary.promoted_head),
     );
     assert.equal(receipt.valid, true, receipt.reason ?? "");
@@ -451,7 +451,7 @@ test("metrics count every run, not only receipts", async () => {
       task: valueTask({ max_repair_attempts: 0 }),
       adapters: adapters(writeValue(3)),
     });
-    const metrics = computeMetrics(repo.root, { notesRef: "refs/notes/panagent" });
+    const metrics = computeMetrics(repo.root, { notesRef: "refs/notes/apocha" });
     assert.equal(metrics.runs.finished, 2);
     assert.equal(metrics.runs.first_attempt_pass_rate, 50);
     assert.equal(metrics.deliveries.deliveries, 1);

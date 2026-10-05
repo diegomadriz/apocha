@@ -16,10 +16,10 @@ export async function runMergeSeedStage(_stage, ctx) {
   if (!integration)
     throw new HarnessError("config", "invalid_workflow", "seed stage needs integration inputs");
   const env = {
-    GIT_AUTHOR_NAME: "panagent",
-    GIT_AUTHOR_EMAIL: "panagent@localhost",
-    GIT_COMMITTER_NAME: "panagent",
-    GIT_COMMITTER_EMAIL: "panagent@localhost",
+    GIT_AUTHOR_NAME: "apocha",
+    GIT_AUTHOR_EMAIL: "apocha@localhost",
+    GIT_COMMITTER_NAME: "apocha",
+    GIT_COMMITTER_EMAIL: "apocha@localhost",
   };
   const merged = git(
     ctx.candidate.root,

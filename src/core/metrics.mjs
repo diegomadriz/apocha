@@ -14,7 +14,7 @@ import { RunStore } from "./runs.mjs";
  */
 
 export const DEFINITIONS = Object.freeze({
-  run: "One invocation of `panagent run` or `integrate`, recorded whatever its outcome.",
+  run: "One invocation of `apocha run` or `integrate`, recorded whatever its outcome.",
   finished_run: "A run whose outcome is PASSED, FAILED, ESCALATED, or ERROR (not RUNNING or PAUSED).",
   first_attempt_pass_rate:
     "Finished task runs (code-delivery) that PASSED with zero repairs, divided by all finished task runs.",

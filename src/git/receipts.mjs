@@ -10,17 +10,20 @@ import { digestBetweenCommits } from "./candidate.mjs";
  * reviewed it, and which runtimes ran. `verifyReceipt` checks it against Git
  * alone: commit identity, parents, and a recomputed candidate digest.
  *
- * Version 3 is written by Panagent. Versions 1 and 2 (written by the harness
- * Panagent was extracted from) are still verified, so existing history lands.
+ * Version 3 is written by Apocha. Version 3 receipts written before the rename
+ * from Panagent carry `panagent.receipt.v3`, and versions 1 and 2 (written by
+ * the harness Apocha was extracted from) are still verified, so existing history lands.
  */
 
-export const RECEIPT_SCHEMA = "panagent.receipt.v3";
+export const RECEIPT_SCHEMA = "apocha.receipt.v3";
+/** Schema ids of version 3 receipts written under the project's earlier name. */
+export const LEGACY_RECEIPT_SCHEMAS = Object.freeze(["panagent.receipt.v3"]);
 
 const NOTE_ENV = {
-  GIT_AUTHOR_NAME: "panagent",
-  GIT_AUTHOR_EMAIL: "panagent@localhost",
-  GIT_COMMITTER_NAME: "panagent",
-  GIT_COMMITTER_EMAIL: "panagent@localhost",
+  GIT_AUTHOR_NAME: "apocha",
+  GIT_AUTHOR_EMAIL: "apocha@localhost",
+  GIT_COMMITTER_NAME: "apocha",
+  GIT_COMMITTER_EMAIL: "apocha@localhost",
 };
 
 const LEGACY_V1 = [
@@ -137,7 +140,7 @@ export function verifyReceipt(repositoryRoot, notesRef, commit) {
     return { valid: false, reason, receipt: null, version: null };
   }
   const version =
-    receipt?.schema === RECEIPT_SCHEMA
+    receipt?.schema === RECEIPT_SCHEMA || LEGACY_RECEIPT_SCHEMAS.includes(receipt?.schema)
       ? 3
       : receipt?.version === 1 || receipt?.version === 2
         ? receipt.version
