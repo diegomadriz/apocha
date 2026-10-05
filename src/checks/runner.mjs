@@ -135,7 +135,7 @@ export async function runCheck({
     /** @type {{ command: string, args: string[], cwd: string, env: Record<string, string> }} */
     let prepared;
     try {
-      workspace = makeTempDir("check");
+      workspace = makeTempDir("check", { repository: gitCommonDir(candidate.repository_root) });
       const execRoot = path.join(workspace, "tree");
       const home = path.join(workspace, "home");
       const tmp = path.join(workspace, "tmp");

@@ -7,6 +7,7 @@ import { readSession, TOOL_LIMITS } from "../tools/project-tools.mjs";
 import { digestJson } from "../util/digest.mjs";
 import { describeError, HarnessError } from "../util/errors.mjs";
 import { writeJsonAtomic } from "../util/fs-safe.mjs";
+import { gitCommonDir } from "../util/git.mjs";
 import { makeTempDir, removeTempDir } from "../util/temp.mjs";
 import { GENERATOR } from "../version.mjs";
 
@@ -72,7 +73,10 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
       session_dir: sessionDir,
     };
     writeJsonAtomic(sessionFile, session);
-    const cwd = makeTempDir("agent", { runId: ctx.runId });
+    const cwd = makeTempDir("agent", {
+      runId: ctx.runId,
+      repository: gitCommonDir(ctx.repositoryRoot),
+    });
     const started = Date.now();
     /** @type {any} */
     let run = null;

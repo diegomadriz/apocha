@@ -552,7 +552,7 @@ async function doctor(cwd, options) {
           `${runtimes.roles[role].adapter} ${probe.version ?? "?"} model=${runtimes.roles[role].model ?? "-"}${probe.problems.length ? `: ${probe.problems.join("; ")}` : ""}`,
         );
         if (options.live && probe.ok && runtimes.roles[role].adapter !== "fake") {
-          const live = await liveProbe(adapter, runtimes, role);
+          const live = await liveProbe(adapter, runtimes, role, root);
           record(`${role} lock-down (live)`, live.ok, live.detail);
         }
       }

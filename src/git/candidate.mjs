@@ -3,7 +3,7 @@ import { existsSync, lstatSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { sha256 } from "../util/digest.mjs";
 import { HarnessError } from "../util/errors.mjs";
-import { git, gitBuffer, gitText, resolveCommit } from "../util/git.mjs";
+import { git, gitBuffer, gitCommonDir, gitText, resolveCommit } from "../util/git.mjs";
 import { canonicalPath, isInside } from "../util/paths.mjs";
 import { makeTempDir, removeTempDir } from "../util/temp.mjs";
 
@@ -27,7 +27,7 @@ export function createCandidate(repositoryRoot, base, options = {}) {
   const baseCommit = resolveCommit(repository, base);
   if (!baseCommit)
     throw new HarnessError("config", "unknown_base", `base does not resolve to a commit: ${base}`);
-  const workspace = makeTempDir("candidate", options);
+  const workspace = makeTempDir("candidate", { ...options, repository: gitCommonDir(repository) });
   const root = path.join(workspace, "tree");
   try {
     git(repository, [

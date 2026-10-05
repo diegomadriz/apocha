@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   symlinkSync,
   utimesSync,
   writeFileSync,
@@ -16,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import { collectRunFacts } from "../src/analytics/collect.mjs";
 import { applyGc, planGc } from "../src/core/gc.mjs";
 import { RunStore } from "../src/core/runs.mjs";
-import { git, gitText, resolveCommit } from "../src/util/git.mjs";
+import { git, gitCommonDir, gitText, resolveCommit } from "../src/util/git.mjs";
 import { makeRepo, testTempDir } from "./helpers.mjs";
 
 const BIN = fileURLToPath(new URL("../bin/panagent.mjs", import.meta.url));
@@ -75,6 +76,7 @@ test("gc dry run and apply preserve active refs and analytics and remove only el
           run_id: runId,
           pid,
           created_at: "2020-01-01T00:00:00Z",
+          repository: realpathSync(gitCommonDir(repo.root)),
         }),
       );
       return directory;
@@ -141,6 +143,69 @@ test("gc dry run and apply preserve active refs and analytics and remove only el
     else process.env.TMPDIR = previous;
     repo.cleanup();
   }
+});
+
+test("gc scopes dead owners to the repository and protects legacy run candidates", async (t) => {
+  const repo = makeRepo();
+  const other = makeRepo();
+  t.after(repo.cleanup);
+  t.after(other.cleanup);
+  const temporary = testTempDir("gc-scope");
+  const previous = process.env.TMPDIR;
+  process.env.TMPDIR = temporary;
+  t.after(() => {
+    if (previous === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = previous;
+  });
+  const ownRepository = realpathSync(gitCommonDir(repo.root));
+  const otherRepository = realpathSync(gitCommonDir(other.root));
+  const makeTemp = (name, repository, pid = 2147483647) => {
+    const directory = path.join(temporary, `panagent-${name}`);
+    mkdirSync(directory);
+    writeFileSync(
+      path.join(directory, ".panagent-owner"),
+      JSON.stringify({
+        kind: "candidate",
+        run_id: null,
+        pid,
+        created_at: "2020-01-01T00:00:00Z",
+        repository,
+      }),
+    );
+    return directory;
+  };
+  const own = makeTemp("own", ownRepository);
+  const foreign = makeTemp("other", otherRepository);
+  const live = makeTemp("live", ownRepository, process.pid);
+  const legacyOwner = makeTemp("legacy-owner", undefined);
+  const youngLegacy = makeTemp("young-legacy", undefined);
+  const legacy = path.join(temporary, "panagent-unowned");
+  const candidate = path.join(temporary, "panagent-legacy-candidate");
+  mkdirSync(legacy);
+  mkdirSync(candidate);
+  for (const directory of [legacyOwner, legacy, candidate])
+    utimesSync(directory, new Date("2020-01-01"), new Date("2020-01-01"));
+  const store = new RunStore(repo.root);
+  store.create("finished-20260101T000000Z-0005", {
+    outcome: "PASSED",
+    candidate_root: path.join(candidate, "tree"),
+  });
+  const otherStore = new RunStore(other.root);
+  otherStore.create("paused-20260101T000000Z-0006", {
+    outcome: "PAUSED",
+    candidate_root: path.join(foreign, "tree"),
+  });
+  const plan = planGc(repo.root, { abandonPausedDays: 0 });
+  for (const directory of [foreign, live, youngLegacy, candidate])
+    assert.equal(
+      plan.items.some((item) => item.path === directory),
+      false,
+    );
+  for (const directory of [own, legacyOwner, legacy])
+    assert.ok(plan.items.some((item) => item.path === directory));
+  await applyGc(repo.root, plan);
+  for (const directory of [foreign, live, youngLegacy, candidate]) assert.ok(existsSync(directory));
+  for (const directory of [own, legacyOwner, legacy]) assert.equal(existsSync(directory), false);
 });
 
 test("gc validates day options and rejects session paths through symlinks", () => {

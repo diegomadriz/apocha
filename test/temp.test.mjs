@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { resumeRun, startRun } from "../src/core/run.mjs";
 import { HarnessError } from "../src/util/errors.mjs";
+import { gitCommonDir } from "../src/util/git.mjs";
 import { listTempDirs, makeTempDir, removeTempDir } from "../src/util/temp.mjs";
 import { fakeRuntimes, makeRepo, passReviewer, testTempDir, valueTask, writeValue } from "./helpers.mjs";
 
@@ -24,7 +25,7 @@ function isolatedTemp(t) {
 
 test("temp directories carry ownership and removal is idempotent", (t) => {
   const tmp = isolatedTemp(t);
-  const dir = makeTempDir("unit-test", { runId: "run-1" });
+  const dir = makeTempDir("unit-test", { runId: "run-1", repository: tmp });
   t.after(() => removeTempDir(dir));
   assert.equal(dir, realpathSync(dir));
   assert.equal(path.dirname(dir), tmp);
@@ -34,6 +35,7 @@ test("temp directories carry ownership and removal is idempotent", (t) => {
     run_id: "run-1",
     pid: process.pid,
     created_at: owner.created_at,
+    repository: realpathSync(tmp),
   });
   assert.ok(Number.isFinite(Date.parse(owner.created_at)));
   assert.deepEqual(listTempDirs(), [{ path: dir, kind: "unit-test", owner }]);
@@ -75,6 +77,17 @@ test("the inventory includes legacy and unreadable owners and excludes files", (
       owner: null,
     },
   );
+});
+
+test("the inventory rejects owner markers with a non-string repository", (t) => {
+  isolatedTemp(t);
+  const dir = makeTempDir("unit");
+  const marker = path.join(dir, ".panagent-owner");
+  const owner = JSON.parse(readFileSync(marker, "utf8"));
+  for (const repository of [null, 123, {}, []]) {
+    writeFileSync(marker, JSON.stringify({ ...owner, repository }));
+    assert.equal(listTempDirs().find((entry) => entry.path === dir)?.owner, null);
+  }
 });
 
 test("finished fake runs leave no temp directories and paused runs retain only the candidate", async (t) => {
@@ -121,6 +134,7 @@ test("finished fake runs leave no temp directories and paused runs retain only t
   assert.equal(retained.length, 1);
   assert.equal(retained[0].kind, "candidate");
   assert.equal(retained[0].owner?.run_id, paused.run_id);
+  assert.equal(retained[0].owner?.repository, realpathSync(gitCommonDir(repo.root)));
   const fake = createFakeAdapter({ handlers: { implementer: writeValue(2), reviewer: passReviewer } });
   const resumed = await resumeRun({
     cwd: repo.root,

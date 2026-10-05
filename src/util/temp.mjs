@@ -3,17 +3,23 @@ import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFile
 import os from "node:os";
 import path from "node:path";
 
-/** @typedef {{ kind: string, run_id: string | null, pid: number, created_at: string }} TempOwner */
+/** @typedef {{ kind: string, run_id: string | null, pid: number, created_at: string, repository?: string }} TempOwner */
 
-/** @param {string} kind @param {{ runId?: string }} [options] */
-export function makeTempDir(kind, { runId } = {}) {
+/** @param {string} kind @param {{ runId?: string, repository?: string }} [options] */
+export function makeTempDir(kind, { runId, repository } = {}) {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(kind)) throw new Error("invalid temp directory kind");
   const dir = mkdtempSync(path.join(os.tmpdir(), `panagent-${kind}-`));
   try {
     const root = realpathSync(dir);
     writeFileSync(
       path.join(root, ".panagent-owner"),
-      JSON.stringify({ kind, run_id: runId ?? null, pid: process.pid, created_at: new Date().toISOString() }),
+      JSON.stringify({
+        kind,
+        run_id: runId ?? null,
+        pid: process.pid,
+        created_at: new Date().toISOString(),
+        ...(repository === undefined ? {} : { repository: realpathSync(repository) }),
+      }),
     );
     return root;
   } catch (error) {
@@ -42,7 +48,8 @@ export function listTempDirs() {
           typeof parsed.kind === "string" &&
           (parsed.run_id === null || typeof parsed.run_id === "string") &&
           typeof parsed.pid === "number" &&
-          typeof parsed.created_at === "string"
+          typeof parsed.created_at === "string" &&
+          (parsed.repository === undefined || typeof parsed.repository === "string")
         )
           owner = parsed;
       } catch {

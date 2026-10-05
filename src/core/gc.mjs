@@ -56,7 +56,7 @@ function candidateIn(run, directory) {
 export function planGc(repositoryRoot, options = {}) {
   checkDays(options.keepDays, "keep-days");
   checkDays(options.abandonPausedDays, "abandon-paused-days");
-  const common = gitCommonDir(repositoryRoot);
+  const common = realpathSync(gitCommonDir(repositoryRoot));
   resolveInside(common, "panagent", { allowMissing: true });
   const worktrees = gitText(repositoryRoot, ["worktree", "list", "--porcelain"]);
   const mainBranch = worktrees
@@ -115,16 +115,20 @@ export function planGc(repositoryRoot, options = {}) {
   for (const entry of listTempDirs()) {
     if (protectedRuns.some((run) => candidateIn(run, entry.path) || run.run_id === entry.owner?.run_id))
       continue;
+    if (entry.owner?.repository !== undefined) {
+      if (entry.owner.repository !== common || alive(entry.owner.pid)) continue;
+    } else {
+      if (runs.some((run) => candidateIn(run, entry.path))) continue;
+      if (lstatSync(entry.path).mtimeMs >= now - DAY) continue;
+    }
     const abandoning = abandoned.some((run) => candidateIn(run, entry.path));
-    if (!abandoning && (entry.owner ? alive(entry.owner.pid) : lstatSync(entry.path).mtimeMs >= now - DAY))
-      continue;
     items.push({
       kind: "temp",
       path: entry.path,
       size: sizeOf(entry.path),
       reason: abandoning
         ? "abandoned candidate"
-        : entry.owner
+        : entry.owner?.repository !== undefined
           ? "owner pid is dead"
           : "unowned for more than one day",
     });

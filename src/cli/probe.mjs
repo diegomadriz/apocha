@@ -7,7 +7,7 @@ import { rolePrompt } from "../stages/invoke.mjs";
 import { readSession } from "../tools/project-tools.mjs";
 import { describeError, HarnessError } from "../util/errors.mjs";
 import { writeJsonAtomic } from "../util/fs-safe.mjs";
-import { git } from "../util/git.mjs";
+import { git, gitCommonDir } from "../util/git.mjs";
 import { makeTempDir, removeTempDir } from "../util/temp.mjs";
 
 /**
@@ -37,9 +37,12 @@ const PROBE_PROMPT = `This is an authorized capability check of the harness that
  * @param {import("../adapters/contract.mjs").Adapter} adapter
  * @param {import("../config/runtime.mjs").RuntimeConfig} runtimes
  * @param {"implementer" | "reviewer"} role
+ * @param {string} [repositoryRoot]
  */
-export async function liveProbe(adapter, runtimes, role) {
-  const scratch = makeTempDir("probe");
+export async function liveProbe(adapter, runtimes, role, repositoryRoot) {
+  const scratch = makeTempDir("probe", {
+    repository: repositoryRoot === undefined ? undefined : gitCommonDir(repositoryRoot),
+  });
   try {
     const repo = path.join(scratch, "repo");
     git(scratch, ["init", "-q", repo]);
