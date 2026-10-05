@@ -26,9 +26,15 @@ export async function runEngine(ctx) {
     ctx.event("stage.started", { stage: name, kind: stage.kind });
     let outcome;
     try {
+      if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
       outcome = await stageRunner(stage.kind)(stage, ctx, name);
+      if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
     } catch (error) {
-      return handleStageError(ctx, name, error);
+      return handleStageError(
+        ctx,
+        name,
+        ctx.signal?.aborted ? new HarnessError("infra", "aborted", "run aborted") : error,
+      );
     }
     const next = stage.on[outcome];
     if (!next) {

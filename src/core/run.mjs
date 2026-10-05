@@ -160,71 +160,79 @@ export async function startRun(options) {
   const runId = newRunId(task.task_id);
   const dir = stateDir(repositoryRoot);
   const digest = taskDigest(task);
-  store.create(runId, {
-    workflow: workflow.id,
-    task_id: task.task_id,
-    task,
-    task_digest: digest,
-    base_ref: options.base,
-    base_commit: baseCommit,
-    batch_ref: batchRef,
-    message: options.message,
-    additional_parents: additionalParents,
-    integration,
-    governance,
-    config_digest: config.digest,
-    runtime_config_source: runtimes.source,
-    runtime_config_digest: runtimes.digest,
-    roles: runtimes.roles,
-    sandbox: sandboxBackend,
-    pid: process.pid,
-  });
-
   await withLock(dir, `reserve ${batchRef}`, () => reserveBatchRef(repositoryRoot, batchRef, baseCommit));
+  let created = false;
   let candidate;
   try {
-    candidate = createCandidate(repositoryRoot, baseCommit);
-  } catch (error) {
-    deleteRef(repositoryRoot, batchRef, baseCommit);
-    store.update(runId, {
-      outcome: "ERROR",
-      reason: describeError(error).message,
-      finished_at: new Date().toISOString(),
+    store.create(runId, {
+      workflow: workflow.id,
+      task_id: task.task_id,
+      task,
+      task_digest: digest,
+      base_ref: options.base,
+      base_commit: baseCommit,
+      batch_ref: batchRef,
+      message: options.message,
+      additional_parents: additionalParents,
+      integration,
+      governance,
+      config_digest: config.digest,
+      runtime_config_source: runtimes.source,
+      runtime_config_digest: runtimes.digest,
+      roles: runtimes.roles,
+      sandbox: sandboxBackend,
+      pid: process.pid,
     });
+
+    created = true;
+    candidate = createCandidate(repositoryRoot, baseCommit);
+    store.update(runId, { candidate_root: candidate.root });
+
+    const ctx = buildContext({
+      runId,
+      store,
+      dir,
+      repositoryRoot,
+      workflow,
+      config,
+      runtimes,
+      task,
+      taskDigest: digest,
+      candidate,
+      adapters,
+      sandboxBackend,
+      batchRef,
+      message: options.message,
+      additionalParents,
+      governance,
+      integration,
+      signal: options.signal,
+      onEvent: options.onEvent,
+      state: initialState(workflow.start),
+    });
+    ctx.event("run.started", {
+      workflow: workflow.id,
+      task_id: task.task_id,
+      base_commit: baseCommit,
+      batch_ref: batchRef,
+      sandbox: sandboxBackend,
+    });
+    return finish(ctx, await runEngine(ctx));
+  } catch (error) {
+    const detail = describeError(error);
+    if (created) {
+      store.update(runId, {
+        outcome: "ERROR",
+        reason: detail.message,
+        error_class: detail.error_class,
+        code: detail.code,
+        finished_at: new Date().toISOString(),
+      });
+    }
+    deleteRef(repositoryRoot, batchRef, baseCommit);
+    candidate?.cleanup();
     throw error;
   }
-  store.update(runId, { candidate_root: candidate.root });
-
-  const ctx = buildContext({
-    runId,
-    store,
-    dir,
-    repositoryRoot,
-    workflow,
-    config,
-    runtimes,
-    task,
-    taskDigest: digest,
-    candidate,
-    adapters,
-    sandboxBackend,
-    batchRef,
-    message: options.message,
-    additionalParents,
-    governance,
-    integration,
-    signal: options.signal,
-    onEvent: options.onEvent,
-    state: initialState(workflow.start),
-  });
-  ctx.event("run.started", {
-    workflow: workflow.id,
-    task_id: task.task_id,
-    base_commit: baseCommit,
-    batch_ref: batchRef,
-    sandbox: sandboxBackend,
-  });
-  return finish(ctx, await runEngine(ctx));
 }
 
 /**
@@ -354,6 +362,7 @@ function finish(ctx, result) {
     outcome: result.outcome,
     reason: result.reason,
     error_class: ctx.state.error?.error_class ?? null,
+    code: ctx.state.error?.code ?? null,
     base_commit: ctx.candidate.base_commit,
     batch_ref: ctx.batchRef,
     promoted_head: ctx.state.promotion?.promoted_head ?? null,
@@ -373,6 +382,7 @@ function finish(ctx, result) {
     outcome: result.outcome,
     reason: result.reason,
     error_class: summary.error_class,
+    code: summary.code,
     repairs: summary.repairs,
     agent_invocations: summary.agent_invocations,
     retries: summary.retries,

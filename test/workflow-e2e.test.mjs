@@ -28,6 +28,53 @@ const base = (root, extra = {}) => ({
   ...extra,
 });
 
+test("a failed batch reservation leaves no RUNNING record", async () => {
+  const repo = makeRepo();
+  try {
+    git(repo.root, ["update-ref", "refs/heads/panagent/batch/set-value", "main"]);
+    await assert.rejects(
+      startRun({ ...base(repo.root), task: valueTask(), adapters: adapters(writeValue(2)) }),
+      /batch|ref/,
+    );
+    assert.equal(new RunStore(repo.root).list().length, 0);
+    assert.equal(
+      resolveCommit(repo.root, "refs/heads/panagent/batch/set-value"),
+      resolveCommit(repo.root, "main"),
+    );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test("aborting a fake adapter run records ERROR/infra/aborted", async () => {
+  const repo = makeRepo();
+  try {
+    const controller = new AbortController();
+    const implementer = async (context) => {
+      await writeValue(2)(context);
+      controller.abort();
+    };
+    const summary = await startRun({
+      ...base(repo.root),
+      task: valueTask(),
+      adapters: adapters(implementer),
+      signal: controller.signal,
+    });
+    assert.equal(summary.outcome, "ERROR");
+    assert.equal(summary.error_class, "infra");
+    assert.equal(summary.code, "aborted");
+    const run = new RunStore(repo.root).read(summary.run_id);
+    assert.equal(run.outcome, "ERROR");
+    assert.equal(run.error_class, "infra");
+    assert.equal(run.code, "aborted");
+    assert.equal(run.state.error.code, "aborted");
+    assert.ok(run.finished_at);
+    assert.equal(resolveCommit(repo.root, "refs/heads/panagent/batch/set-value"), null);
+  } finally {
+    repo.cleanup();
+  }
+});
+
 test("a passing run promotes the candidate and writes a verifiable receipt", async () => {
   const repo = makeRepo();
   try {

@@ -95,6 +95,34 @@ function exitFor(summary) {
   return EXIT.notPassed;
 }
 
+/**
+ * @param {(signal: AbortSignal) => Promise<number>} command
+ */
+async function withRunSignals(command) {
+  const controller = new AbortController();
+  let exitCode = 0;
+  const interrupt = () => {
+    if (!exitCode) exitCode = 130;
+    controller.abort();
+  };
+  const terminate = () => {
+    if (!exitCode) exitCode = 143;
+    controller.abort();
+  };
+  process.on("SIGINT", interrupt);
+  process.on("SIGTERM", terminate);
+  try {
+    const result = await command(controller.signal);
+    return exitCode || result;
+  } catch (error) {
+    if (exitCode) return exitCode;
+    throw error;
+  } finally {
+    process.off("SIGINT", interrupt);
+    process.off("SIGTERM", terminate);
+  }
+}
+
 /** @param {Record<string, any>} summary */
 function formatSummary(summary) {
   const lines = [`${summary.outcome}  ${summary.task_id}  (run ${summary.run_id})`];
@@ -180,20 +208,23 @@ export async function main(argv) {
           "run needs <task.json> --base <ref> --batch <name> --message <text|@file>",
         );
       }
-      const summary = await startRun({
-        cwd,
-        workflow: "code-delivery",
-        task: JSON.parse(readFileSync(path.resolve(positionals[0]), "utf8")),
-        base: values.base,
-        batch: values.batch,
-        message: textOrFile(values.message),
-        runtimesPath: values.runtimes,
-        allowGovernanceEdits: Boolean(values["allow-governance-edits"]),
-        governanceReason: values.reason,
-        onEvent: progress(Boolean(values.quiet || values.json)),
+      return withRunSignals(async (signal) => {
+        const summary = await startRun({
+          cwd,
+          workflow: "code-delivery",
+          task: JSON.parse(readFileSync(path.resolve(positionals[0]), "utf8")),
+          base: values.base,
+          batch: values.batch,
+          message: textOrFile(values.message),
+          runtimesPath: values.runtimes,
+          allowGovernanceEdits: Boolean(values["allow-governance-edits"]),
+          governanceReason: values.reason,
+          signal,
+          onEvent: progress(Boolean(values.quiet || values.json)),
+        });
+        print(values.json ? summary : formatSummary(summary));
+        return exitFor(summary);
       });
-      print(values.json ? summary : formatSummary(summary));
-      return exitFor(summary);
     }
     case "integrate": {
       const { values, positionals } = parse({
@@ -211,26 +242,29 @@ export async function main(argv) {
       const maxRepairs = values["max-repairs"] === undefined ? undefined : Number(values["max-repairs"]);
       if (maxRepairs !== undefined && ![0, 1, 2].includes(maxRepairs))
         throw new HarnessError("config", "usage", "--max-repairs must be 0, 1, or 2");
-      const summary = await startRun({
-        cwd,
-        workflow: "integrate",
-        base: values.onto,
-        batch: values.batch,
-        message: values.message
-          ? textOrFile(values.message)
-          : `Integrate ${positionals[0]} into ${values.onto}`,
-        runtimesPath: values.runtimes,
-        allowGovernanceEdits: Boolean(values["allow-governance-edits"]),
-        governanceReason: values.reason,
-        integration: {
-          topic: positionals[0],
-          checks: values.checks ? values.checks.split(",").filter(Boolean) : null,
-          maxRepairs,
-        },
-        onEvent: progress(Boolean(values.quiet || values.json)),
+      return withRunSignals(async (signal) => {
+        const summary = await startRun({
+          cwd,
+          workflow: "integrate",
+          base: values.onto,
+          batch: values.batch,
+          message: values.message
+            ? textOrFile(values.message)
+            : `Integrate ${positionals[0]} into ${values.onto}`,
+          runtimesPath: values.runtimes,
+          allowGovernanceEdits: Boolean(values["allow-governance-edits"]),
+          governanceReason: values.reason,
+          integration: {
+            topic: positionals[0],
+            checks: values.checks ? values.checks.split(",").filter(Boolean) : null,
+            maxRepairs,
+          },
+          signal,
+          onEvent: progress(Boolean(values.quiet || values.json)),
+        });
+        print(values.json ? summary : formatSummary(summary));
+        return exitFor(summary);
       });
-      print(values.json ? summary : formatSummary(summary));
-      return exitFor(summary);
     }
     case "land": {
       const { values, positionals } = parse({ target: { type: "string" } });
@@ -292,15 +326,18 @@ export async function main(argv) {
       if (positionals.length !== 1) throw new HarnessError("config", "usage", "resume needs a run id");
       if (values.decision && !["approve", "reject"].includes(values.decision))
         throw new HarnessError("config", "usage", "--decision must be approve or reject");
-      const summary = await resumeRun({
-        cwd,
-        runId: positionals[0],
-        decision: /** @type {any} */ (values.decision),
-        runtimesPath: values.runtimes,
-        onEvent: progress(Boolean(values.quiet || values.json)),
+      return withRunSignals(async (signal) => {
+        const summary = await resumeRun({
+          cwd,
+          runId: positionals[0],
+          decision: /** @type {any} */ (values.decision),
+          runtimesPath: values.runtimes,
+          signal,
+          onEvent: progress(Boolean(values.quiet || values.json)),
+        });
+        print(values.json ? summary : formatSummary(summary));
+        return exitFor(summary);
       });
-      print(values.json ? summary : formatSummary(summary));
-      return exitFor(summary);
     }
     case "analytics": {
       const { values } = parse(

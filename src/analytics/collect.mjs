@@ -126,7 +126,7 @@ export function collectRunFacts(repositoryRoot, { since, until, workflow } = {})
         workflow: run.workflow,
         task_id: run.task_id,
         family: String(run.task_id).replace(/-\d{2}$/, ""),
-        outcome: run.outcome,
+        outcome: run.stale ? "STALE" : run.outcome,
         stale: run.stale ?? false,
         error_class: run.error_class ?? state.error?.error_class ?? null,
         created_at: run.created_at,

@@ -140,6 +140,11 @@ test("filters inclusive dates and exact workflow, preserves stale runs and skips
     const fact = collectRunFacts(repo.root, { since: "2026-01-01", until: "2026-01-01" })[0];
     assert.equal(fact.run_id, stale);
     assert.equal(fact.stale, true);
+    assert.equal(fact.outcome, "STALE");
+    const analytics = computeAnalytics([fact]);
+    assert.deepEqual(analytics.outcomes.by_outcome, { STALE: 1 });
+    assert.equal(analytics.tasks.tasks, 0);
+    assert.equal(analytics.tasks.first_run_pass_rate, null);
     assert.equal(fact.duration_ms, null);
     const filtered = collectRunFacts(repo.root, {
       since: "2026-01-02",
