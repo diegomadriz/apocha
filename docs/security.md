@@ -28,7 +28,7 @@ index (no `.git`, no untracked or ignored files, no forbidden paths), under an O
 
 | Backend | Platform | Policy |
 |---|---|---|
-| Seatbelt | macOS (`/usr/bin/sandbox-exec`) | Writes only in the check workspace and per-user temp. Reads denied for credential stores, the candidate clone, the source `.git`, and forbidden paths. Outbound network only to loopback; listening only on loopback. |
+| Seatbelt | macOS (`/usr/bin/sandbox-exec`) | Writes only in the check workspace (its tree, scratch `HOME`, and `TMPDIR`). Reads denied for credential stores, the candidate clone, the source `.git`, and forbidden paths. Outbound network only to loopback; listening only on loopback. |
 | bubblewrap | Linux | Read-only root, writable workspace, tmpfs over denied directories, `--unshare-net` unless the check allows network, `--unshare-pid`, `--die-with-parent` |
 | none | anywhere | Scratch `HOME` and `TMPDIR` and the env allowlist still apply. Recorded as `none` in the receipt. Set `sandbox.mode: "required"` to refuse running without a backend. |
 
@@ -48,6 +48,12 @@ The default deny list covers `~/.ssh`, `~/.aws`, `~/.azure`, `~/.config/gcloud`,
 - **Reads are a denylist, not an allowlist.** Sandboxed checks can read the rest of the host
   filesystem (toolchains live there). Keep secrets in the denied locations or add their paths.
 - **Receipts are unsigned.** See [receipts.md](receipts.md#limits).
+- **Repository-level runtime config is trusted.** `.panagent/runtimes.json` chooses runtime
+  commands, and it is read from the working tree. It is a governance path, so agents cannot change
+  it, but a person who can commit to the repository can.
+- **The bubblewrap backend has unit tests for its arguments but has not yet been exercised on a
+  Linux host in this project's own testing.** The CI workflow installs bubblewrap and enables
+  unprivileged user namespaces so the sandbox tests run there.
 - **Agents can still write weak tests.** Protected paths keep existing tests safe when you protect
   them; the reviewer is instructed to flag weakened or special-cased tests. For high-stakes tasks,
   protect the test directory and put new tests in a separate task.

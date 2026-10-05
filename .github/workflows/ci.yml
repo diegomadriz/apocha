@@ -15,6 +15,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - name: Install bubblewrap (Linux sandbox backend)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q bubblewrap
+          # Ubuntu restricts unprivileged user namespaces by default; bubblewrap needs them.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
       - run: git config --global user.name ci && git config --global user.email ci@example.invalid
       - run: npm ci
       - run: npm run lint
