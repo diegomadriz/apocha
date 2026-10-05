@@ -222,15 +222,26 @@ export function repositoryStatus(repositoryRoot, options = {}) {
   };
 }
 
+/** @param {number} bytes @returns {string} */
+function formatBytes(bytes) {
+  const units = ["B", "KiB", "MiB", "GiB"];
+  let unit = 0;
+  while (bytes >= 1024 && unit < units.length - 1) {
+    bytes /= 1024;
+    unit++;
+  }
+  return `${unit === 0 ? bytes : Number(bytes.toFixed(1))} ${units[unit]}`;
+}
+
 /** @param {ReturnType<typeof repositoryStatus>} status */
 export function formatStatusText(status) {
   const lines = [
     "Target",
-    `  ${status.target.branch} ${status.target.tip} (worktree: ${status.target.clean === null ? "not checked out" : status.target.clean ? "clean" : "dirty"})`,
+    `  ${status.target.branch} ${status.target.tip.slice(0, 12)} (worktree: ${status.target.clean === null ? "not checked out" : status.target.clean ? "clean" : "dirty"})`,
     "Batches",
     ...status.batches.map(
       (batch) =>
-        `  ${batch.ref} ${batch.tip} ${batch.state} +${batch.ahead}/-${batch.behind} receipts=${batch.receipted ? "valid" : "invalid"}${batch.run ? ` run=${batch.run.run_id} (${batch.run.outcome ?? "unknown"})` : ""}`,
+        `  ${batch.ref} ${batch.tip.slice(0, 12)} ${batch.state} +${batch.ahead}/-${batch.behind} receipts=${batch.receipted ? "valid" : "invalid"}${batch.run ? ` run=${batch.run.run_id} (${batch.run.outcome ?? "unknown"})` : ""}`,
     ),
     "Runs",
     `  ${Object.entries(status.runs.by_outcome)
@@ -243,11 +254,18 @@ export function formatStatusText(status) {
     status.graph,
     "Last records",
     `  land: ${status.last_land ? `${status.last_land.created_at} commits=${status.last_land.commits} retired=${status.last_land.retired} kept=${status.last_land.kept}` : "none"}`,
-    `  gc: ${status.last_gc ? `${status.last_gc.created_at} done=${status.last_gc.done} skipped=${status.last_gc.skipped} bytes=${status.last_gc.total_size}` : "none"}`,
+    `  gc: ${status.last_gc ? `${status.last_gc.created_at} done=${status.last_gc.done} skipped=${status.last_gc.skipped} size=${formatBytes(status.last_gc.total_size)}` : "none"}`,
     "Disk",
-    `  runs: ${status.disk.run_store_size} bytes; temp owned: ${status.disk.temp.owned.count} / ${status.disk.temp.owned.size} bytes; other: ${status.disk.temp.other.count} / ${status.disk.temp.other.size} bytes`,
+    `  runs: ${formatBytes(status.disk.run_store_size)}; temp owned: ${status.disk.temp.owned.count} / ${formatBytes(status.disk.temp.owned.size)}; other: ${status.disk.temp.other.count} / ${formatBytes(status.disk.temp.other.size)}`,
     "Next actions",
-    ...status.suggested_actions,
+    ...status.suggested_actions.map((action) => {
+      const command = action.startsWith("land ")
+        ? `panagent ${action.replace("land refs/heads/", "land ")}`
+        : action.startsWith("resume ")
+          ? `panagent ${action}`
+          : action;
+      return `  ${command}`;
+    }),
   ];
   return lines.join("\n");
 }

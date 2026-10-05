@@ -6,7 +6,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { RunStore, stateDir } from "../src/core/runs.mjs";
-import { repositoryStatus } from "../src/core/status.mjs";
+import { formatStatusText, repositoryStatus } from "../src/core/status.mjs";
 import { digestBetweenCommits } from "../src/git/candidate.mjs";
 import { commitIdentity, git, gitCommonDir, gitText } from "../src/util/git.mjs";
 import { makeRepo, testTempDir } from "./helpers.mjs";
@@ -140,6 +140,26 @@ test("status reports batches, attention, records, disk and suggestions without w
   assert.equal(human.status, 0, human.stderr);
   for (const section of ["Target", "Batches", "Runs", "Graph", "Last records", "Disk", "Next actions"])
     assert.ok(human.stdout.includes(section));
+  assert.ok(human.stdout.includes(`  main ${base.slice(0, 12)} (worktree: dirty)`));
+  assert.ok(human.stdout.includes(`  ${PREFIX}ready ${tip.slice(0, 12)} ready`));
+  assert.ok(!human.stdout.includes(base));
+  assert.ok(!human.stdout.includes(tip));
+  assert.ok(human.stdout.includes("size=10 B"));
+  assert.ok(human.stdout.includes("  panagent land panagent/batch/ready --target main"));
+  assert.ok(human.stdout.includes(`  panagent resume ${paused}`));
+  assert.ok(human.stdout.includes("  panagent gc"));
+  const jsonBeforeFormatting = JSON.stringify(status);
+  const sizes = formatStatusText({
+    ...status,
+    disk: {
+      run_store_size: 0,
+      temp: { owned: { count: 1, size: 1536 }, other: { count: 2, size: 1024 ** 2 }, orphan_count: 0 },
+    },
+    last_gc: { created_at: "2026-01-02T00:00:00Z", done: 1, skipped: 0, total_size: 1024 ** 3 },
+  });
+  assert.ok(sizes.includes("runs: 0 B; temp owned: 1 / 1.5 KiB; other: 2 / 1 MiB"));
+  assert.ok(sizes.includes("size=1 GiB"));
+  assert.equal(JSON.stringify(status), jsonBeforeFormatting);
   assert.deepEqual(snapshot(gitCommonDir(repo.root)), before);
   assert.equal(gitText(repo.root, ["show-ref"]), refs);
   assert.equal(existsSync(path.join(directory, "lock")), false);

@@ -1,5 +1,62 @@
 # Operations
 
+## Lifecycle
+
+```mermaid
+flowchart TD
+    task["Task manifest"] --> run["Run: candidate clone in OS temp"]
+    run --> checks["Checks in sandboxed workspaces"]
+    checks --> review["Independent review"]
+    review --> outcome{"Outcome"}
+    outcome --> passed["PASSED: promote to batch ref with receipt note"]
+    outcome --> stopped["ESCALATED / FAILED / ERROR: keep only run record"]
+    outcome --> paused["PAUSED: keep candidate and batch reservation"]
+    paused --> resume["Resume"]
+    resume --> run
+    paused --> abandon["gc --abandon-paused-days: abandon old paused runs"]
+    passed --> integrate["Optional integrate: verified integration run"]
+    passed --> land["Land: fast-forward target, retire landed batch refs, write land record"]
+    integrate --> land
+    land --> gc["GC: merged refs, orphan temp dirs, old session traces, worktree prune, gc record"]
+    stopped --> gc
+    abandon --> gc
+```
+
+Every run retains its record and verification evidence, including unsuccessful runs.
+Temporary workspaces are normally removed by their controller when the operation
+finishes; GC handles leftovers after crashes. Paths below use the repository's
+Git common directory, shared by its worktrees.
+
+| Artifact | Where it lives | Who removes it | When |
+|---|---|---|---|
+| Candidate clone | OS temp, inside a `panagent-*` directory; path recorded as `candidate_root` | Run finalization or GC | On completion except PAUSED; after resume completes, or explicit paused abandonment; orphan cleanup after a crash |
+| Check workspace | OS temp, inside a `panagent-*` directory | Check runner or GC | After the check; orphan cleanup after a crash |
+| Runtime cwd | OS temp, inside a `panagent-*` directory | Runtime adapter or GC | After the runtime invocation; orphan cleanup after a crash |
+| Session dir in run store | `<git-common-dir>/panagent/runs/<run-id>/sessions/NNN/` | GC | Finished runs older than `--keep-days` (default 30), after saving tool analytics totals |
+| Run record and evidence | `<git-common-dir>/panagent/runs/<run-id>/` | No automatic removal except session traces | Retained for every outcome |
+| Batch ref | Configured `refs.batch_prefix` plus the batch name (default `refs/heads/panagent/batch/<name>`) | Run finalization, land, or GC | Released for unsuccessful runs; kept for PASSED/PAUSED; retired after landing or when merged, subject to ref protections |
+| Receipt note | Configured Git notes ref (default `refs/notes/panagent`) | No automatic removal | Retained when batch refs are retired |
+| Land record | `<git-common-dir>/panagent/lands/` | No automatic removal | Retained after landing |
+| GC record | `<git-common-dir>/panagent/gc/<timestamp>.json` | No automatic removal | Retained after GC apply |
+| Temp owner marker | `.panagent-owner` inside the owning temp directory | Controller cleanup or GC, with its directory | On normal cleanup or orphan removal; preserved with paused candidates |
+
+## Keeping a machine clean
+
+Run `panagent status` to see batches, runs needing attention, disk usage, and
+suggested commands. Preview cleanup with `panagent gc`, then run
+`panagent gc --apply` to carry it out. Paused candidates stay until resumed or
+explicitly abandoned with `--abandon-paused-days N`; see Garbage collection below.
+
+To restore a retired ref, use its full OID printed by land or GC, or stored in
+the land/GC record:
+
+```bash
+git update-ref refs/heads/panagent/batch/example <old-oid> ""
+```
+
+The empty expected old value creates the ref only if it is still absent. Receipts
+remain Git notes on the commits; deleting or restoring a batch ref does not change them.
+
 ## Status
 
 `panagent status [--target <branch>] [--json]` inventories the repository without
@@ -36,10 +93,13 @@ markers or legacy candidate paths; other includes unowned directories.
 Orphans follow GC's dead-owner and old-unowned rules, preserving active runs.
 The latest readable land/GC record is selected by creation time.
 
-Suggestions include `land <ref> --target <branch>` for ready batches,
-`resume <run-id>` for paused runs, and `panagent gc` for landed refs or
-orphan temp directories. They are guidance; commands revalidate their own
-preconditions (including landing's clean tracked-worktree requirement).
+Human output uses 12-character target and batch OIDs, sizes in B, KiB, MiB,
+or GiB, and indented full commands: `panagent land panagent/batch/<name> --target <branch>`
+for ready batches, `panagent resume <run-id>` for paused runs, and `panagent gc`
+for landed refs or orphan temp directories. JSON retains full OIDs, byte counts,
+and its existing suggestion strings (`land <ref> --target <branch>`,
+`resume <run-id>`, and `panagent gc`). Suggestions are guidance; commands
+revalidate their own preconditions (including landing's clean tracked-worktree requirement).
 
 ## Runs
 
@@ -81,22 +141,12 @@ with its full old OID. Each land writes JSON under `<git-common-dir>/panagent/la
 including the target, old and new tips, landed commits, retired refs with OIDs, and kept
 refs with reasons.
 
-To restore a retired ref, use its name and OID from the output or land record:
-
-```bash
-git update-ref refs/heads/panagent/batch/example <old-oid> ""
-```
-
-The empty expected old value creates the ref only if it is still absent. Receipts remain
-Git notes on the commits; deleting or restoring a batch ref does not change them.
-
 ## Garbage collection
 
-`panagent gc` prints a plan grouped by kind, including counts, byte totals, reasons,
-and full OIDs for batch refs. It changes nothing until you pass `--apply`.
+The GC preview groups its plan by kind, including counts, byte totals, reasons,
+and full OIDs for batch refs. Cleanup requires `--apply`, as described above.
 
 ```bash
-panagent gc
 panagent gc --apply --keep-days 30 --target main
 panagent gc --abandon-paused-days 90 --json
 panagent gc --apply --abandon-paused-days 90
@@ -105,8 +155,8 @@ panagent gc --apply --abandon-paused-days 90
 The target defaults to the branch checked out in the main worktree, or `main` if
 detached. GC removes batch refs under the configured `refs.batch_prefix` whose tips
 are ancestors of the target. Unmerged, symbolic, checked-out, RUNNING, and PAUSED
-refs stay. Deletions compare the expected OID, so moved refs stay; restore a deleted
-ref using `git update-ref <ref> <printed-old-oid> ""`.
+refs stay. Deletions compare the expected OID, so moved refs stay. See Keeping a
+machine clean above for restoring retired refs.
 
 GC also removes OS temp directory `panagent-*` entries with dead owner PIDs, and
 unowned entries older than one day. Live owners and paused candidates stay.

@@ -33,6 +33,9 @@ bin/panagent.mjs ─► src/cli/            commands, progress output, exit code
 |---|---|
 | `src/config/` | Load and validate `panagent.config.json`, runtime configs, and task manifests against `schemas/` |
 | `src/core/` | Workflow validation, the engine, run lifecycle, run store and events, lock, metrics |
+| `src/core/gc.mjs` | Plan and apply cleanup of merged batch refs, orphan temp directories, and old session traces |
+| `src/core/status.mjs` | Read-only repository inventory and human status formatting |
+| `src/util/temp.mjs` | Owned temp directories, owner markers, and temp inventory |
 | `src/workflows/` | Built-in workflow definitions (data) |
 | `src/stages/` | One implementation per stage kind |
 | `src/tools/` | The harness tools (read, search, patch, run_check, submit_result) and their definitions |
