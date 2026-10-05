@@ -1,0 +1,14 @@
+{
+  "task_id": "slugify-accents",
+  "description": "Make slugify produce clean URL slugs: strip accents (é -> e), drop characters other than letters, digits, and spaces, collapse runs of spaces or dashes into one dash, and trim dashes from both ends. Add tests for each rule.",
+  "acceptance_criteria": [
+    "slugify(\"Crème Brûlée Recipe\") returns \"creme-brulee-recipe\"",
+    "slugify(\"  Hello,   World!  \") returns \"hello-world\"",
+    "slugify(\"a -- b\") returns \"a-b\"",
+    "Each rule has a test in test/slugify.test.mjs"
+  ],
+  "allowed_paths": ["src/", "test/"],
+  "initial_context": ["src/slugify.mjs", "test/slugify.test.mjs"],
+  "checks": ["test"],
+  "max_repair_attempts": 2
+}

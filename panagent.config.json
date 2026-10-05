@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "checks": {
+    "lint": { "description": "Biome lint and format check", "run": ["npx", "--no-install", "biome", "check", "."], "cwd": ".", "timeout_ms": 120000, "dependencies": "npm" },
+    "typecheck": { "description": "tsc --noEmit over JSDoc types", "run": ["npx", "--no-install", "tsc", "-p", "tsconfig.json"], "cwd": ".", "timeout_ms": 180000, "dependencies": "npm" },
+    "test": { "description": "node --test suite", "run": ["npm", "test"], "cwd": ".", "timeout_ms": 600000, "dependencies": "npm" }
+  },
+  "default_checks": ["lint", "typecheck", "test"],
+  "paths": {
+    "protected": [".github/", "LICENSE"],
+    "governance": ["AGENTS.md", "src/prompts/", "schemas/", "panagent.config.json"],
+    "forbidden": []
+  },
+  "sandbox": { "mode": "auto", "network": "deny" }
+}
