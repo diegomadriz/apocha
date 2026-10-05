@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Panagent runtime config (which agent runtime and model each role uses)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "roles"],
+  "properties": {
+    "version": { "const": 1 },
+    "roles": {
+      "type": "object", "additionalProperties": false, "required": ["implementer", "reviewer"],
+      "properties": {
+        "implementer": { "$ref": "#/$defs/role" },
+        "reviewer": { "$ref": "#/$defs/role" }
+      }
+    },
+    "adapters": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "codex": { "$ref": "#/$defs/adapter" },
+        "claude-code": { "$ref": "#/$defs/adapter" },
+        "pi": { "$ref": "#/$defs/adapter" },
+        "fake": { "$ref": "#/$defs/adapter" }
+      }
+    },
+    "budgets": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "timeout_ms": { "type": "integer", "minimum": 10000, "maximum": 7200000 },
+        "max_tool_calls": { "type": "integer", "minimum": 5, "maximum": 2000 }
+      }
+    },
+    "retry": {
+      "type": "object", "additionalProperties": false,
+      "properties": { "infra": { "type": "integer", "minimum": 0, "maximum": 3 } }
+    }
+  },
+  "$defs": {
+    "role": {
+      "type": "object", "additionalProperties": false, "required": ["adapter"],
+      "properties": {
+        "adapter": { "enum": ["codex", "claude-code", "pi", "fake"] },
+        "model": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "provider": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "effort": { "enum": ["off", "minimal", "low", "medium", "high", "xhigh", "max"] }
+      }
+    },
+    "adapter": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "command": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "min_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "provider": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "script": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    }
+  }
+}

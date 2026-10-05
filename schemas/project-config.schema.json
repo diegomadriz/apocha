@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Panagent project config (panagent.config.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "checks"],
+  "properties": {
+    "version": { "const": 1 },
+    "checks": {
+      "description": "The closed check catalog. Tasks refer to these IDs only.",
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/check_id" },
+      "additionalProperties": { "$ref": "#/$defs/check" }
+    },
+    "check_selection": {
+      "description": "Rules that pick checks from changed paths when a task or integration names none. All matching rules apply.",
+      "type": "array", "maxItems": 100,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["paths", "checks"],
+        "properties": {
+          "paths": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/path" } },
+          "checks": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/check_id" } }
+        }
+      }
+    },
+    "default_checks": {
+      "description": "Checks that always run when checks are selected by rule.",
+      "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/check_id" }
+    },
+    "paths": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "protected": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
+        "governance": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
+        "forbidden": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
+        "design_reference_prefix": { "$ref": "#/$defs/path" }
+      }
+    },
+    "refs": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "batch_prefix": { "type": "string", "pattern": "^refs/heads/[A-Za-z0-9._/-]+/$" },
+        "notes": { "type": "string", "pattern": "^refs/notes/[A-Za-z0-9._/-]+$" }
+      }
+    },
+    "sandbox": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "mode": { "enum": ["auto", "required", "none"] },
+        "network": { "enum": ["deny", "allow"] },
+        "deny_read": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "limits": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "max_repair_attempts": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "default_repair_attempts": { "type": "integer", "minimum": 0, "maximum": 2 },
+        "review_diff_bytes": { "type": "integer", "minimum": 10000, "maximum": 2000000 },
+        "run_check_calls": { "type": "integer", "minimum": 0, "maximum": 30 },
+        "check_output_bytes": { "type": "integer", "minimum": 2000, "maximum": 1000000 }
+      }
+    }
+  },
+  "$defs": {
+    "check_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$" },
+    "path": { "type": "string", "minLength": 1, "maxLength": 400 },
+    "check": {
+      "type": "object", "additionalProperties": false, "required": ["run"],
+      "properties": {
+        "description": { "type": "string", "maxLength": 300 },
+        "run": {
+          "description": "argv; no shell. '{source}' expands to the source repository root (read-only).",
+          "type": "array", "minItems": 1, "maxItems": 50, "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        },
+        "cwd": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "timeout_ms": { "type": "integer", "minimum": 1000, "maximum": 3600000 },
+        "dependencies": { "enum": ["none", "npm"] },
+        "network": { "type": "boolean" },
+        "env": {
+          "description": "Fixed environment additions. Values are literal; no host variables are forwarded.",
+          "type": "object", "additionalProperties": { "type": "string", "maxLength": 2000 }
+        }
+      }
+    }
+  }
+}

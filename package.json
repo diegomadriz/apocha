@@ -1,0 +1,26 @@
+{
+  "name": "panagent",
+  "version": "0.1.0",
+  "description": "A deterministic controller for coding agents: scoped tools, closed check catalogs, independent review, and Git receipts.",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "panagent": "bin/panagent.mjs" },
+  "exports": { ".": "./src/index.mjs" },
+  "files": ["bin/", "src/", "schemas/", "README.md", "LICENSE"],
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test --test-concurrency=4 \"test/**/*.test.mjs\"",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "check": "npm run lint && npm run typecheck && npm test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.3.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/node": "26.6.4",
+    "typescript": "7.0.2"
+  }
+}

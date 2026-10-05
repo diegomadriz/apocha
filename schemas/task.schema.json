@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Panagent task manifest",
+  "description": "One unit of agent work. A task names checks from the project catalog; it can never supply commands.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "description", "acceptance_criteria", "allowed_paths"],
+  "properties": {
+    "task_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,63}$" },
+    "description": { "type": "string", "minLength": 1, "maxLength": 8000 },
+    "acceptance_criteria": {
+      "type": "array", "minItems": 1, "maxItems": 40,
+      "items": { "type": "string", "minLength": 1, "maxLength": 1000 }
+    },
+    "allowed_paths": {
+      "description": "Paths the implementer may change. Directory scopes end in '/'.",
+      "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true,
+      "items": { "$ref": "#/$defs/path" }
+    },
+    "read_only_paths": {
+      "description": "Paths the agents may read but never change.",
+      "type": "array", "maxItems": 100, "uniqueItems": true,
+      "items": { "$ref": "#/$defs/path" }
+    },
+    "protected_paths": {
+      "description": "Extra paths that must not change, on top of the project's protected and governance paths.",
+      "type": "array", "maxItems": 100, "uniqueItems": true,
+      "items": { "$ref": "#/$defs/path" }
+    },
+    "initial_context": {
+      "description": "Files placed in the implementer's first prompt. Must be readable paths.",
+      "type": "array", "maxItems": 20, "uniqueItems": true,
+      "items": { "$ref": "#/$defs/path" }
+    },
+    "design_reference": {
+      "description": "Approved, read-only reference files given to both roles. Must sit under the project's design_reference_prefix.",
+      "type": "array", "maxItems": 5, "uniqueItems": true,
+      "items": { "$ref": "#/$defs/path" }
+    },
+    "checks": {
+      "description": "Check IDs from the project catalog. Omit to select checks from the project's check_selection rules.",
+      "type": "array", "maxItems": 30, "uniqueItems": true,
+      "items": { "$ref": "#/$defs/check_id" }
+    },
+    "max_repair_attempts": { "type": "integer", "minimum": 0, "maximum": 2 }
+  },
+  "$defs": {
+    "path": { "type": "string", "minLength": 1, "maxLength": 400 },
+    "check_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$" }
+  }
+}

@@ -1,0 +1,79 @@
+// @ts-check
+
+/**
+ * The run context passed to every stage. `state` is the serializable part,
+ * persisted to run.json after every transition so a paused run can resume.
+ *
+ * @typedef {{
+ *   stage: string,
+ *   reason: string | null,
+ *   counters: Record<string, number>,
+ *   invocations: number,
+ *   retries: number,
+ *   attempt: number,
+ *   findings: { source: "review" | "verification", id: string, reason: string, path?: string, check_id?: string }[],
+ *   verification_history: { attempt: number, failed_checks: string[], first_lines: Record<string, string[]> }[],
+ *   last_verification: null | {
+ *     status: string, candidate_digest: string, changed_files: string[],
+ *     checks: { id: string, status: string, exit_code?: number | null, error?: string | null, definition_digest?: string, sandbox?: string, output_digest?: string, files?: string[] }[],
+ *   },
+ *   last_review: null | { decision: string, findings: any[], reason?: string, candidate_digest: string },
+ *   implementation: null | { summary: string, unresolved_uncertainties: string[] },
+ *   runtimes: { implementer?: any, reviewer?: any },
+ *   usage: Record<string, Record<string, number>>,
+ *   decisions: Record<string, "approve" | "reject">,
+ *   awaiting: string | null,
+ *   promotion: null | { old_head: string, promoted_head: string, tree: string, parents: string[] },
+ *   seed: null | Record<string, unknown>,
+ *   error: null | Record<string, unknown>,
+ * }} RunState
+ *
+ * @typedef {{
+ *   runId: string,
+ *   store: import("./runs.mjs").RunStore,
+ *   stateDir: string,
+ *   repositoryRoot: string,
+ *   workflow: import("./workflow.mjs").WorkflowDefinition,
+ *   config: import("../config/project.mjs").ProjectConfig,
+ *   runtimes: import("../config/runtime.mjs").RuntimeConfig,
+ *   task: import("../config/task.mjs").Task,
+ *   taskDigest: string,
+ *   candidate: import("../git/candidate.mjs").Candidate,
+ *   adapters: { implementer: import("../adapters/contract.mjs").Adapter, reviewer: import("../adapters/contract.mjs").Adapter },
+ *   sandboxBackend: import("../sandbox/index.mjs").SandboxBackend,
+ *   batchRef: string,
+ *   message: string,
+ *   additionalParents: string[],
+ *   governance: { edits_allowed: boolean, by: string | null, reason: string | null },
+ *   integration: null | { topic: string, topic_commit: string, onto: string, onto_commit: string, checks: string[] | null },
+ *   policyDigest: string,
+ *   signal?: AbortSignal,
+ *   state: RunState,
+ *   event: (type: string, data?: Record<string, unknown>) => void,
+ *   persist: () => void,
+ * }} RunContext
+ */
+
+/** @returns {RunState} */
+export function initialState(start) {
+  return {
+    stage: start,
+    reason: null,
+    counters: {},
+    invocations: 0,
+    retries: 0,
+    attempt: 0,
+    findings: [],
+    verification_history: [],
+    last_verification: null,
+    last_review: null,
+    implementation: null,
+    runtimes: {},
+    usage: {},
+    decisions: {},
+    awaiting: null,
+    promotion: null,
+    seed: null,
+    error: null,
+  };
+}
