@@ -73,6 +73,150 @@ function setup(overrides = {}, files = {}) {
   };
 }
 
+test("read traces include requested paths on success and failure without contents", async () => {
+  const s = setup();
+  try {
+    for (const name of ["read_files", "read_file_range", "read_base_file", "stat_paths"]) {
+      for (const [requested, ok] of [
+        ["src/a.txt", true],
+        ["README.md", false],
+      ]) {
+        const args =
+          name === "read_files" || name === "stat_paths"
+            ? { paths: [requested] }
+            : { path: requested, start_line: 1, end_line: 2 };
+        const result = await s.tools.call(name, args);
+        assert.equal(result.ok, ok);
+        const entry = readSession(s.sessionDir).trace.at(-1);
+        assert.deepEqual(entry.paths, [requested]);
+        assert.equal(entry.ok, ok);
+        assert.deepEqual(
+          Object.keys(entry).sort(),
+          (ok ? ["at", "tool", "ok", "paths"] : ["at", "tool", "ok", "paths", "error_code"]).sort(),
+        );
+      }
+    }
+    const trace = readFileSync(path.join(s.sessionDir, "tools.jsonl"), "utf8");
+    assert.equal(trace.includes("alpha"), false);
+    assert.equal(trace.includes("beta"), false);
+    assert.equal(trace.includes("content"), false);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test("search traces record paths and query length on success and failure, never query text", async () => {
+  const s = setup();
+  try {
+    const query = "alpha";
+    for (const [paths, ok] of [
+      [["src/a.txt"], true],
+      [["README.md"], false],
+      [undefined, true],
+    ]) {
+      assert.equal((await s.tools.call("search_code", { query, paths })).ok, ok);
+      const entry = readSession(s.sessionDir).trace.at(-1);
+      assert.equal(entry.query_length, query.length);
+      if (paths === undefined) assert.equal(Object.hasOwn(entry, "paths"), false);
+      else assert.deepEqual(entry.paths, paths);
+      assert.equal(Object.hasOwn(entry, "query"), false);
+      assert.equal(Object.hasOwn(entry, "results"), false);
+    }
+    const invalidQuery = "secret".repeat(200);
+    assert.equal((await s.tools.call("search_code", { query: invalidQuery, paths: ["src/"] })).ok, false);
+    const entry = readSession(s.sessionDir).trace.at(-1);
+    assert.deepEqual(entry.paths, ["src/"]);
+    assert.equal(entry.query_length, invalidQuery.length);
+    const trace = readFileSync(path.join(s.sessionDir, "tools.jsonl"), "utf8");
+    assert.equal(trace.includes(query), false);
+    assert.equal(trace.includes(invalidQuery), false);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test("patch traces include all requested paths on failure and omit edit text", async () => {
+  const s = setup();
+  try {
+    const edits = [
+      { path: "README.md", old_text: "secret old text", new_text: "secret new text" },
+      { path: "src/a.txt", old_text: "alpha", new_text: "replacement" },
+    ];
+    assert.equal((await s.tools.call("apply_patch", { edits })).ok, false);
+    const failed = readSession(s.sessionDir).trace.at(-1);
+    assert.deepEqual(
+      failed.paths,
+      edits.map((edit) => edit.path),
+    );
+    assert.equal(failed.ok, false);
+    assert.equal(Object.hasOwn(failed, "changed"), false);
+    assert.equal((await s.tools.call("apply_patch", { edits: [edits[1]] })).ok, true);
+    const success = readSession(s.sessionDir).trace.at(-1);
+    assert.deepEqual(success.changed, ["src/a.txt"]);
+    assert.deepEqual(success.paths, ["src/a.txt"]);
+    const trace = readFileSync(path.join(s.sessionDir, "tools.jsonl"), "utf8");
+    for (const text of ["old_text", "new_text", "secret old text", "secret new text", "alpha", "replacement"])
+      assert.equal(trace.includes(text), false);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test("trace path lists and changed paths are bounded, including invalid requests", async () => {
+  const s = setup();
+  try {
+    const paths = Array.from({ length: 25 }, (_, index) => `src/${index}-${"x".repeat(220)}.txt`);
+    const expected = paths.slice(0, 20).map((value) => value.slice(0, 200));
+    for (const name of ["read_files", "stat_paths", "search_code", "apply_patch"]) {
+      const args =
+        name === "apply_patch"
+          ? { edits: paths.map((value) => ({ path: value, delete: true })) }
+          : { paths, query: "private query" };
+      assert.equal((await s.tools.call(name, args)).ok, false);
+      assert.deepEqual(readSession(s.sessionDir).trace.at(-1).paths, expected);
+    }
+    for (const name of ["read_file_range", "read_base_file"]) {
+      assert.equal((await s.tools.call(name, { path: paths[0] })).ok, name === "read_base_file");
+      assert.deepEqual(readSession(s.sessionDir).trace.at(-1).paths, [expected[0]]);
+    }
+    await s.tools.call("read_files", { paths: [{ content: "private contents" }, paths[0]] });
+    assert.deepEqual(readSession(s.sessionDir).trace.at(-1).paths, [expected[0]]);
+    await s.tools.call("apply_patch", {
+      edits: [null, { path: { old_text: "private contents" } }, { path: paths[0], delete: true }],
+    });
+    assert.deepEqual(readSession(s.sessionDir).trace.at(-1).paths, [expected[0]]);
+    const changedPaths = Array.from({ length: 21 }, (_, index) => `src/new-${index}.txt`);
+    assert.equal(
+      (
+        await s.tools.call("apply_patch", {
+          edits: changedPaths.map((value) => ({ path: value, old_text: "", new_text: "private contents" })),
+        })
+      ).ok,
+      true,
+    );
+    const entry = readSession(s.sessionDir).trace.at(-1);
+    assert.deepEqual(entry.paths, changedPaths.slice(0, 20));
+    assert.deepEqual(entry.changed, changedPaths.slice(0, 20));
+    const trace = readFileSync(path.join(s.sessionDir, "tools.jsonl"), "utf8");
+    assert.equal(trace.includes("private contents"), false);
+    assert.equal(trace.includes("private query"), false);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test("budget failures still trace the requested paths", async () => {
+  const s = setup({ max_tool_calls: 0 });
+  try {
+    assert.equal((await s.tools.call("read_files", { paths: ["README.md"] })).ok, false);
+    const entry = readSession(s.sessionDir).trace[0];
+    assert.deepEqual(entry.paths, ["README.md"]);
+    assert.equal(entry.error_code, "budget");
+  } finally {
+    s.cleanup();
+  }
+});
+
 test("reads stay inside allowed and read-only scopes, never forbidden paths", async () => {
   const s = setup();
   try {

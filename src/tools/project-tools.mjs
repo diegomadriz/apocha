@@ -75,6 +75,15 @@ function toolError(message, code = "invalid_request") {
   return new HarnessError("agent", code, message);
 }
 
+/** @param {unknown} paths */
+function tracePaths(paths) {
+  if (!Array.isArray(paths)) return [];
+  return paths
+    .filter((value) => typeof value === "string")
+    .slice(0, 20)
+    .map((value) => value.slice(0, 200));
+}
+
 /** @param {SessionConfig} session */
 export function createProjectTools(session) {
   const root = session.root;
@@ -406,14 +415,35 @@ export function createProjectTools(session) {
   async function call(name, args) {
     const record = { at: new Date().toISOString(), tool: name, ok: true };
     try {
+      const request = isObject(args) ? args : {};
+      if (name === "read_files" || name === "stat_paths")
+        Object.assign(record, { paths: tracePaths(request.paths) });
+      if (name === "read_file_range" || name === "read_base_file")
+        Object.assign(record, { paths: tracePaths([request.path]) });
+      if (name === "search_code") {
+        if (request.paths !== undefined) Object.assign(record, { paths: tracePaths(request.paths) });
+        Object.assign(record, {
+          query_length: typeof request.query === "string" ? request.query.length : 0,
+        });
+      }
+      if (name === "apply_patch")
+        Object.assign(record, {
+          paths: tracePaths(
+            Array.isArray(request.edits)
+              ? request.edits.map((edit) => (isObject(edit) ? edit.path : undefined))
+              : [],
+          ),
+        });
       if (!Object.hasOwn(handlers, name)) throw toolError(`unknown tool: ${name}`, "unknown_tool");
       if (name !== "submit_result" && calls >= session.max_tool_calls) {
         throw toolError("tool call budget exhausted; call submit_result now", "budget");
       }
       calls += 1;
-      const value = await handlers[name](isObject(args) ? args : {});
+      const value = await handlers[name](request);
       if (name === "apply_patch")
-        Object.assign(record, { changed: /** @type {any} */ (value).changed.map((entry) => entry.path) });
+        Object.assign(record, {
+          changed: tracePaths(/** @type {any} */ (value).changed.map((entry) => entry.path)),
+        });
       if (name === "run_check")
         Object.assign(record, {
           check_id: /** @type {any} */ (args).check_id,
