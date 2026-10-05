@@ -49,6 +49,36 @@ git update-ref refs/heads/panagent/batch/example <old-oid> ""
 The empty expected old value creates the ref only if it is still absent. Receipts remain
 Git notes on the commits; deleting or restoring a batch ref does not change them.
 
+## Garbage collection
+
+`panagent gc` prints a plan grouped by kind, including counts, byte totals, reasons,
+and full OIDs for batch refs. It changes nothing until you pass `--apply`.
+
+```bash
+panagent gc
+panagent gc --apply --keep-days 30 --target main
+panagent gc --abandon-paused-days 90 --json
+panagent gc --apply --abandon-paused-days 90
+```
+
+The target defaults to the branch checked out in the main worktree, or `main` if
+detached. GC removes batch refs under the configured `refs.batch_prefix` whose tips
+are ancestors of the target. Unmerged, symbolic, checked-out, RUNNING, and PAUSED
+refs stay. Deletions compare the expected OID, so moved refs stay; restore a deleted
+ref using `git update-ref <ref> <printed-old-oid> ""`.
+
+GC also removes OS temp directory `panagent-*` entries with dead owner PIDs, and
+unowned entries older than one day. Live owners and paused candidates stay.
+Finished runs older than `--keep-days` (default 30) lose only their `sessions/NNN`
+trace directories. GC retains `run.json`, `events.jsonl`, `report.json`, and
+`verification-*.json`, and saves tool analytics totals before pruning traces.
+
+Only `--abandon-paused-days N` opts into abandoning runs paused for more than N
+days (since their last update). They finish as `ERROR` with `infra/abandoned`,
+their candidates are removed, and their unchanged batch reservations are released.
+Days must be nonnegative numbers. GC runs `git worktree prune` on apply and writes
+the actions and skipped items to `<git-common-dir>/panagent/gc/<timestamp>.json`.
+
 ## Events
 
 `events.jsonl` has one JSON object per line with `at` and `type`. Types include `run.started`,

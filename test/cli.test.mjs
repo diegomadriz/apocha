@@ -201,7 +201,8 @@ test("run with a scripted fake runtime warns when auto has no sandbox and passes
     },
   });
   try {
-    const script = path.join(repo.root, "..", `fake-${path.basename(repo.root)}.mjs`);
+    const fixtures = testTempDir("cli-runtime");
+    const script = path.join(fixtures, "fake.mjs");
     writeFileSync(
       script,
       `export default {
@@ -215,7 +216,7 @@ test("run with a scripted fake runtime warns when auto has no sandbox and passes
 };
 `,
     );
-    const runtimes = path.join(repo.root, "..", `runtimes-${path.basename(repo.root)}.json`);
+    const runtimes = path.join(fixtures, "runtimes.json");
     writeFileSync(
       runtimes,
       JSON.stringify({
@@ -224,7 +225,7 @@ test("run with a scripted fake runtime warns when auto has no sandbox and passes
         adapters: { fake: { script } },
       }),
     );
-    const task = path.join(repo.root, "..", `task-${path.basename(repo.root)}.json`);
+    const task = path.join(fixtures, "task.json");
     writeFileSync(
       task,
       JSON.stringify({

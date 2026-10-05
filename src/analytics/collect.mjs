@@ -96,10 +96,11 @@ export function collectRunFacts(repositoryRoot, { since, until, workflow } = {})
           }
         }
       }
-      const tools = { implementer: emptyTools(), reviewer: emptyTools() };
+      const tools = run.archived_tools ?? { implementer: emptyTools(), reviewer: emptyTools() };
       const sessions = path.join(store.dir(run.run_id), "sessions");
       if (existsSync(sessions)) {
         for (const name of readdirSync(sessions).filter((entry) => /^\d{3}$/.test(entry))) {
+          if (run.pruned_sessions?.includes(name)) continue;
           const dir = path.join(sessions, name);
           const session = JSON.parse(readFileSync(path.join(dir, "session.json"), "utf8"));
           if (session.role !== "implementer" && session.role !== "reviewer") continue;

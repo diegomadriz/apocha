@@ -298,6 +298,12 @@ test("a run cannot use the batch of a paused run as its base", async () => {
       }),
       /has not finished/,
     );
+    await resumeRun({
+      cwd: repo.root,
+      runId: paused.run_id,
+      runtimes: fakeRuntimes(),
+      adapters: adapters(writeValue(2)),
+    });
   } finally {
     repo.cleanup();
   }

@@ -9,6 +9,7 @@ import { formatAnalyticsMarkdown, formatAnalyticsText } from "../analytics/repor
 import { loadProjectConfig, loadProjectConfigAt, PROJECT_CONFIG_FILE } from "../config/project.mjs";
 import { loadRuntimeConfig } from "../config/runtime.mjs";
 import { validateTask } from "../config/task.mjs";
+import { applyGc, planGc } from "../core/gc.mjs";
 import { withLock } from "../core/lock.mjs";
 import { computeMetrics } from "../core/metrics.mjs";
 import { resumeRun, startRun } from "../core/run.mjs";
@@ -38,6 +39,8 @@ Commands:
   integrate <topic>             Merge a topic onto a base, verify, review, and promote
       --onto <ref> --batch <name> [--message <text|@file>] [--checks a,b] [--max-repairs 0|1|2]
   land <source> --target <branch> [--keep-batch]   Fast-forward a branch whose commits all carry valid receipts (never pushes)
+  gc [--apply] [--keep-days N] [--abandon-paused-days N] [--target <branch>] [--json]
+                                Plan cleanup (dry-run by default)
   receipt <commit>              Verify and print a receipt
   runs [--json]                 List runs, newest first
   show <run-id> [--events]      Show one run
@@ -316,6 +319,47 @@ export async function main(argv) {
         for (const entry of result.retired) print(`retired ${entry.ref} ${entry.oid}`);
         for (const entry of result.kept) print(`kept ${entry.ref} ${entry.oid}: ${entry.reason}`);
         print(`land record: ${result.record}`);
+      }
+      return EXIT.ok;
+    }
+    case "gc": {
+      const { values } = parse(
+        {
+          apply: { type: "boolean" },
+          "keep-days": { type: "string" },
+          "abandon-paused-days": { type: "string" },
+          target: { type: "string" },
+        },
+        false,
+      );
+      const root = repositoryRoot(cwd);
+      const plan = planGc(root, {
+        target: values.target,
+        keepDays: values["keep-days"] === undefined ? undefined : Number(values["keep-days"]),
+        abandonPausedDays:
+          values["abandon-paused-days"] === undefined ? undefined : Number(values["abandon-paused-days"]),
+      });
+      const result = values.apply ? await applyGc(root, plan) : null;
+      if (values.json) print(result ?? plan);
+      else {
+        const items = result?.done ?? plan.items;
+        print(result ? "gc applied" : "gc plan (dry run)");
+        for (const kind of ["abandon", "ref", "temp", "session", "worktree"]) {
+          const group = items.filter((item) => item.kind === kind);
+          print(
+            `${kind}: ${group.length} item(s), ${group.reduce((sum, item) => sum + (item.size ?? 0), 0)} bytes`,
+          );
+          for (const item of group)
+            print(
+              `  ${item.path ?? item.ref ?? "git worktree prune"}${item.oid ? ` ${item.oid}` : ""}: ${item.reason}`,
+            );
+        }
+        print(`total: ${items.length} item(s), ${result?.total_size ?? plan.total_size} bytes`);
+        if (result) {
+          for (const item of result.skipped)
+            print(`skipped ${item.path ?? item.ref ?? item.kind}: ${item.reason}`);
+          print(`gc record: ${result.record}`);
+        }
       }
       return EXIT.ok;
     }
