@@ -97,6 +97,20 @@ export function inspectClaudeEvent(event, state) {
   if (event.type === "result") state.result = event;
 }
 
+/** @param {any} result */
+export function claudeUsage(result) {
+  if (!result.usage) return null;
+  return {
+    input_tokens:
+      (result.usage.input_tokens ?? 0) +
+      (result.usage.cache_creation_input_tokens ?? 0) +
+      (result.usage.cache_read_input_tokens ?? 0),
+    cached_input_tokens: result.usage.cache_read_input_tokens ?? 0,
+    output_tokens: result.usage.output_tokens ?? 0,
+    cost_usd: result.total_cost_usd ?? null,
+  };
+}
+
 /** @param {import("../../config/runtime.mjs").AdapterSettings} [settings] */
 export function createClaudeCodeAdapter(settings = {}) {
   const command = settings.command ?? "claude";
@@ -166,14 +180,7 @@ export function createClaudeCodeAdapter(settings = {}) {
           details: { runtime },
         });
       }
-      const usage = result.usage
-        ? {
-            input_tokens: result.usage.input_tokens ?? 0,
-            cached_input_tokens: result.usage.cache_read_input_tokens ?? 0,
-            output_tokens: result.usage.output_tokens ?? 0,
-            cost_usd: result.total_cost_usd ?? null,
-          }
-        : null;
+      const usage = claudeUsage(result);
       return { runtime, usage };
     },
   };

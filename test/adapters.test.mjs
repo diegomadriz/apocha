@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { claudeArgs, inspectClaudeEvent } from "../src/adapters/claude-code/index.mjs";
+import { claudeArgs, claudeUsage, inspectClaudeEvent } from "../src/adapters/claude-code/index.mjs";
 import { codexArgs, DISABLED_FEATURES, inspectCodexEvent } from "../src/adapters/codex/index.mjs";
 import { inspectPiEvent, piArgs } from "../src/adapters/pi/index.mjs";
 import { classifyProviderMessage, compareVersions, runJsonlProcess } from "../src/adapters/process.mjs";
@@ -118,6 +118,43 @@ test("claude runs with no built-in tools and checks its init tool list", () => {
       ),
     /status: failed/,
   );
+});
+
+test("claude usage includes cache creation and cache read tokens in input totals", () => {
+  assert.deepEqual(
+    claudeUsage({
+      usage: {
+        input_tokens: 25,
+        cache_creation_input_tokens: 100,
+        cache_read_input_tokens: 1000,
+        output_tokens: 50,
+      },
+      total_cost_usd: 0.12,
+    }),
+    { input_tokens: 1125, cached_input_tokens: 1000, output_tokens: 50, cost_usd: 0.12 },
+  );
+});
+
+test("claude usage defaults missing fields to zero and missing cost to null", () => {
+  for (const [usage, inputTokens, cachedTokens] of [
+    [{}, 0, 0],
+    [{ input_tokens: 25 }, 25, 0],
+    [{ cache_creation_input_tokens: 100 }, 100, 0],
+    [{ cache_read_input_tokens: 1000 }, 1000, 1000],
+  ]) {
+    assert.deepEqual(claudeUsage({ usage }), {
+      input_tokens: inputTokens,
+      cached_input_tokens: cachedTokens,
+      output_tokens: 0,
+      cost_usd: null,
+    });
+  }
+  assert.equal(claudeUsage({ usage: {}, total_cost_usd: 0 }).cost_usd, 0);
+});
+
+test("claude usage is null when the result has no usage", () => {
+  assert.equal(claudeUsage({}), null);
+  assert.equal(claudeUsage({ usage: null, total_cost_usd: 0.12 }), null);
 });
 
 test("pi runs with built-ins, extensions, skills, and context files disabled", () => {
