@@ -14,6 +14,7 @@ import { withLock } from "../core/lock.mjs";
 import { computeMetrics } from "../core/metrics.mjs";
 import { resumeRun, startRun } from "../core/run.mjs";
 import { RunStore, stateDir } from "../core/runs.mjs";
+import { formatStatusText, repositoryStatus } from "../core/status.mjs";
 import { landBranch } from "../git/land.mjs";
 import { verifyReceipt } from "../git/receipts.mjs";
 import { detectBackend, resolveBackend } from "../sandbox/index.mjs";
@@ -41,6 +42,7 @@ Commands:
   land <source> --target <branch> [--keep-batch]   Fast-forward a branch whose commits all carry valid receipts (never pushes)
   gc [--apply] [--keep-days N] [--abandon-paused-days N] [--target <branch>] [--json]
                                 Plan cleanup (dry-run by default)
+  status [--target <branch>] [--json]   Show repository state and next actions
   receipt <commit>              Verify and print a receipt
   runs [--json]                 List runs, newest first
   show <run-id> [--events]      Show one run
@@ -361,6 +363,12 @@ export async function main(argv) {
           print(`gc record: ${result.record}`);
         }
       }
+      return EXIT.ok;
+    }
+    case "status": {
+      const { values } = parse({ target: { type: "string" } }, false);
+      const status = repositoryStatus(repositoryRoot(cwd), { target: values.target });
+      print(values.json ? status : formatStatusText(status));
       return EXIT.ok;
     }
     case "receipt": {

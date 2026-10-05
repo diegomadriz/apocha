@@ -1,5 +1,46 @@
 # Operations
 
+## Status
+
+`panagent status [--target <branch>] [--json]` inventories the repository without
+locks, writes, or index refreshes. The target defaults to the branch in the main
+worktree, or `main` when detached. Clean includes untracked files; an unchecked-out
+target has `clean: null`. Receipt configuration comes from the target commit.
+
+JSON always has these top-level keys:
+
+| Key | Shape |
+|---|---|
+| `target` | `{ branch, ref, tip, worktree, clean }`; worktree and clean may be null |
+| `batches` | Array of `{ ref, tip, ahead, behind, receipted, receipts, run, state }` |
+| `runs` | `{ total, by_outcome, attention }` |
+| `graph` | String from Git log over target and all batch refs, at most 30 commits |
+| `last_land` | Null or `{ created_at, commits, retired, kept }` (counts) |
+| `last_gc` | Null or `{ created_at, done, skipped, total_size }` (counts and bytes) |
+| `disk` | `{ run_store_size, temp: { owned: { count, size }, other: { count, size }, orphan_count } }`; sizes in bytes |
+| `suggested_actions` | Array of plain command lines |
+
+Each batch's `receipts` contains `{ commit, valid, reason }` for every commit
+ahead of the target; reason is null when valid. `receipted` is true when all
+are valid (including an empty set). `run` is null or `{ run_id, outcome }`;
+outcome may be null when only the tip's receipt identifies the producer.
+States are `landed` (tip is an ancestor of target), `diverged` (target is not
+an ancestor on the tip's first-parent chain), `ready` (all ahead commits have
+valid receipts and landing can fast-forward), or `unreceipted`.
+
+`by_outcome` includes zero counts for all six recorded outcomes. Attention
+entries are `{ run_id, outcome, state, awaiting }` for RUNNING, PAUSED and STALE
+runs; stale processes retain their recorded outcome and have state STALE.
+Awaiting is the gate, pause reason, or null. Temp ownership uses repository
+markers or legacy candidate paths; other includes unowned directories.
+Orphans follow GC's dead-owner and old-unowned rules, preserving active runs.
+The latest readable land/GC record is selected by creation time.
+
+Suggestions include `land <ref> --target <branch>` for ready batches,
+`resume <run-id>` for paused runs, and `panagent gc` for landed refs or
+orphan temp directories. They are guidance; commands revalidate their own
+preconditions (including landing's clean tracked-worktree requirement).
+
 ## Runs
 
 Every `run` and `integrate` creates a run record under `<git-common-dir>/panagent/runs/<run-id>/`,
