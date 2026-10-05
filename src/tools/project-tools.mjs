@@ -281,7 +281,7 @@ export function createProjectTools(session) {
       throw toolError(`edits must list 1-${TOOL_LIMITS.maxEdits} entries`);
     /** @type {Map<string, { absolute: string, content: string | null, existed: boolean }>} */
     const files = new Map();
-    // Edits apply in order; several edits to one path compose (H2).
+    // Edits apply in order, so several edits to one path compose.
     for (const [index, edit] of edits.entries()) {
       if (!isObject(edit) || typeof edit.path !== "string") throw toolError(`edit ${index} needs a path`);
       const relative = writablePath(edit.path);

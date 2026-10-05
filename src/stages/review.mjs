@@ -10,7 +10,7 @@ import { invokeAgent } from "./invoke.mjs";
 /**
  * `review` stage: an independent reviewer judges the verified candidate. It
  * sees the full diff (B1); a diff above the configured limit escalates rather
- * than being truncated (H6). The decision is bound to the candidate digest,
+ * than being truncated. The decision is bound to the candidate digest,
  * and the candidate is re-checked after review.
  *
  * @param {import("../core/workflow.mjs").StageDefinition} _stage

@@ -13,7 +13,7 @@ const FINDING_EVIDENCE_BYTES = 2000;
 const MAX_FINDINGS = 5;
 
 /**
- * Turn failed checks into repair findings, failure lines first (H4).
+ * Turn failed checks into repair findings, failure lines first, so truncation never hides the error.
  * @param {import("../checks/runner.mjs").CheckResult[]} results
  */
 export function verificationFindings(results) {
@@ -43,7 +43,7 @@ export function verificationFindings(results) {
 
 /**
  * Compact history of failed verifications (the last two), so a repair round
- * can see when it is oscillating between failures (H8).
+ * can see when it is oscillating between two failures.
  * @param {import("../core/context.mjs").RunState["verification_history"]} history
  * @param {number} attempt
  * @param {import("../checks/runner.mjs").CheckResult[]} results

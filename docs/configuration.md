@@ -91,7 +91,7 @@ from another harness can keep its existing refs, so its old receipts stay checka
 |---|---|---|
 | `max_repair_attempts` | 2 | Upper bound for any task |
 | `default_repair_attempts` | 1 | Used when a task does not say |
-| `review_diff_bytes` | 400000 | Larger diffs escalate instead of being reviewed partially |
+| `review_diff_bytes` | 400000 | A larger diff escalates to a person; it is never reviewed in part |
 | `run_check_calls` | 6 | `run_check` calls per implementer attempt |
 | `check_output_bytes` | 20000 | Captured output per stream per check (digests always cover everything) |
 

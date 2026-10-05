@@ -50,7 +50,7 @@ export function decodeCaptured(buffer) {
 
 /**
  * Lines that usually locate a failure in compiler, linter, and test output.
- * Kept ahead of truncation so a repair round sees where the error is (H4).
+ * Kept ahead of truncation so a repair round sees where the error is.
  */
 const FAILURE_SIGNAL =
   /^\s*[×✗✖]|FAIL|not ok|AssertionError|SyntaxError|TypeError|ReferenceError|Error:|error TS\d+|E\s{3}|Traceback|[^\s:()]+:\d+(?::\d+)?|[^\s()]+\(\d+,\d+\)/;

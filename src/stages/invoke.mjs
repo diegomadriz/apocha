@@ -131,7 +131,7 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
       throw failure;
     }
     if (!result) {
-      // The H1 signature: no tool calls and no result. Treat as transient once.
+      // No tool calls and no result usually means the runtime failed before the agent started. Retry once.
       if (trace.length === 0 && attempt < maxAttempts) {
         ctx.state.retries += 1;
         ctx.event("agent.retry", {

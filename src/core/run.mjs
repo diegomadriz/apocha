@@ -142,7 +142,7 @@ export async function startRun(options) {
   };
 
   const store = new RunStore(repositoryRoot);
-  // A run must not build on another run's batch while that run can still change it (H5).
+  // A run must not build on another run's batch while that run can still change it.
   const fullBase = String(
     git(repositoryRoot, ["rev-parse", "--symbolic-full-name", options.base], { allowFailure: true }).stdout ??
       "",

@@ -279,7 +279,7 @@ test("large files point the agent at read_file_range", async () => {
   }
 });
 
-test("apply_patch composes several edits to one file in order (H2)", async () => {
+test("apply_patch composes several edits to one file in order", async () => {
   const s = setup();
   try {
     const result = await s.tools.call("apply_patch", {
@@ -352,7 +352,7 @@ test("apply_patch can delete a file, and reading it afterwards reports it missin
   }
 });
 
-test("reviewer reads of files the candidate deleted report deleted_in_candidate (H3)", async () => {
+test("reviewer reads of files the candidate deleted report deleted_in_candidate", async () => {
   const s = setup({ role: "reviewer", allowed_paths: [], deleted_paths: ["src/a.txt"] });
   try {
     const read = await s.tools.call("read_files", { paths: ["src/a.txt"] });
