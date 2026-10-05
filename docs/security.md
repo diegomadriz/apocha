@@ -12,7 +12,7 @@ base commit, and the runtime CLIs are trusted**.
 | The repository outside the task | Agent edits files it should not | Tool scopes (`allowed_paths`), protected paths, structural scope check on the final diff |
 | Private files in the repository | Agent reads and leaks them through output or a model call | `paths.forbidden` are unreadable by tools, removed from the tree checks run in, and denied to sandboxed checks in the source checkout |
 | Credentials on the host | Agent-written code (run by checks) reads them | Sandbox deny list for credential stores; scratch `HOME`; env allowlist without provider keys |
-| The host | Agent-written code writes outside its tree or calls out | Sandbox: writes only in the per-check workspace; network denied unless a check allows it |
+| The host | Agent-written code writes outside its tree or calls out | Sandbox: writes only in the per-check workspace; Linux isolates the network unless a check allows it; macOS denies outbound network but local services remain reachable |
 | History | Unverified commits reach a branch | Receipts bound to content; `land` checks every first-parent commit; promotion by compare-and-swap |
 
 ## Where untrusted code runs
@@ -28,8 +28,8 @@ index (no `.git`, no untracked or ignored files, no forbidden paths), under an O
 
 | Backend | Platform | Policy |
 |---|---|---|
-| Seatbelt | macOS (`/usr/bin/sandbox-exec`) | Writes only in the check workspace (its tree, scratch `HOME`, and `TMPDIR`). Reads denied for credential stores, the candidate clone, the source `.git`, and forbidden paths. Outbound network only to loopback; listening only on loopback. |
-| bubblewrap | Linux | Read-only root, writable workspace, tmpfs over denied directories, read-only `/dev/null` over denied files, `--unshare-net` unless the check allows network, `--unshare-pid`, `--die-with-parent` |
+| Seatbelt | macOS (`/usr/bin/sandbox-exec`) | Writes only in the check workspace (its tree, scratch `HOME`, and `TMPDIR`). Reads denied for credential stores, the candidate clone, the source `.git`, and forbidden paths. Outbound network denied, but DNS, loopback services, and the Docker socket remain reachable. The profile allows everything else by default. |
+| bubblewrap | Linux | Starts from an empty filesystem with explicit toolchain mounts and a writable workspace, tmpfs over denied directories, read-only `/dev/null` over denied files, `--unshare-net` unless the check allows network, `--unshare-pid`, `--die-with-parent` |
 | none | anywhere | Scratch `HOME` and `TMPDIR` and the env allowlist still apply. Recorded as `none` in the receipt. Set `sandbox.mode: "required"` to refuse running without a backend. |
 
 The default deny list covers `~/.ssh`, `~/.aws`, `~/.azure`, `~/.config/gcloud`, `~/.config/gh`,
@@ -51,12 +51,16 @@ This default applies to both Seatbelt and bubblewrap; without an OS sandbox it c
 - **Lock-down depends on runtime flags.** A runtime update can add a capability that is on by
   default. The stream checks catch the use of anything outside the harness tools, but only after
   the fact. Run `panagent doctor --live` after every runtime upgrade.
-- **Reads are a denylist, not an allowlist.** Sandboxed checks can read the rest of the host
-  filesystem (toolchains live there). Keep secrets in the denied locations or add their paths.
-- **Receipts are unsigned.** See [receipts.md](receipts.md#limits).
-- **Repository-level runtime config is trusted.** `.panagent/runtimes.json` chooses runtime
-  commands, and it is read from the working tree. It is a governance path, so agents cannot change
-  it, but a person who can commit to the repository can.
+- **Seatbelt allows by default and denies listed operations.** On macOS, checks can read the
+  rest of the host filesystem (toolchains live there). The profile denies outbound network and
+  listed paths, but DNS, loopback services, and the Docker socket remain reachable. Keep secrets
+  in the denied locations or add their paths. Linux bubblewrap starts from an empty filesystem
+  and network namespace and gives stronger isolation.
+- **Receipts are unsigned.** Anyone with write access to the repository can forge a note that
+  `land` will accept. Signing is planned. See [receipts.md](receipts.md#limits).
+- **Repository-level runtime config requires explicit trust.** `.panagent/runtimes.json` chooses
+  runtime commands and is ignored unless you pass `--trust-repo-runtimes`. It is a governance
+  path, so agents cannot change it, but a person who can commit to the repository can.
 - **The bubblewrap backend has unit tests for its arguments but has not yet been exercised on a
   Linux host in this project's own testing.** The CI workflow installs bubblewrap and enables
   unprivileged user namespaces so the sandbox tests run there.
@@ -67,7 +71,9 @@ This default applies to both Seatbelt and bubblewrap; without an OS sandbox it c
 ## Prompt injection
 
 Repository files are untrusted input to the agent. The design limits the damage an injected
-instruction can do: the agent cannot run commands, cannot reach the network, cannot read forbidden
-paths or credentials, cannot change the checks, and cannot accept its own work. The remaining
-exposure is that the model sends readable repository content to its provider, which is inherent to
-using a hosted model on that repository.
+instruction can do: the agent cannot run commands, cannot read forbidden paths or credentials,
+cannot change the checks, and cannot accept its own work. Linux bubblewrap isolates checks from
+the network unless a check allows it. On macOS, Seatbelt denies outbound network but DNS,
+loopback services, and the Docker socket remain reachable. The remaining exposure is that the
+model sends readable repository content to its provider, which is inherent to using a hosted model
+on that repository.

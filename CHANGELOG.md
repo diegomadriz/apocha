@@ -21,3 +21,14 @@ First release as a standalone package.
   verify.
 - `metrics` reports outcomes over all runs and delivery statistics from receipts, with
   definitions.
+- Ctrl-C and SIGTERM abort runs and record `ERROR`/`aborted`.
+- Failed run starts no longer leave `RUNNING` records.
+- `findings_per_fix` counts `FIX` review findings only.
+- `apply_patch` validates all files before writing.
+- Repository `runtimes.json` requires `--trust-repo-runtimes`.
+- Checks warn when running without a sandbox; `init` defaults to sandbox mode `required`.
+- Sandboxed checks cannot read secret-looking untracked files in the source checkout.
+- Temporary directories carry an owner marker and are always removed.
+- `land` retires landed batch refs; `--keep-batch` preserves them.
+- New `panagent gc` and `panagent status` commands for cleanup and visibility into batches and runs.
+- Lifecycle documentation covers status, landing, and cleanup.

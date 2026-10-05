@@ -7,7 +7,7 @@ Each task names the paths an agent may change and the checks it must pass. An im
 edits a private copy of the repository through a small set of scoped tools. The task's checks run
 in an OS sandbox. A separate reviewer agent judges the verified change. If the review passes, the
 controller commits the change to a batch branch and attaches a receipt to the commit as a Git note.
-`panagent land` fast-forwards a branch only when every new commit carries a valid receipt.
+`panagent land` fast-forwards a branch only when every new commit carries a receipt that matches its content. Receipts are not signed yet, so `land` catches mistakes and stale evidence, not a person with write access who forges a note.
 
 It works with Codex CLI, Claude Code, and Pi as agent runtimes, chosen per role in a config file.
 
@@ -40,15 +40,14 @@ task.json ─► candidate (private clone at the base commit)
   runtime uses one anyway. `panagent doctor --live` asks each runtime to escape and reports
   whether it could.
 - **Untrusted code runs sandboxed.** Checks execute code an agent may have written, so they run
-  in a fresh copy of the tree (no `.git`, no untracked files, no forbidden paths) under macOS
-  Seatbelt or Linux bubblewrap: no network, no writes outside the workspace, and no reads of
-  credential stores.
+  in a fresh copy of the tree (no `.git`, no untracked files, no forbidden paths) under Linux bubblewrap or macOS Seatbelt: no writes outside the workspace and no reads of credential stores or secret files in the checkout. On Linux the check starts from an empty filesystem and network namespace. On macOS the profile denies outbound network and the listed paths but allows everything else, so local services such as DNS, loopback ports, or the Docker socket can still be reached. Linux gives the stronger isolation.
 - **Evidence is bound to content.** The candidate is identified by a SHA-256 over its base and
   full diff, rechecked after checks, after review, and before promotion. A receipt records that
   digest with the check definitions, configuration, prompts, and runtimes used, and
   `panagent receipt` recomputes the digest from Git.
 - **Every run is recorded.** Failed, escalated, and errored runs stay in the run store with their
   event log, so metrics have an honest denominator.
+- **It cleans up after itself.** Temporary clones and workspaces are removed when a run ends. `land` deletes the batch branches it landed, and `panagent gc` removes anything left from crashed runs. Each deletion is logged with the commit id needed to restore it.
 
 ## What it does not do
 
@@ -56,7 +55,8 @@ task.json ─► candidate (private clone at the base commit)
   network to reach its model; Panagent keeps the model's actions inside the harness tools, and
   Codex additionally runs with its own read-only sandbox. Run Panagent in a container or VM if
   the repository or the task text could be hostile.
-- Receipts are not signed yet. Anyone with write access to the repository can write a note.
+- Receipts are not signed yet. Anyone with write access to the repository can write a note that `land` will accept. Signed receipts are the next planned change.
+- A repository's own `.panagent/runtimes.json` is ignored unless you pass `--trust-repo-runtimes`, because it decides which program runs.
 - It does not push, open pull requests, or deploy.
 
 ## Quickstart
@@ -75,7 +75,8 @@ In the repository you want agents to work on:
 panagent init          # writes panagent.config.json from package.json or pyproject.toml
 ```
 
-Choose runtimes in `~/.config/panagent/runtimes.json` (or `.panagent/runtimes.json` in the repo):
+Choose runtimes in `~/.config/panagent/runtimes.json` (or `.panagent/runtimes.json` in the repo
+when you pass `--trust-repo-runtimes`):
 
 ```json
 {
@@ -119,11 +120,14 @@ To try it without a model, run the test suite: it drives full runs with a script
 | `panagent validate <task.json>` | Validate a task against the schema and the project config |
 | `panagent run <task.json> --base <ref> --batch <name> --message <text>` | Run the code-delivery workflow |
 | `panagent integrate <topic> --onto <ref> --batch <name>` | Merge a topic, verify and review the merged tree, promote it |
-| `panagent land <source> --target <branch>` | Fast-forward a branch whose new commits all carry valid receipts |
+| `panagent land <source> --target <branch> [--keep-batch]` | Fast-forward a branch whose new commits all carry valid receipts, then delete the landed batch branches |
 | `panagent receipt <commit>` | Verify and print a receipt |
 | `panagent runs`, `panagent show <run-id> [--events]` | Run history and the event log of one run |
 | `panagent resume <run-id> [--decision approve\|reject]` | Resume a run paused by a usage limit or a human gate |
 | `panagent metrics [--ref <ref>]` | Outcomes over all runs, and delivery statistics from receipts |
+| `panagent status [--json]` | Where things stand: batches and their receipts, runs that need attention, a commit graph, disk use, next steps |
+| `panagent gc [--apply]` | Preview, then remove merged batch branches, leftover temp directories, and old session traces |
+| `panagent analytics [--since] [--json\|--format md]` | Run analytics: outcomes, repairs, review, runtimes, tool use, durations |
 
 Exit codes: `0` passed, `2` usage or config error, `10` paused, `20` not passed, `30` error.
 

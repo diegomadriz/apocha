@@ -9,6 +9,8 @@ This file is for agents and people changing Panagent itself.
 | `bin/panagent.mjs` | CLI entry; everything else is in `src/` |
 | `src/cli/` | Commands (`main.mjs`), `init`, and the live lock-down probe |
 | `src/core/` | Engine, run lifecycle, run store and events, lock, metrics, workflow validation |
+| `src/core/gc.mjs` | Cleanup plans and removal of leftover resources |
+| `src/core/status.mjs` | Batches, receipts, runs, and next steps |
 | `src/workflows/` | Workflow definitions (data) |
 | `src/stages/` | One module per stage kind; `invoke.mjs` runs an agent with the retry policy |
 | `src/tools/` | Harness tools and their definitions (shared by every runtime) |
@@ -17,6 +19,7 @@ This file is for agents and people changing Panagent itself.
 | `src/git/` | Candidate, promotion, receipts, land |
 | `src/config/` | Project config, runtime config, task manifests |
 | `src/util/` | Errors, git, digests, bounded text, safe file access, schema validator |
+| `src/util/temp.mjs` | Owned temporary directories and cleanup |
 | `src/prompts/` | Role prompts (hashed into receipts) |
 | `schemas/` | JSON Schemas: the single source of truth for every document shape |
 | `docs/` | Architecture, configuration, adapters, workflows, receipts, security, operations |
@@ -44,6 +47,8 @@ Changes go through Panagent itself. `panagent.config.json` defines the catalog (
 
 Governance paths (`AGENTS.md`, `src/prompts/`, `schemas/`, `panagent.config.json`) change only
 with `--allow-governance-edits --reason "<why>"`, and a person reviews the result.
+
+Start with `panagent status` to see open batches and runs. After landing, `land` retires the batch branch. Finish with `panagent gc`, and run `panagent gc --apply` only when the plan lists nothing you still need. Do not leave worktrees, branches, or temp files of your own. Remove what you created before you finish.
 
 ## Rules for code
 
