@@ -26,8 +26,17 @@ import { expandHome } from "../util/paths.mjs";
 
 const SANDBOX_EXEC = "/usr/bin/sandbox-exec";
 
-/** @returns {SandboxBackend | null} */
+/** Set in every sandboxed check's environment; a process that sees it is already confined. */
+export const SANDBOX_MARKER = "PANAGENT_SANDBOX";
+
+/**
+ * The OS sandbox available on this host, or null. Inside a sandboxed check
+ * (for example Panagent's own test suite run as a check) nested sandboxes are
+ * not possible, and the outer sandbox already confines the process.
+ * @returns {SandboxBackend | null}
+ */
 export function detectBackend() {
+  if (process.env[SANDBOX_MARKER]) return null;
   if (process.platform === "darwin" && existsSync(SANDBOX_EXEC)) return "seatbelt";
   if (process.platform === "linux") {
     const found = spawnSync("sh", ["-c", "command -v bwrap"], { encoding: "utf8" });

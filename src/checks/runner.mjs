@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { resolveDenyPaths, wrapCommand } from "../sandbox/index.mjs";
+import { resolveDenyPaths, SANDBOX_MARKER, wrapCommand } from "../sandbox/index.mjs";
 import { decodeCaptured } from "../util/bounded.mjs";
 import { digestJson, sha256 } from "../util/digest.mjs";
 import { describeError } from "../util/errors.mjs";
@@ -155,6 +155,7 @@ export async function runCheck({
       XDG_CACHE_HOME: path.join(home, ".cache"),
       XDG_CONFIG_HOME: path.join(home, ".config"),
       CI: "1",
+      ...(backend === "none" ? {} : { [SANDBOX_MARKER]: backend }),
       ...(nodePath ? { NODE_PATH: nodePath } : {}),
       ...check.env,
     });
