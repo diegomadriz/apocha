@@ -36,7 +36,7 @@ export async function runReviewStage(_stage, ctx) {
   const tests = testEdits(ctx.candidate, ctx.config, snapshot.changed_files, ctx.task.test_edits);
   const bundle = {
     added_tests: tests.added,
-    ...(ctx.task.test_edits === "allowed" && tests.modified.length ? { modified_tests: tests.modified } : {}),
+    ...(tests.modified.length ? { modified_tests: tests.modified } : {}),
     task: { task_id: ctx.task.task_id, description: ctx.task.description },
     acceptance_criteria: ctx.task.acceptance_criteria,
     candidate: {

@@ -64,6 +64,7 @@ test("additive permits existing test cases and new tests, recording both in the 
       {},
       async (context) => {
         assert.deepEqual(context.bundle.added_tests, ["test/new.test.mjs"]);
+        assert.deepEqual(context.bundle.modified_tests, ["test/existing.test.mjs"]);
         reviewed = true;
         await passReviewer(context);
       },
@@ -85,6 +86,61 @@ test("additive permits existing test cases and new tests, recording both in the 
       input: JSON.stringify(verified.receipt),
     });
     assert.equal(verifyReceipt(repo.root, "refs/notes/apocha", head).valid, true);
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test("reviewer rejects an additive early return that passes test-edits", async () => {
+  const existing =
+    'import assert from "node:assert/strict";\nimport { test } from "node:test";\ntest("original", () => {\n  assert.equal(2, 2);\n});\n';
+  const weakened = existing.replace("  assert.equal(2, 2);", "  return;\n  assert.equal(2, 2);");
+  const repo = makeRepo({ files: { "test/existing.test.mjs": existing } });
+  try {
+    let reviewed = false;
+    const summary = await run(
+      repo.root,
+      async ({ call }) => {
+        await call("apply_patch", {
+          edits: [{ path: "test/existing.test.mjs", old_text: existing, new_text: weakened }],
+          // Preserve the matched text so the tool sees a pure addition.
+          ...{
+            edits: [
+              {
+                path: "test/existing.test.mjs",
+                old_text: "  assert.equal(2, 2);",
+                new_text: "  return;\n  assert.equal(2, 2);",
+              },
+            ],
+          },
+        });
+        await call("submit_result", { summary: "Added early return" });
+      },
+      {},
+      async (context) => {
+        assert.deepEqual(context.bundle.modified_tests, ["test/existing.test.mjs"]);
+        assert.match(context.bundle.diff, /\+  return;/);
+        reviewed = true;
+        await context.call("submit_result", {
+          decision: "FIX",
+          candidate_digest: context.bundle.candidate.candidate_digest,
+          findings: [
+            {
+              id: "early-return",
+              path: "test/existing.test.mjs",
+              reason: "The added early return bypasses the existing assertion.",
+            },
+          ],
+        });
+      },
+    );
+    assert.equal(summary.outcome, "ESCALATED", summary.reason ?? "");
+    assert.equal(reviewed, true);
+    assert.ok(summary.checks.some((check) => check.id === "test-edits" && check.status === "pass"));
+    assert.notEqual(summary.outcome, "PASSED");
+    const state = new RunStore(repo.root).read(summary.run_id);
+    assert.equal(state.state.last_review.decision, "FIX");
+    assert.equal(state.state.last_review.findings[0].id, "early-return");
   } finally {
     repo.cleanup();
   }
