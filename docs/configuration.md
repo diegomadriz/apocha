@@ -98,6 +98,21 @@ backend emits a warning event and a stderr warning suggesting `sandbox.mode: req
 | `run_check_calls` | 6 | `run_check` calls per implementer attempt |
 | `check_output_bytes` | 20000 | Captured output per stream per check (digests always cover everything) |
 
+## Repositories set up under the old name
+
+The project was renamed from Panagent to Apocha before its first release. When
+`apocha.config.json` is missing, Apocha reads `panagent.config.json` from the base commit.
+If both exist, `apocha.config.json` wins. `panagent.config.json` and `.panagent/` are always
+governance paths, so changing them requires governance edit permission.
+
+The default refs are now `refs/heads/apocha/batch/` and `refs/notes/apocha`. To keep the old
+refs, set `refs.batch_prefix` to `refs/heads/panagent/batch/` and `refs.notes` to
+`refs/notes/panagent` explicitly in the project config. To use the new notes ref with existing
+receipts, copy the old notes ref with `git update-ref refs/notes/apocha refs/notes/panagent`.
+
+The run store is now `<git-common-dir>/apocha/`. Move `<git-common-dir>/panagent/` to
+`<git-common-dir>/apocha/` to keep run history and analytics.
+
 ## Runtime config (`runtimes.json`)
 
 Schema: `schemas/runtime-config.schema.json`. Lookup order: `--runtimes <file>`, then

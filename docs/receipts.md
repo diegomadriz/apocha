@@ -63,6 +63,9 @@ a ref recreated since retirement.
 
 ## Legacy receipts
 
+Version 3 receipts with the old schema ID `panagent.receipt.v3` still verify, alongside
+`apocha.receipt.v3` receipts.
+
 Versions 1 and 2 were written by the harness Apocha was extracted from. They verify with the
 same commit checks and the same recomputed digest, so a repository that switches to Apocha and
 keeps its batch prefix and notes ref can land across both histories.
