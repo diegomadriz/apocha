@@ -1,10 +1,11 @@
 // @ts-check
-import { mkdirSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { newRunId, RunStore, stateDir } from "../core/runs.mjs";
 import { HarnessError } from "../util/errors.mjs";
 import { writeJsonAtomic } from "../util/fs-safe.mjs";
-import { git, gitText, isCanonicalRef, resolveCommit, updateRef } from "../util/git.mjs";
+import { isCanonicalRef, resolveCommit, git as runGit } from "../util/git.mjs";
 import { verifyReceipt } from "./receipts.mjs";
 
 /**
@@ -13,16 +14,34 @@ import { verifyReceipt } from "./receipts.mjs";
  * checked out in a worktree, that worktree must be clean and is fast-forwarded
  * in place.
  *
- * @param {{ repositoryRoot: string, notesRef: string, source: string, target: string, batchPrefix?: string, keepBatch?: boolean }} input
+ * @param {{ repositoryRoot: string, notesRef: string, source: string, target: string, batchPrefix?: string, keepBatch?: boolean, onBeforeRetire?: () => void }} input
  */
-export function landBranch({
-  repositoryRoot,
-  notesRef,
-  source,
-  target,
-  batchPrefix = "refs/heads/apocha/batch/",
-  keepBatch = false,
-}) {
+export function landBranch(input) {
+  const hooksPath = mkdtempSync(path.join(os.tmpdir(), "apocha-land-hooks-"));
+  try {
+    return landWithoutHooks(input, hooksPath);
+  } finally {
+    rmSync(hooksPath, { recursive: true, force: true });
+  }
+}
+
+/** @param {Parameters<typeof landBranch>[0]} input @param {string} hooksPath */
+function landWithoutHooks(
+  {
+    repositoryRoot,
+    notesRef,
+    source,
+    target,
+    batchPrefix = "refs/heads/apocha/batch/",
+    keepBatch = false,
+    onBeforeRetire,
+  },
+  hooksPath,
+) {
+  /** @param {string} cwd @param {string[]} args @param {Parameters<typeof runGit>[2]} [options] */
+  const git = (cwd, args, options) => runGit(cwd, ["-c", `core.hooksPath=${hooksPath}`, ...args], options);
+  /** @param {string} cwd @param {string[]} args */
+  const gitText = (cwd, args) => String(git(cwd, args).stdout).trim();
   if (typeof target !== "string" || !target || target.startsWith("-") || target.startsWith("refs/")) {
     throw new HarnessError("config", "invalid_target", "target must be a branch name");
   }
@@ -62,6 +81,14 @@ export function landBranch({
     .split("\n")
     .filter(Boolean)
     .map((line) => line.split(" "));
+  const landedCommits = new Set(
+    gitText(repositoryRoot, ["rev-list", `${oldHead}..${newHead}`])
+      .split("\n")
+      .filter(Boolean),
+  );
+  for (const [name, oid] of batchRefs) {
+    if (landedCommits.has(oid)) candidates.set(name, oid);
+  }
   for (const commit of commits) {
     const check = verifyReceipt(repositoryRoot, notesRef, commit);
     if (!check.valid)
@@ -103,10 +130,25 @@ export function landBranch({
     }
     if (gitText(worktree, ["rev-parse", "HEAD"]) !== oldHead)
       throw new HarnessError("integrity", "target_moved", "target moved during land");
-    git(worktree, ["merge", "--ff-only", "--quiet", newHead]);
+    git(repositoryRoot, ["update-ref", "--no-deref", ref, newHead, oldHead]);
+    try {
+      git(worktree, ["read-tree", "-m", "-u", oldHead, newHead]);
+    } catch (error) {
+      const rollback = git(repositoryRoot, ["update-ref", "--no-deref", ref, oldHead, newHead], {
+        allowFailure: true,
+      });
+      if (rollback.error || rollback.status !== 0)
+        throw new HarnessError(
+          "infra",
+          "land_rollback_failed",
+          `worktree update failed: ${String(error)}; target ref rollback failed: ${String(rollback.stderr)}`,
+        );
+      throw error;
+    }
   } else {
-    updateRef(repositoryRoot, ref, newHead, oldHead);
+    git(repositoryRoot, ["update-ref", "--no-deref", ref, newHead, oldHead]);
   }
+  onBeforeRetire?.();
   /** @type {{ ref: string, oid: string }[]} */
   const retired = [];
   /** @type {{ ref: string, oid: string, reason: string }[]} */

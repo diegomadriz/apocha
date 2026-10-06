@@ -291,23 +291,20 @@ test("land preserves batch refs requested, checked out, active, or outside the p
   }
 });
 
-test("land keeps and reports a source ref moved by the target's post-merge hook", () => {
+test("land keeps and reports a source ref moved before retirement", () => {
   const repo = makeRepo();
   try {
     const p = promoted(repo);
     writeReceipt(repo.root, NOTES, receiptFor(p));
-    writeFileSync(
-      path.join(repo.root, ".git/hooks/post-merge"),
-      `#!/bin/sh
-git update-ref ${BATCH} ${p.old_head} ${p.promoted_head}
-`,
-      { mode: 0o755 },
-    );
     const result = landBranch({
       repositoryRoot: repo.root,
       notesRef: NOTES,
       source: BATCH,
       target: "main",
+      onBeforeRetire: () => {
+        assert.equal(resolveCommit(repo.root, "main"), p.promoted_head);
+        git(repo.root, ["update-ref", BATCH, p.old_head, p.promoted_head]);
+      },
     });
     assert.equal(resolveCommit(repo.root, "main"), p.promoted_head);
     assert.equal(resolveCommit(repo.root, BATCH), p.old_head);
