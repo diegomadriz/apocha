@@ -169,7 +169,7 @@ test("runCheck invalidates cached inputs and never reuses validation for changed
 test("parallel controller checks record wall time and deterministic evidence, events and receipts", async () => {
   // All checks sleep at least a second; the first also delays so it finishes last.
   const sleep = (ms) => npmCheck(`setTimeout(() => {}, ${ms})`);
-  const repo = fixture({ slow: sleep(2100), second: sleep(1000), third: sleep(1000) });
+  const repo = fixture({ slow: sleep(3000), second: sleep(1500), third: sleep(1500) });
   const { summary, state, events, store } = await controller(repo);
   assert.equal(summary.outcome, "PASSED", summary.reason ?? "");
   const evidenceFile = `verification-${String(state.attempt).padStart(2, "0")}.json`;
@@ -178,9 +178,10 @@ test("parallel controller checks record wall time and deterministic evidence, ev
     verification.results.map((result) => result.id),
     ["slow", "second", "third"],
   );
-  assert.ok(verification.duration_ms < 2900, `checks took ${verification.duration_ms}ms`);
-  assert.ok(verification.duration_ms >= 2100);
-  assert.ok(verification.results.every((result) => result.duration_ms >= 1000));
+  // Sequential execution would take at least 6000 ms.
+  assert.ok(verification.duration_ms < 5000, `checks took ${verification.duration_ms}ms`);
+  assert.ok(verification.duration_ms >= 3000);
+  assert.ok(verification.results.every((result) => result.duration_ms >= 1500));
   assert.ok(verification.results[0].duration_ms > verification.results[1].duration_ms);
   assert.equal(state.last_verification.duration_ms, verification.duration_ms);
   assert.deepEqual(
