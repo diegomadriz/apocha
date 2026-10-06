@@ -10,7 +10,7 @@ import { describeError } from "../util/errors.mjs";
 import { git, gitCommonDir } from "../util/git.mjs";
 import { isInside } from "../util/paths.mjs";
 import { makeTempDir, removeTempDir } from "../util/temp.mjs";
-import { prepareNpmDependencies } from "./dependencies.mjs";
+import { dependencyCacheFor, prepareNpmDependencies } from "./dependencies.mjs";
 
 /**
  * Check evidence. `status` is `pass`, `fail`, or `infra_error`; infra errors
@@ -18,7 +18,7 @@ import { prepareNpmDependencies } from "./dependencies.mjs";
  * full streams, so evidence stays verifiable even when truncated.
  *
  * @typedef {{
- *   id: string, status: "pass" | "fail" | "infra_error", exit_code: number | null, error: string | null,
+ *   id: string, status: "pass" | "fail" | "infra_error" | "skipped", exit_code: number | null, error: string | null,
  *   stdout: string, stderr: string, stdout_truncated: boolean, stderr_truncated: boolean,
  *   output_digest: string, definition_digest: string, sandbox: string, duration_ms: number,
  * }} CheckResult
@@ -111,6 +111,8 @@ function materialize(candidateRoot, execRoot, forbidden) {
  *   config: import("../config/project.mjs").ProjectConfig,
  *   backend: import("../sandbox/index.mjs").SandboxBackend,
  *   secretFileCache?: SecretFileCache,
+ *   dependencyOptions?: import("./dependencies.mjs").DependencyOptions,
+ *   signal?: AbortSignal,
  *   baseOverlay?: string[],
  *   files?: string[],
  *   maxOutputBytes?: number,
@@ -124,6 +126,8 @@ export async function runCheck({
   backend,
   baseOverlay,
   secretFileCache,
+  dependencyOptions,
+  signal,
   files,
   maxOutputBytes = config.limits.check_output_bytes,
 }) {
@@ -183,6 +187,7 @@ export async function runCheck({
           baseCommit: candidate.base_commit,
           cwd: check.cwd,
           execCwd: cwd,
+          options: { cache: dependencyCacheFor(candidate), ...dependencyOptions },
         });
         extraPath = [path.join(deps.node_modules, ".bin")];
         nodePath = deps.node_modules;
@@ -264,6 +269,7 @@ export async function runCheck({
         if (settled) return;
         settled = true;
         clearTimeout(timer);
+        signal?.removeEventListener("abort", abort);
         const cleanupError = cleanup();
         if (cleanupError)
           outcome = { status: "infra_error", exit_code: outcome.exit_code, error: cleanupError };
@@ -291,6 +297,17 @@ export async function runCheck({
         if (room > 0) capture[stream] = Buffer.concat([capture[stream], chunk.subarray(0, room)]);
       };
       let child;
+      const abort = () => {
+        try {
+          process.kill(-(/** @type {number} */ (child.pid)), "SIGKILL");
+        } catch {
+          child.kill("SIGKILL");
+        }
+      };
+      if (signal?.aborted) {
+        finish({ status: "infra_error", exit_code: null, error: "aborted" });
+        return;
+      }
       try {
         child = spawn(prepared.command, prepared.args, {
           cwd: prepared.cwd,
@@ -306,6 +323,8 @@ export async function runCheck({
         });
         return;
       }
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
       child.stdout.on("data", (chunk) => collect("stdout", chunk));
       child.stderr.on("data", (chunk) => collect("stderr", chunk));
       timer = setTimeout(() => {

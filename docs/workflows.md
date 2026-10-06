@@ -34,6 +34,15 @@ export default {
 Terminal states: `PASSED`, `FAILED`, `ESCALATED`. `PAUSED` and `ERROR` come from errors, not
 from definitions (see [architecture.md](architecture.md#the-engine)).
 
+Catalog checks run with at most `limits.check_concurrency` workers (default 2),
+each in a separate writable workspace and sandbox. Results, `check.finished`
+events, verification files, and receipts retain the task's check order regardless
+of finish order. With task `fail_fast: true`, checks not yet started after a
+failure are recorded as `skipped`; running checks finish. Aborts stop running
+checks and prevent new checks from starting. Per-check `duration_ms` and the
+checks stage's total wall time are recorded in verification evidence.
+Base test runs remain sequential and start only after all catalog checks pass.
+
 ## Test edit check
 
 The `test-edits` structural check compares the final candidate against the base commit,

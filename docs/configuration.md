@@ -57,6 +57,12 @@ The closed catalog. Each check:
 Every check runs in a fresh directory built from the candidate's Git index: tracked files only, no
 `.git`, no untracked or ignored files, and no forbidden paths. `HOME`, `TMPDIR`, and the XDG
 directories point at per-check scratch directories.
+For npm checks, successful lock validation is cached per run and dependency directory,
+including repair attempts. Source manifest, lockfile, and installed lockfile digests
+are checked before reuse; changed inputs trigger validation again. Copies use
+clonefile on macOS or reflinks on Linux when available, with a recursive-copy
+fallback. Every check has its own writable dependency tree, and copied symlinks
+must remain inside that tree.
 Seatbelt denies DNS, loopback and outside Unix sockets by default. Workspace Unix sockets
 remain available for tool IPC. Set `loopback: true` for checks that run local servers or bundler
 workers; this does not enable DNS or external network. `network: true` or `sandbox.network: "allow"`
@@ -145,6 +151,7 @@ backend emits a warning event and a stderr warning suggesting `sandbox.mode: req
 | `default_repair_attempts` | 1 | Used when a task does not say |
 | `review_diff_bytes` | 400000 | A larger diff escalates to a person; it is never reviewed in part |
 | `run_check_calls` | 6 | `run_check` calls per implementer attempt |
+| `check_concurrency` | 2 | Maximum parallel catalog checks, integer from 1 to 8; each has its own workspace and sandbox |
 | `check_output_bytes` | 20000 | Captured output per stream per check (digests always cover everything) |
 
 ## Repositories set up under the old name
@@ -212,6 +219,7 @@ Schema: `schemas/task.schema.json`.
 | `initial_context` | | Files placed in the implementer's first prompt (must be readable) |
 | `design_reference` | | Up to 5 approved reference files under the design prefix, read from the base commit by both roles |
 | `checks` | | Check IDs from the catalog. Omit to select by rule. A run with no checks is refused. |
+| `fail_fast` | | Boolean, default false. After a failing check, skip checks not yet started; running checks finish. |
 | `max_repair_attempts` | | 0 to 2, at most the project limit |
 | `new_tests_must_fail_on_base` | | Boolean, default false. With `tests.run_files` enabled, any `passes_on_base` result fails `tests-fail-before` and goes to repair. Errors do not count as evidence. |
 | `test_edits` | | `additive` (default): existing test files may gain lines but no existing line may change or be removed. `new-files`: existing tests may not be modified or deleted. `allowed`: any test change, including deletion. |

@@ -2,7 +2,7 @@
 
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { runCheck } from "../checks/runner.mjs";
+import { checkDefinitionDigest, runCheck } from "../checks/runner.mjs";
 import { effectiveProtectedPaths } from "../config/task.mjs";
 import { snapshotCandidate } from "../git/candidate.mjs";
 import { testEdits } from "../git/test-edits.mjs";
@@ -72,6 +72,7 @@ function appendHistory(history, attempt, results) {
  * @param {import("../core/context.mjs").RunContext} ctx
  */
 export async function runChecksStage(_stage, ctx) {
+  const started = Date.now();
   if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
   let snapshot;
   try {
@@ -80,11 +81,16 @@ export async function runChecksStage(_stage, ctx) {
     if (error instanceof HarnessError && error.errorClass === "integrity") {
       ctx.state.last_verification = {
         status: "violation",
+        duration_ms: Date.now() - started,
         candidate_digest: "",
         changed_files: [],
         checks: [{ id: "candidate-integrity", status: "fail", error: error.message }],
       };
-      ctx.event("verification.finished", { status: "violation", reason: error.message });
+      ctx.event("verification.finished", {
+        status: "violation",
+        reason: error.message,
+        duration_ms: Date.now() - started,
+      });
       return "violation";
     }
     throw error;
@@ -101,6 +107,7 @@ export async function runChecksStage(_stage, ctx) {
   if (structural.some((check) => check.status === "fail")) {
     ctx.state.last_verification = {
       status: "violation",
+      duration_ms: Date.now() - started,
       candidate_digest: snapshot.candidate_digest,
       changed_files: snapshot.changed_files,
       checks: structural,
@@ -110,6 +117,7 @@ export async function runChecksStage(_stage, ctx) {
       out_of_scope: outOfScope,
       protected: protectedHits,
       test_edits: tests.offending,
+      duration_ms: Date.now() - started,
     });
     return "violation";
   }
@@ -118,19 +126,54 @@ export async function runChecksStage(_stage, ctx) {
   /** @type {import("../checks/runner.mjs").CheckResult[]} */
   const results = [];
   const secretFileCache = (ctx.secretFileCache ??= { files: new Map() });
-  for (const id of ctx.task.checks) {
-    if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
-    const result = await runCheck({
-      check: ctx.config.checks[id],
-      candidate: ctx.candidate,
-      config: ctx.config,
-      backend: ctx.sandboxBackend,
-      secretFileCache,
-    });
-    if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
-    results.push(result);
-    ctx.event("check.finished", {
+  let next = 0;
+  let failed = false;
+  const dependencyOptions = {
+    onValidation: (/** @type {string} */ source) => ctx.event("dependencies.validation", { source }),
+  };
+  const worker = async () => {
+    while (next < ctx.task.checks.length && !ctx.signal?.aborted) {
+      if (ctx.task.fail_fast && failed) return;
+      const index = next++;
+      const id = ctx.task.checks[index];
+      const result = await runCheck({
+        check: ctx.config.checks[id],
+        candidate: ctx.candidate,
+        config: ctx.config,
+        backend: ctx.sandboxBackend,
+        secretFileCache,
+        dependencyOptions,
+        signal: ctx.signal,
+      });
+      results[index] = result;
+      if (result.status !== "pass") failed = true;
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(ctx.config.limits.check_concurrency, ctx.task.checks.length) }, worker),
+  );
+  if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
+  for (let index = next; index < ctx.task.checks.length; index++) {
+    const id = ctx.task.checks[index];
+    results[index] = {
       id,
+      status: "skipped",
+      exit_code: null,
+      error: "skipped after a failing check",
+      stdout: "",
+      stderr: "",
+      stdout_truncated: false,
+      stderr_truncated: false,
+      output_digest: "",
+      definition_digest: checkDefinitionDigest(ctx.config.checks[id]),
+      sandbox: ctx.sandboxBackend,
+      duration_ms: 0,
+    };
+  }
+  // Publish evidence only after all workers finish, in the task's order.
+  for (const result of results) {
+    ctx.event("check.finished", {
+      id: result.id,
       status: result.status,
       exit_code: result.exit_code,
       error: result.error,
@@ -158,6 +201,8 @@ export async function runChecksStage(_stage, ctx) {
         config: ctx.config,
         backend: ctx.sandboxBackend,
         secretFileCache,
+        dependencyOptions,
+        signal: ctx.signal,
         baseOverlay: [...new Set([file, ...support])],
         files: [path.posix.relative(runFiles.cwd, file)],
       });
@@ -206,7 +251,9 @@ export async function runChecksStage(_stage, ctx) {
     ctx.store.dir(ctx.runId),
     `verification-${String(ctx.state.attempt).padStart(2, "0")}.json`,
   );
+  const duration_ms = Date.now() - started;
   writeJsonAtomic(evidenceFile, {
+    duration_ms,
     candidate_digest: snapshot.candidate_digest,
     changed_files: snapshot.changed_files,
     structural,
@@ -215,6 +262,7 @@ export async function runChecksStage(_stage, ctx) {
   });
   ctx.state.last_verification = {
     status,
+    duration_ms,
     tests_on_base: testsOnBase,
     candidate_digest: snapshot.candidate_digest,
     changed_files: snapshot.changed_files,
@@ -228,13 +276,14 @@ export async function runChecksStage(_stage, ctx) {
         definition_digest: result.definition_digest,
         sandbox: result.sandbox,
         output_digest: result.output_digest,
+        duration_ms: result.duration_ms,
       })),
       ...(changedDuringChecks
         ? [{ id: "post-check-identity", status: "fail", error: "candidate changed while checks ran" }]
         : []),
     ],
   };
-  ctx.event("verification.finished", { status, candidate_digest: snapshot.candidate_digest });
+  ctx.event("verification.finished", { status, candidate_digest: snapshot.candidate_digest, duration_ms });
   if (status === "fail") {
     ctx.state.findings = verificationFindings(results);
     ctx.state.verification_history = appendHistory(

@@ -19,6 +19,7 @@ import { selectChecks } from "./project.mjs";
  *   test_edits: "additive" | "new-files" | "allowed",
  *   new_tests_must_fail_on_base: boolean,
  *   checks_selected_by_rule: boolean,
+ *   fail_fast: boolean,
  *   max_repair_attempts: number,
  * }} Task
  */
@@ -103,6 +104,7 @@ export function validateTask(raw, config) {
     test_edits: input.test_edits ?? "additive",
     new_tests_must_fail_on_base: input.new_tests_must_fail_on_base ?? false,
     checks_selected_by_rule: selectedByRule,
+    fail_fast: input.fail_fast ?? false,
     max_repair_attempts: repairs,
   };
 }

@@ -14,9 +14,9 @@
  *   findings: { source: "review" | "verification", id: string, reason: string, path?: string, check_id?: string }[],
  *   verification_history: { attempt: number, failed_checks: string[], first_lines: Record<string, string[]> }[],
  *   last_verification: null | {
- *     status: string, candidate_digest: string, changed_files: string[],
+ *     status: string, candidate_digest: string, changed_files: string[], duration_ms?: number,
  *     tests_on_base?: { path: string, result: "passes_on_base" | "fails_on_base" | "error" | "not_run" }[],
- *     checks: { id: string, status: string, exit_code?: number | null, error?: string | null, definition_digest?: string, sandbox?: string, output_digest?: string, files?: string[] }[],
+ *     checks: { id: string, status: string, exit_code?: number | null, error?: string | null, definition_digest?: string, sandbox?: string, output_digest?: string, duration_ms?: number, files?: string[] }[],
  *   },
  *   last_review: null | { decision: string, findings: any[], reason?: string, candidate_digest: string },
  *   implementation: null | { summary: string, unresolved_uncertainties: string[] },

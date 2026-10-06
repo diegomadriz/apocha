@@ -51,6 +51,7 @@ export const DEFAULT_LIMITS = Object.freeze({
   review_diff_bytes: 400000,
   run_check_calls: 6,
   check_output_bytes: 20000,
+  check_concurrency: 2,
 });
 
 /**

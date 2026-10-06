@@ -44,7 +44,12 @@ export async function runEngine(ctx) {
         new HarnessError("config", "unrouted_outcome", `stage ${name} produced unrouted outcome ${outcome}`),
       );
     }
-    ctx.event("stage.completed", { stage: name, outcome, next });
+    ctx.event("stage.completed", {
+      stage: name,
+      outcome,
+      next,
+      ...(stage.kind === "checks" ? { duration_ms: ctx.state.last_verification?.duration_ms } : {}),
+    });
     ctx.state.stage = next;
     if (TERMINAL_STATES.includes(next) && !ctx.state.reason && next !== "PASSED")
       ctx.state.reason = `${name}: ${outcome}`;

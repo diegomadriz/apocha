@@ -79,6 +79,7 @@
         "default_repair_attempts": { "type": "integer", "minimum": 0, "maximum": 2 },
         "review_diff_bytes": { "type": "integer", "minimum": 10000, "maximum": 2000000 },
         "run_check_calls": { "type": "integer", "minimum": 0, "maximum": 30 },
+        "check_concurrency": { "type": "integer", "minimum": 1, "maximum": 8, "default": 2 },
         "check_output_bytes": { "type": "integer", "minimum": 2000, "maximum": 1000000 }
       }
     }
