@@ -1,5 +1,6 @@
 // @ts-check
 
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { runCheck } from "../checks/runner.mjs";
 import { effectiveProtectedPaths } from "../config/task.mjs";
@@ -132,6 +133,56 @@ export async function runChecksStage(_stage, ctx) {
       sandbox: result.sandbox,
     });
   }
+  /** @type {NonNullable<import("../core/context.mjs").RunState["last_verification"]>["tests_on_base"]} */
+  const testsOnBase = [];
+  const runFiles = ctx.config.tests.run_files;
+  if (runFiles && results.every((result) => result.status === "pass")) {
+    const files = [...tests.added, ...tests.modified]
+      .filter((file) => existsSync(path.join(ctx.candidate.root, file)))
+      .sort();
+    const support = tests.added.filter((file) => existsSync(path.join(ctx.candidate.root, file)));
+    for (const [index, file] of files.entries()) {
+      if (index >= 10) {
+        testsOnBase.push({ path: file, result: "not_run" });
+        continue;
+      }
+      const result = await runCheck({
+        check: runFiles,
+        candidate: ctx.candidate,
+        config: ctx.config,
+        backend: ctx.sandboxBackend,
+        baseOverlay: [...new Set([file, ...support])],
+        files: [path.posix.relative(runFiles.cwd, file)],
+      });
+      const classification =
+        result.error || result.exit_code === null || result.status === "infra_error"
+          ? "error"
+          : result.exit_code === 0
+            ? "passes_on_base"
+            : "fails_on_base";
+      testsOnBase.push({ path: file, result: classification });
+      ctx.event("test-on-base.finished", { path: file, result: classification });
+    }
+    const passing = testsOnBase.filter((entry) => entry.result === "passes_on_base");
+    if (ctx.task.new_tests_must_fail_on_base && passing.length) {
+      const reason = `${passing.map((entry) => entry.path).join(", ")} pass on the base code and so do not test the change`;
+      results.push({
+        id: "tests-fail-before",
+        status: "fail",
+        exit_code: null,
+        error: reason,
+        stdout: "",
+        stderr: reason,
+        stdout_truncated: false,
+        stderr_truncated: false,
+        output_digest: "",
+        definition_digest: "",
+        sandbox: ctx.sandboxBackend,
+        duration_ms: 0,
+      });
+      ctx.event("check.finished", { id: "tests-fail-before", status: "fail", error: reason });
+    }
+  }
   const after = snapshotCandidate(ctx.candidate);
   const changedDuringChecks = after.candidate_digest !== snapshot.candidate_digest;
 
@@ -152,9 +203,11 @@ export async function runChecksStage(_stage, ctx) {
     changed_files: snapshot.changed_files,
     structural,
     results,
+    tests_on_base: testsOnBase,
   });
   ctx.state.last_verification = {
     status,
+    tests_on_base: testsOnBase,
     candidate_digest: snapshot.candidate_digest,
     changed_files: snapshot.changed_files,
     checks: [

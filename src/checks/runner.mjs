@@ -107,6 +107,8 @@ function materialize(candidateRoot, execRoot, forbidden) {
  *   candidate: { root: string, repository_root: string, base_commit: string },
  *   config: import("../config/project.mjs").ProjectConfig,
  *   backend: import("../sandbox/index.mjs").SandboxBackend,
+ *   baseOverlay?: string[],
+ *   files?: string[],
  *   maxOutputBytes?: number,
  * }} input
  * @returns {Promise<CheckResult>}
@@ -116,6 +118,8 @@ export async function runCheck({
   candidate,
   config,
   backend,
+  baseOverlay,
+  files,
   maxOutputBytes = config.limits.check_output_bytes,
 }) {
   const definitionDigest = checkDefinitionDigest(check);
@@ -140,7 +144,24 @@ export async function runCheck({
       const home = path.join(workspace, "home");
       const tmp = path.join(workspace, "tmp");
       for (const dir of [execRoot, home, tmp]) mkdirSync(dir, { mode: 0o700 });
-      materialize(candidate.root, execRoot, config.paths.forbidden);
+      if (baseOverlay) {
+        const env = { GIT_INDEX_FILE: path.join(workspace, "base-index") };
+        git(candidate.root, ["read-tree", candidate.base_commit], { env });
+        git(candidate.root, ["checkout-index", "--all", "--force", `--prefix=${execRoot}${path.sep}`], {
+          env,
+        });
+        git(candidate.root, [
+          "checkout-index",
+          "--force",
+          `--prefix=${execRoot}${path.sep}`,
+          "--",
+          ...baseOverlay,
+        ]);
+        for (const scope of config.paths.forbidden)
+          rmSync(path.join(execRoot, scope), { recursive: true, force: true });
+      } else {
+        materialize(candidate.root, execRoot, config.paths.forbidden);
+      }
       const cwd = check.cwd === "." ? execRoot : path.resolve(execRoot, check.cwd);
       if (!isInside(cwd, execRoot))
         return infraResult(check.id, definitionDigest, backend, "check cwd escapes the tree");
@@ -182,7 +203,9 @@ export async function runCheck({
         ...(nodePath ? { NODE_PATH: nodePath } : {}),
         ...check.env,
       });
-      const argv = check.run.map((part) => part.replaceAll("{source}", sourceRoot));
+      const argv = check.run.flatMap((part) =>
+        part === "{files}" && files ? files : [part.replaceAll("{source}", sourceRoot)],
+      );
       const commonDir = realpathSync(gitCommonDir(sourceRoot));
       const denyRead = resolveDenyPaths([
         ...config.sandbox.deny_read,

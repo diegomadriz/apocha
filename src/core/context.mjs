@@ -15,6 +15,7 @@
  *   verification_history: { attempt: number, failed_checks: string[], first_lines: Record<string, string[]> }[],
  *   last_verification: null | {
  *     status: string, candidate_digest: string, changed_files: string[],
+ *     tests_on_base?: { path: string, result: "passes_on_base" | "fails_on_base" | "error" | "not_run" }[],
  *     checks: { id: string, status: string, exit_code?: number | null, error?: string | null, definition_digest?: string, sandbox?: string, output_digest?: string, files?: string[] }[],
  *   },
  *   last_review: null | { decision: string, findings: any[], reason?: string, candidate_digest: string },

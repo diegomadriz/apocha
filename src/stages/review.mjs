@@ -35,6 +35,7 @@ export async function runReviewStage(_stage, ctx) {
   );
   const tests = testEdits(ctx.candidate, ctx.config, snapshot.changed_files, ctx.task.test_edits);
   const bundle = {
+    tests_on_base: verified.tests_on_base ?? [],
     added_tests: tests.added,
     ...(tests.modified.length ? { modified_tests: tests.modified } : {}),
     task: { task_id: ctx.task.task_id, description: ctx.task.description },

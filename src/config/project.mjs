@@ -49,7 +49,7 @@ export const DEFAULT_LIMITS = Object.freeze({
  *   checks: Record<string, CheckDefinition>,
  *   check_selection: { paths: string[], checks: string[] }[],
  *   default_checks: string[],
- *   tests: { paths: string[] },
+ *   tests: { paths: string[], run_files?: CheckDefinition },
  *   paths: { protected: string[], governance: string[], forbidden: string[], design_reference_prefix: string },
  *   refs: { batch_prefix: string, notes: string },
  *   sandbox: { mode: "auto" | "required" | "none", network: "deny" | "allow", deny_read: string[] },
@@ -69,10 +69,11 @@ export function normalizeProjectConfig(raw, root) {
   const input = /** @type {Record<string, any>} */ (raw);
   /** @type {Record<string, CheckDefinition>} */
   const checks = {};
-  for (const [id, check] of Object.entries(input.checks)) {
+  /** @param {string} id @param {Record<string, any>} check @returns {CheckDefinition} */
+  const normalizeCheck = (id, check) => {
     const cwd = check.cwd ?? ".";
     if (cwd !== ".") canonicalPath(cwd, `checks.${id}.cwd`);
-    checks[id] = {
+    return {
       id,
       run: [...check.run],
       cwd,
@@ -82,6 +83,16 @@ export function normalizeProjectConfig(raw, root) {
       env: { ...(check.env ?? {}) },
       ...(check.description ? { description: check.description } : {}),
     };
+  };
+  for (const [id, check] of Object.entries(input.checks)) {
+    checks[id] = normalizeCheck(id, check);
+  }
+  if (input.tests?.run_files && input.tests.run_files.run.filter((part) => part === "{files}").length !== 1) {
+    throw new HarnessError(
+      "config",
+      "invalid_test_command",
+      "tests.run_files.run must contain exactly one {files} element",
+    );
   }
   const known = (id, where) => {
     if (!Object.hasOwn(checks, id))
@@ -124,6 +135,9 @@ export function normalizeProjectConfig(raw, root) {
     check_selection: selection,
     default_checks: defaults,
     tests: {
+      ...(input.tests?.run_files
+        ? { run_files: normalizeCheck("tests-on-base", input.tests.run_files) }
+        : {}),
       paths: pathList(
         input.tests?.paths ?? ["test/", "tests/", "__tests__/", "*.test.*", "*.spec.*"],
         "tests.paths",

@@ -73,6 +73,23 @@ never across `/`. Other entries match exact repository paths. For example,
 `{"tests": {"paths": ["test/", "*.spec.*", "qa/check.mjs"]}}`.
 These settings are included in the project config digest and read from the base commit.
 
+### `tests.run_files`
+
+Optional check-like command for fail-before evidence, for example
+`{"run": ["node", "--test", "{files}"], "cwd": ".", "timeout_ms": 300000, "dependencies": "npm"}`.
+The argv must contain exactly one whole element `{files}`; it expands to test paths,
+one per argument, relative to `cwd`. Working directory, timeout, and literal `env`
+follow catalog check rules; `dependencies` may be `npm` or omitted.
+The normalized definition is included in the config digest. Omit it to disable base runs.
+
+After catalog checks pass, up to 10 added or modified test files run individually
+against the base tree with the candidate test and added test-support files overlaid.
+Deleted tests are skipped. Review bundles expose `tests_on_base` and receipts
+record `tests.on_base`: `passes_on_base`, `fails_on_base`, `error` (timeout or
+infrastructure failure), or `not_run` (over the limit).
+A passing-on-base result is evidence for the reviewer, not proof of a bad test:
+refactors and new coverage of existing behavior may legitimately pass.
+
 ### `paths`
 
 | Field | Meaning |
@@ -174,6 +191,7 @@ Schema: `schemas/task.schema.json`.
 | `design_reference` | | Up to 5 approved reference files under the design prefix, read from the base commit by both roles |
 | `checks` | | Check IDs from the catalog. Omit to select by rule. A run with no checks is refused. |
 | `max_repair_attempts` | | 0 to 2, at most the project limit |
+| `new_tests_must_fail_on_base` | | Boolean, default false. With `tests.run_files` enabled, any `passes_on_base` result fails `tests-fail-before` and goes to repair. Errors do not count as evidence. |
 | `test_edits` | | `additive` (default): existing test files may gain lines but no existing line may change or be removed. `new-files`: existing tests may not be modified or deleted. `allowed`: any test change, including deletion. |
 
 The test policy applies to files matching `tests.paths` that exist at the base commit.

@@ -44,6 +44,24 @@ The `allowed` policy passes this check. New test files are permitted by every
 policy, subject to the normal scope and protected-path checks. Violations list
 the offending files and end the run as `FAILED` before catalog checks or review.
 
+## Tests against the base code
+
+When `tests.run_files` is configured, successful catalog checks are followed by
+individual base runs of the candidate's added or modified tests (up to 10).
+Each fresh workspace contains the base tree, that test, and added test-support
+files under `tests.paths`, with the normal sandbox, scratch directories, environment
+allowlist, npm dependency policy, and removal of forbidden paths. Deleted tests
+are skipped; files beyond the limit are `not_run`. Exit zero is `passes_on_base`,
+a non-zero exit is `fails_on_base`, and timeouts or infrastructure problems are `error`.
+
+The reviewer sees `tests_on_base`; promoted receipts store `tests.on_base`.
+Passing on base is evidence to assess, not proof a test is bad: a refactor or
+new coverage of existing behavior can pass legitimately. By default it is advisory.
+A task can set `new_tests_must_fail_on_base: true` to turn passing-on-base files
+into a failing `tests-fail-before` check with findings naming the files.
+Normal repair limits apply, including escalation when exhausted. Errors never
+count as evidence either way. Without `tests.run_files`, no base tests run.
+
 ## Validation
 
 `validateWorkflow` (in `src/core/workflow.mjs`) runs when a workflow is loaded and refuses a

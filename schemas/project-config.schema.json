@@ -30,7 +30,8 @@
     "tests": {
       "type": "object", "additionalProperties": false,
       "properties": {
-        "paths": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } }
+        "paths": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
+        "run_files": { "$ref": "#/$defs/run_files" }
       }
     },
     "paths": {
@@ -71,6 +72,19 @@
   "$defs": {
     "check_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$" },
     "path": { "type": "string", "minLength": 1, "maxLength": 400 },
+    "run_files": {
+      "type": "object", "additionalProperties": false, "required": ["run"],
+      "properties": {
+        "run": {
+          "description": "argv with exactly one whole {files} element, expanded to individual test paths.",
+          "type": "array", "minItems": 1, "maxItems": 50, "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        },
+        "cwd": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "timeout_ms": { "type": "integer", "minimum": 1000, "maximum": 3600000 },
+        "dependencies": { "const": "npm" },
+        "env": { "type": "object", "additionalProperties": { "type": "string", "maxLength": 2000 } }
+      }
+    },
     "check": {
       "type": "object", "additionalProperties": false, "required": ["run"],
       "properties": {

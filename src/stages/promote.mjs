@@ -66,7 +66,12 @@ export async function runPromoteStage(_stage, ctx) {
       base_commit: promotion.old_head,
       candidate_digest: verified.candidate_digest,
       checks,
-      tests: { policy, added, modified },
+      tests: {
+        policy,
+        added,
+        modified,
+        ...(ctx.config.tests.run_files ? { on_base: verified.tests_on_base ?? [] } : {}),
+      },
       review: { decision: "PASS", findings: review.findings.length },
       repairs: ctx.state.counters.repairs ?? 0,
       agent_invocations: ctx.state.invocations,

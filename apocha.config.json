@@ -5,7 +5,10 @@
     "typecheck": { "description": "tsc --noEmit over JSDoc types", "run": ["npx", "--no-install", "tsc", "-p", "tsconfig.json"], "cwd": ".", "timeout_ms": 180000, "dependencies": "npm" },
     "test": { "description": "node --test suite", "run": ["npm", "test"], "cwd": ".", "timeout_ms": 600000, "dependencies": "npm" }
   },
-  "tests": { "paths": ["test/"] },
+  "tests": {
+    "paths": ["test/"],
+    "run_files": { "run": ["node", "--test", "{files}"], "cwd": ".", "timeout_ms": 300000, "dependencies": "npm" }
+  },
   "default_checks": ["lint", "typecheck", "test"],
   "paths": {
     "protected": [".github/", "LICENSE"],

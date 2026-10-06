@@ -94,7 +94,6 @@ test("additive permits existing test cases and new tests, recording both in the 
 test("reviewer rejects an additive early return that passes test-edits", async () => {
   const existing =
     'import assert from "node:assert/strict";\nimport { test } from "node:test";\ntest("original", () => {\n  assert.equal(2, 2);\n});\n';
-  const weakened = existing.replace("  assert.equal(2, 2);", "  return;\n  assert.equal(2, 2);");
   const repo = makeRepo({ files: { "test/existing.test.mjs": existing } });
   try {
     let reviewed = false;
@@ -102,24 +101,20 @@ test("reviewer rejects an additive early return that passes test-edits", async (
       repo.root,
       async ({ call }) => {
         await call("apply_patch", {
-          edits: [{ path: "test/existing.test.mjs", old_text: existing, new_text: weakened }],
-          // Preserve the matched text so the tool sees a pure addition.
-          ...{
-            edits: [
-              {
-                path: "test/existing.test.mjs",
-                old_text: "  assert.equal(2, 2);",
-                new_text: "  return;\n  assert.equal(2, 2);",
-              },
-            ],
-          },
+          edits: [
+            {
+              path: "test/existing.test.mjs",
+              old_text: "  assert.equal(2, 2);",
+              new_text: "  return;\n  assert.equal(2, 2);",
+            },
+          ],
         });
         await call("submit_result", { summary: "Added early return" });
       },
       {},
       async (context) => {
         assert.deepEqual(context.bundle.modified_tests, ["test/existing.test.mjs"]);
-        assert.match(context.bundle.diff, /\+  return;/);
+        assert.match(context.bundle.diff, /\+ {2}return;/);
         reviewed = true;
         await context.call("submit_result", {
           decision: "FIX",

@@ -40,7 +40,17 @@
       "properties": {
         "policy": { "type": "string" },
         "added": { "type": "array", "items": { "type": "string" } },
-        "modified": { "type": "array", "items": { "type": "string" } }
+        "modified": { "type": "array", "items": { "type": "string" } },
+        "on_base": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["path", "result"],
+            "properties": {
+              "path": { "type": "string" },
+              "result": { "enum": ["passes_on_base", "fails_on_base", "error", "not_run"] }
+            }
+          }
+        }
       }
     },
     "review": {
