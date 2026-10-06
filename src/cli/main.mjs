@@ -1,5 +1,5 @@
 // @ts-check
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { adapterForRole } from "../adapters/index.mjs";
@@ -18,6 +18,7 @@ import { formatStatusText, repositoryStatus } from "../core/status.mjs";
 import { landBranch } from "../git/land.mjs";
 import { verifyReceipt } from "../git/receipts.mjs";
 import { allowedSignersAt, signingKeyAllowed } from "../git/signatures.mjs";
+import { formatRangeMarkdown, verifyRange } from "../git/verify-range.mjs";
 import { detectBackend, resolveBackend } from "../sandbox/index.mjs";
 import { describeError, HarnessError } from "../util/errors.mjs";
 import { repositoryRoot, resolveCommit } from "../util/git.mjs";
@@ -44,6 +45,7 @@ Commands:
   gc [--apply] [--keep-days N] [--abandon-paused-days N] [--target <branch>] [--json]
                                 Plan cleanup (dry-run by default)
   status [--target <branch>] [--json]   Show repository state and next actions
+  verify-range <base>..<head> [--require-signed] [--json]   Verify PR receipts using base configuration
   receipt <commit>              Verify and print a receipt
   runs [--json]                 List runs, newest first
   show <run-id> [--events]      Show one run
@@ -390,6 +392,29 @@ export async function main(argv) {
       const status = repositoryStatus(repositoryRoot(cwd), { target: values.target });
       print(values.json ? status : formatStatusText(status));
       return EXIT.ok;
+    }
+    case "verify-range": {
+      const { values, positionals } = parse({ "require-signed": { type: "boolean" } });
+      const range = positionals[0]?.match(/^([^.].*?)\.\.([^.].*)$/);
+      if (positionals.length !== 1 || !range || range[1].includes("..") || range[2].includes(".."))
+        throw new HarnessError("config", "usage", "verify-range needs <base>..<head>");
+      const result = verifyRange({
+        repositoryRoot: repositoryRoot(cwd),
+        base: range[1],
+        head: range[2],
+        requireSigned: Boolean(values["require-signed"]),
+      });
+      if (process.env.GITHUB_STEP_SUMMARY)
+        appendFileSync(process.env.GITHUB_STEP_SUMMARY, formatRangeMarkdown(result));
+      if (values.json) print(result);
+      else {
+        for (const check of result.commits)
+          print(
+            `${check.commit} ${check.valid ? "valid" : check.reason} (signature: ${check.signature.status})`,
+          );
+        print(result.valid ? "All commits valid." : `First failing commit: ${result.first_failing_commit}`);
+      }
+      return result.valid ? EXIT.ok : EXIT.notPassed;
     }
     case "receipt": {
       const { values, positionals } = parse({ notes: { type: "string" } });

@@ -8,6 +8,7 @@ import { HarnessError } from "../util/errors.mjs";
 import { writeJsonAtomic } from "../util/fs-safe.mjs";
 import { isCanonicalRef, resolveCommit, git as runGit } from "../util/git.mjs";
 import { verifyReceipt } from "./receipts.mjs";
+import { verifyCommitReceipt } from "./verify-range.mjs";
 
 /**
  * Fast-forward `target` to `source`, but only if every first-parent commit in
@@ -94,18 +95,19 @@ function landWithoutHooks(
     if (landedCommits.has(oid)) candidates.set(name, oid);
   }
   for (const commit of commits) {
-    const check = verifyReceipt(repositoryRoot, notesRef, commit, oldHead, config.receipts.allowed_signers);
-    if (requireSigned && check.signature.status !== "valid")
-      throw new HarnessError(
-        "integrity",
-        check.signature.status === "unsigned" ? "unsigned_receipt" : "bad_signature",
-        `commit ${commit} has ${check.signature.status} receipt signature`,
-      );
+    const check = verifyCommitReceipt(
+      repositoryRoot,
+      notesRef,
+      commit,
+      oldHead,
+      config.receipts.allowed_signers,
+      requireSigned,
+    );
     if (!check.valid)
       throw new HarnessError(
         "integrity",
-        "invalid_receipt",
-        `commit ${commit.slice(0, 12)} has no valid receipt: ${check.reason}`,
+        check.code ?? "invalid_receipt",
+        `commit ${commit} has no valid receipt: ${check.reason}`,
       );
     // Integration receipts name the topic commits as additional parents.
     for (const topic of check.receipt.parents.slice(1)) {

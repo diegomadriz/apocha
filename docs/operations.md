@@ -143,6 +143,11 @@ Outcomes: `RUNNING`, `PASSED`, `FAILED`, `ESCALATED`, `PAUSED`, `ERROR`.
 A paused run keeps its candidate directory and its batch ref reservation. Resuming re-enters the
 stage that paused, with all earlier evidence.
 
+## Pull request receipt verification
+
+See [GitHub Action](github-action.md) for a verify-only required status check,
+or run `apocha verify-range <base>..<head> [--require-signed] [--json]` locally.
+
 ## Landing and retiring batches
 
 `apocha land <source> --target <branch>` fast-forwards the target after verifying receipts.
