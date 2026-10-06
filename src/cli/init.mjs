@@ -21,10 +21,18 @@ export function initProject(root, options = {}) {
     );
   /** @type {Record<string, any>} */
   const checks = {};
+  const tests = {};
   const pkgFile = path.join(root, "package.json");
   if (existsSync(pkgFile)) {
     const scripts = JSON.parse(readFileSync(pkgFile, "utf8")).scripts ?? {};
     const dependencies = existsSync(path.join(root, "package-lock.json")) ? "npm" : "none";
+    if (typeof scripts.test === "string" && /\bnode\s+--test\b/.test(scripts.test))
+      tests.run_files = {
+        run: ["node", "--test", "{files}"],
+        cwd: ".",
+        timeout_ms: 300000,
+        ...(dependencies === "npm" ? { dependencies } : {}),
+      };
     for (const name of ["lint", "typecheck", "test", "build"]) {
       if (scripts[name])
         checks[name] = {
@@ -49,6 +57,7 @@ export function initProject(root, options = {}) {
     version: 1,
     checks,
     default_checks: Object.keys(checks),
+    ...(Object.keys(tests).length ? { tests } : {}),
     paths: { protected: [".github/"], governance: ["AGENTS.md"], forbidden: [] },
     sandbox: { mode: "required", network: "deny" },
   };

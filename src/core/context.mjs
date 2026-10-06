@@ -24,6 +24,7 @@
  *   verification_history: { attempt: number, failed_checks: string[], first_lines: Record<string, string[]> }[],
  *   last_verification: null | {
  *     status: string, candidate_digest: string, changed_files: string[], duration_ms?: number,
+ *     effective_policy?: import("../config/task.mjs").Task["test_edits"], reason?: string,
  *     fixers?: import("../checks/fixers.mjs").FixerResult[],
  *     test_changes?: TestChangeEvidence[],
  *     tests_on_base?: { path: string, result: "passes_on_base" | "fails_on_base" | "error" | "not_run" }[],

@@ -583,6 +583,12 @@ async function doctor(cwd, options) {
     detected ?? "none available (checks run without an OS sandbox)",
   );
   if (config) {
+    if (!config.tests.run_files)
+      record(
+        "test edit policy",
+        true,
+        'warning: existing-test changes are limited to additions under the default justified policy until tests.run_files is set; example: "tests": {"run_files": {"run": ["node", "--test", "{files}"], "cwd": ".", "timeout_ms": 300000, "dependencies": "npm"}}',
+      );
     record(
       "unsandboxed checks",
       true,

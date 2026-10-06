@@ -106,13 +106,18 @@ export async function runChecksStage(_stage, ctx) {
   const outOfScope = snapshot.changed_files.filter((file) => !inAnyScope(file, ctx.task.allowed_paths));
   const protectedHits = snapshot.changed_files.filter((file) => inAnyScope(file, protectedPaths));
   const tests = testEdits(ctx.candidate, ctx.config, snapshot.changed_files, ctx.task.test_edits);
+  const testPolicyEvidence = {
+    effective_policy: tests.effective_policy,
+    ...(tests.reason ? { reason: tests.reason } : {}),
+  };
   const structural = [
     { id: "allowed-scope", status: outOfScope.length ? "fail" : "pass", files: outOfScope },
     { id: "protected-paths", status: protectedHits.length ? "fail" : "pass", files: protectedHits },
     {
       id: "test-edits",
       status: tests.offending.length ? "fail" : "pass",
-      files: ctx.task.test_edits === "justified" ? tests.changed : tests.offending,
+      files: tests.effective_policy === "justified" ? tests.changed : tests.offending,
+      ...testPolicyEvidence,
     },
   ];
   if (structural.some((check) => check.status === "fail")) {
@@ -122,10 +127,16 @@ export async function runChecksStage(_stage, ctx) {
       candidate_digest: snapshot.candidate_digest,
       changed_files: snapshot.changed_files,
       checks: structural,
+      ...testPolicyEvidence,
       fixers,
     };
+    writeJsonAtomic(
+      path.join(ctx.store.dir(ctx.runId), `verification-${String(ctx.state.attempt).padStart(2, "0")}.json`),
+      { ...ctx.state.last_verification, structural },
+    );
     ctx.event("verification.finished", {
       status: "violation",
+      ...testPolicyEvidence,
       out_of_scope: outOfScope,
       protected: protectedHits,
       test_edits: tests.offending,
@@ -232,7 +243,7 @@ export async function runChecksStage(_stage, ctx) {
       testsOnBase.push({ path: file, result: classification });
       ctx.event("test-on-base.finished", { path: file, result: classification });
     }
-    if (ctx.task.test_edits === "justified" && tests.changed.length) {
+    if (tests.effective_policy === "justified" && tests.changed.length) {
       const reasons = [];
       if (tests.changed.length > 10)
         reasons.push(`${tests.changed.length} changed existing test files exceeds the limit of 10`);
@@ -344,6 +355,7 @@ export async function runChecksStage(_stage, ctx) {
   );
   const duration_ms = Date.now() - started;
   writeJsonAtomic(evidenceFile, {
+    ...testPolicyEvidence,
     duration_ms,
     candidate_digest: snapshot.candidate_digest,
     changed_files: snapshot.changed_files,
@@ -355,6 +367,7 @@ export async function runChecksStage(_stage, ctx) {
   });
   ctx.state.last_verification = {
     status,
+    ...testPolicyEvidence,
     duration_ms,
     test_changes: testChanges,
     tests_on_base: testsOnBase,

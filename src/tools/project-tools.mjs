@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { runCheck } from "../checks/runner.mjs";
-import { classifyTestFileChange, existingTestFiles } from "../git/test-edits.mjs";
+import { classifyTestFileChange, effectiveTestEditPolicy, existingTestFiles } from "../git/test-edits.mjs";
 import { failureFirst } from "../util/bounded.mjs";
 import { HarnessError, isObject } from "../util/errors.mjs";
 import {
@@ -90,7 +90,10 @@ function tracePaths(paths) {
 /** @param {SessionConfig} session */
 export function createProjectTools(session) {
   const root = session.root;
-  const testPolicy = session.test_edits ?? "justified";
+  const testPolicy = effectiveTestEditPolicy(
+    session.test_edits ?? "justified",
+    session.project,
+  ).effective_policy;
   const existingTests = new Set(session.existing_test_files ?? existingTestFiles(session, session.project));
   const readableScopes = [...session.allowed_paths, ...session.read_only_paths];
   const deleted = new Set(session.role === "reviewer" ? session.deleted_paths : []);

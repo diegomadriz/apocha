@@ -108,6 +108,14 @@ The argv must contain exactly one whole element `{files}`; it expands to test pa
 one per argument, relative to `cwd`. Working directory, timeout, and literal `env`
 follow catalog check rules; `dependencies` may be `npm` or omitted.
 The normalized definition is included in the config digest. Omit it to disable base runs.
+Without `tests.run_files`, the default `justified` test-edit policy enforces
+`additive`: existing test lines may only be extended, and existing test files
+cannot be deleted. Both `apply_patch` and the structural check enforce this.
+Verification records `effective_policy` and the reason
+"justified needs tests.run_files to gather evidence; enforcing additive".
+With `run_files` configured, `justified` uses the existing test-change evidence
+path. `apocha doctor` warns when it is missing; `apocha init` includes it for
+projects whose test script uses `node --test`.
 
 After catalog checks pass, up to 10 added or modified test files run individually
 against the base tree with the candidate test and added test-support files overlaid.
