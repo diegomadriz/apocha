@@ -49,7 +49,7 @@
     },
     "fail_fast": { "type": "boolean", "default": false },
     "new_tests_must_fail_on_base": { "type": "boolean", "default": false },
-    "test_edits": { "enum": ["additive", "new-files", "allowed"], "default": "additive" },
+    "test_edits": { "enum": ["justified", "additive", "new-files", "allowed"], "default": "justified" },
     "max_repair_attempts": { "type": "integer", "minimum": 0, "maximum": 2 }
   },
   "$defs": {

@@ -30,6 +30,7 @@ function run(root, implementer, task = {}, reviewer = passReviewer) {
       allowed_paths: ["test/"],
       checks: ["ok"],
       max_repair_attempts: 0,
+      test_edits: "additive",
       ...task,
     }),
     adapters: { implementer: fake, reviewer: fake },

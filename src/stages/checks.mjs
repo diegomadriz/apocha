@@ -109,7 +109,11 @@ export async function runChecksStage(_stage, ctx) {
   const structural = [
     { id: "allowed-scope", status: outOfScope.length ? "fail" : "pass", files: outOfScope },
     { id: "protected-paths", status: protectedHits.length ? "fail" : "pass", files: protectedHits },
-    { id: "test-edits", status: tests.offending.length ? "fail" : "pass", files: tests.offending },
+    {
+      id: "test-edits",
+      status: tests.offending.length ? "fail" : "pass",
+      files: ctx.task.test_edits === "justified" ? tests.changed : tests.offending,
+    },
   ];
   if (structural.some((check) => check.status === "fail")) {
     ctx.state.last_verification = {
@@ -191,11 +195,15 @@ export async function runChecksStage(_stage, ctx) {
   }
   /** @type {NonNullable<import("../core/context.mjs").RunState["last_verification"]>["tests_on_base"]} */
   const testsOnBase = [];
+  /** @type {import("../core/context.mjs").TestChangeEvidence[]} */
+  const testChanges = [];
   const runFiles = ctx.config.tests.run_files;
   if (runFiles && results.every((result) => result.status === "pass")) {
     const files = [...tests.added, ...tests.modified]
       .filter((file) => existsSync(path.join(ctx.candidate.root, file)))
-      .sort();
+      .sort(
+        (a, b) => Number(tests.changed.includes(b)) - Number(tests.changed.includes(a)) || a.localeCompare(b),
+      );
     const support = tests.added.filter((file) => existsSync(path.join(ctx.candidate.root, file)));
     for (const [index, file] of files.entries()) {
       if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
@@ -223,6 +231,81 @@ export async function runChecksStage(_stage, ctx) {
             : "fails_on_base";
       testsOnBase.push({ path: file, result: classification });
       ctx.event("test-on-base.finished", { path: file, result: classification });
+    }
+    if (ctx.task.test_edits === "justified" && tests.changed.length) {
+      const reasons = [];
+      if (tests.changed.length > 10)
+        reasons.push(`${tests.changed.length} changed existing test files exceeds the limit of 10`);
+      for (const file of tests.changed.slice(0, 10).sort()) {
+        if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
+        const modified = existsSync(path.join(ctx.candidate.root, file));
+        const newOnBase = modified ? testsOnBase.find((entry) => entry.path === file)?.result : undefined;
+        const result = await runCheck({
+          check: runFiles,
+          candidate: ctx.candidate,
+          config: ctx.config,
+          backend: ctx.sandboxBackend,
+          secretFileCache,
+          dependencyOptions,
+          signal: ctx.signal,
+          baseFiles: [file],
+          files: [path.posix.relative(runFiles.cwd, file)],
+        });
+        if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
+        const oldOnCandidate =
+          result.error || result.exit_code === null || result.status === "infra_error"
+            ? "error"
+            : result.exit_code === 0
+              ? "old_passes_on_candidate"
+              : "old_fails_on_candidate";
+        const verdict =
+          oldOnCandidate === "error" ||
+          (modified && (!newOnBase || newOnBase === "error" || newOnBase === "not_run"))
+            ? "error"
+            : oldOnCandidate === "old_passes_on_candidate"
+              ? "unnecessary"
+              : newOnBase === "passes_on_base"
+                ? "weakened"
+                : "necessary";
+        testChanges.push({
+          path: file,
+          change: modified ? "modified" : "deleted",
+          old_on_candidate: oldOnCandidate,
+          ...(modified ? { new_on_base: newOnBase ?? "error" } : {}),
+          verdict,
+        });
+        if (verdict === "unnecessary")
+          reasons.push(
+            `the old version of ${file} still passes on the new code, so the change was not needed; restore it or only add to it`,
+          );
+        else if (verdict === "weakened")
+          reasons.push(
+            `${file} now passes on both the old and the new code, so it no longer distinguishes them`,
+          );
+        else if (verdict === "error") reasons.push(`could not establish test change evidence for ${file}`);
+        ctx.event("test-change.finished", { path: file, old_on_candidate: oldOnCandidate, verdict });
+      }
+      const status = testChanges.some((entry) => entry.verdict === "error")
+        ? "infra_error"
+        : reasons.length
+          ? "fail"
+          : "pass";
+      const reason = reasons.join("\n");
+      results.push({
+        id: "test-changes",
+        status,
+        exit_code: null,
+        error: reason || null,
+        stdout: "",
+        stderr: reason,
+        stdout_truncated: false,
+        stderr_truncated: false,
+        output_digest: "",
+        definition_digest: "",
+        sandbox: ctx.sandboxBackend,
+        duration_ms: 0,
+      });
+      ctx.event("check.finished", { id: "test-changes", status, error: reason || null });
     }
     const passing = testsOnBase.filter((entry) => entry.result === "passes_on_base");
     if (ctx.task.new_tests_must_fail_on_base && passing.length) {
@@ -267,11 +350,13 @@ export async function runChecksStage(_stage, ctx) {
     structural,
     fixers,
     results,
+    test_changes: testChanges,
     tests_on_base: testsOnBase,
   });
   ctx.state.last_verification = {
     status,
     duration_ms,
+    test_changes: testChanges,
     tests_on_base: testsOnBase,
     fixers,
     candidate_digest: snapshot.candidate_digest,

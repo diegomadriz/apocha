@@ -86,7 +86,9 @@ export async function runPromoteStage(_stage, ctx) {
         policy,
         added,
         modified,
-        ...(ctx.config.tests.run_files ? { on_base: verified.tests_on_base ?? [] } : {}),
+        ...(ctx.config.tests.run_files
+          ? { on_base: verified.tests_on_base ?? [], test_changes: verified.test_changes ?? [] }
+          : {}),
       },
       review: { decision: "PASS", findings: review.findings.length },
       review_independence: {

@@ -90,7 +90,7 @@ function tracePaths(paths) {
 /** @param {SessionConfig} session */
 export function createProjectTools(session) {
   const root = session.root;
-  const testPolicy = session.test_edits ?? "additive";
+  const testPolicy = session.test_edits ?? "justified";
   const existingTests = new Set(session.existing_test_files ?? existingTestFiles(session, session.project));
   const readableScopes = [...session.allowed_paths, ...session.read_only_paths];
   const deleted = new Set(session.role === "reviewer" ? session.deleted_paths : []);
@@ -349,7 +349,7 @@ export function createProjectTools(session) {
         throw toolError(`${relative} would exceed the file size limit`, "too_large");
     }
     for (const [relative, state] of files) {
-      if (!existingTests.has(relative) || testPolicy === "allowed") continue;
+      if (!existingTests.has(relative) || testPolicy === "allowed" || testPolicy === "justified") continue;
       const base = read_base_file({ path: relative }, TOOL_LIMITS.maxPatchableFileBytes);
       const classification = classifyTestFileChange(base.content, state.content);
       if (testPolicy === "new-files" || !classification.additive) {

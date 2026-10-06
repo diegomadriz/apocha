@@ -1,6 +1,15 @@
 // @ts-check
 
 /**
+ * @typedef {{
+ *   path: string, change: "modified" | "deleted",
+ *   old_on_candidate: "old_fails_on_candidate" | "old_passes_on_candidate" | "error",
+ *   new_on_base?: "passes_on_base" | "fails_on_base" | "error" | "not_run",
+ *   verdict: "necessary" | "unnecessary" | "weakened" | "error",
+ * }} TestChangeEvidence
+ */
+
+/**
  * The run context passed to every stage. `state` is the serializable part,
  * persisted to run.json after every transition so a paused run can resume.
  *
@@ -16,6 +25,7 @@
  *   last_verification: null | {
  *     status: string, candidate_digest: string, changed_files: string[], duration_ms?: number,
  *     fixers?: import("../checks/fixers.mjs").FixerResult[],
+ *     test_changes?: TestChangeEvidence[],
  *     tests_on_base?: { path: string, result: "passes_on_base" | "fails_on_base" | "error" | "not_run" }[],
  *     checks: { id: string, status: string, exit_code?: number | null, error?: string | null, definition_digest?: string, sandbox?: string, output_digest?: string, duration_ms?: number, files?: string[] }[],
  *   },

@@ -33,7 +33,8 @@ function namedImport(line) {
 
 /**
  * Line LCS, allowing a named import to preserve its old specifiers.
- * Typed rows keep the quadratic table compact for files of a few thousand lines.
+ * Strip exact common edges before allocating a bounded table for the middle.
+ * Larger middles conservatively require evidence rather than quadratic memory.
  * A null candidate represents deletion, including deletion of an empty file.
  * @param {string} baseText
  * @param {string | null} newText
@@ -41,9 +42,26 @@ function namedImport(line) {
  */
 export function classifyTestFileChange(baseText, newText) {
   const lines = (text) => (text === "" ? [] : text.replace(/\n$/, "").split("\n"));
-  const base = lines(baseText);
+  let base = lines(baseText);
   if (newText === null) return { additive: false, removed_lines: base.slice(0, 20), import_extensions: 0 };
-  const next = lines(newText);
+  let next = lines(newText);
+  let prefix = 0;
+  while (prefix < base.length && prefix < next.length && base[prefix] === next[prefix]) prefix++;
+  let suffix = 0;
+  while (
+    suffix < base.length - prefix &&
+    suffix < next.length - prefix &&
+    base[base.length - 1 - suffix] === next[next.length - 1 - suffix]
+  )
+    suffix++;
+  base = base.slice(prefix, base.length - suffix);
+  next = next.slice(prefix, next.length - suffix);
+  if ((base.length + 1) * (next.length + 1) > 4_000_000)
+    return {
+      additive: false,
+      removed_lines: ["Cannot prove additivity: unmatched middle exceeds 4,000,000 LCS cells"],
+      import_extensions: 0,
+    };
   const oldImports = base.map(namedImport);
   const newImports = next.map(namedImport);
   const preserves = (i, j) => {
@@ -95,14 +113,12 @@ export function testEdits(candidate, config, changedFiles, policy) {
   const tests = changedFiles.filter((file) => isTestPath(config, file));
   const added = tests.filter((file) => !existing.has(file));
   const modified = tests.filter((file) => existing.has(file));
+  const changed = modified.filter((file) => {
+    const base = String(git(candidate.root, ["show", `${candidate.base_commit}:${file}`]).stdout);
+    const next = git(candidate.root, ["show", `:${file}`], { allowFailure: true });
+    return !classifyTestFileChange(base, next.status === 0 ? String(next.stdout) : null).additive;
+  });
   const offending =
-    policy === "allowed"
-      ? []
-      : modified.filter((file) => {
-          if (policy === "new-files") return true;
-          const base = String(git(candidate.root, ["show", `${candidate.base_commit}:${file}`]).stdout);
-          const next = git(candidate.root, ["show", `:${file}`], { allowFailure: true });
-          return !classifyTestFileChange(base, next.status === 0 ? String(next.stdout) : null).additive;
-        });
-  return { policy, added, modified, offending };
+    policy === "allowed" || policy === "justified" ? [] : policy === "new-files" ? modified : changed;
+  return { policy, added, modified, changed, offending };
 }
