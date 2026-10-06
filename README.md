@@ -7,7 +7,7 @@ Each task names the paths an agent may change and the checks it must pass. An im
 edits a private copy of the repository through a small set of scoped tools. The task's checks run
 in an OS sandbox. A separate reviewer agent judges the verified change. If the review passes, the
 controller commits the change to a batch branch and attaches a receipt to the commit as a Git note.
-`apocha land` fast-forwards a branch only when every new commit carries a receipt that matches its content. Receipts are not signed yet, so `land` catches mistakes and stale evidence, not a person with write access who forges a note.
+`apocha land` fast-forwards a branch only when every new commit carries a receipt that matches its content. Receipts can be signed with an SSH key. With `land --require-signed`, or `receipts.require_signed` in the config, only receipts signed by a key listed in the repository's allowed signers file are accepted. That file is read from the target branch.
 
 It works with Codex CLI, Claude Code, and Pi as agent runtimes, chosen per role in a config file.
 
@@ -35,12 +35,16 @@ task.json ─► candidate (private clone at the base commit)
 - **Agents cannot change what judges them.** Checks come from a closed catalog in `apocha.config.json`.
   A task can name check IDs but cannot supply commands. Agents cannot edit the config, the checks,
   or any protected path.
+- **Agents cannot weaken existing tests.** By default an agent may add tests and add lines to
+  existing test files, but not change or remove existing test lines. A task can allow more, and
+  the reviewer then sees every changed test. Tests a change adds or modifies are also run
+  against the old code, and the result is recorded in the receipt.
 - **Agents act only through the harness tools.** No shell, no runtime built-in tools, no
   connectors. Each adapter disables its runtime's own capabilities and fails the run if the
   runtime uses one anyway. `apocha doctor --live` asks each runtime to escape and reports
   whether it could.
 - **Untrusted code runs sandboxed.** Checks execute code an agent may have written, so they run
-  in a fresh copy of the tree (no `.git`, no untracked files, no forbidden paths) under Linux bubblewrap or macOS Seatbelt: no writes outside the workspace and no reads of credential stores or secret files in the checkout. Both give the check a read-only view of the rest of the host. On Linux the check also runs with no network, so it cannot reach DNS or services on the machine. On macOS the profile denies outbound network but still allows DNS and loopback ports. On both, a local Unix socket such as Docker's may still be reachable.
+  in a fresh copy of the tree (no `.git`, no untracked files, no forbidden paths) under Linux bubblewrap or macOS Seatbelt: no writes outside the workspace and no reads of credential stores or secret files in the checkout. Both give the check a read-only view of the rest of the host and no network: no DNS, no services on the machine, and no local daemon sockets such as Docker's. A check that needs to listen on and connect to loopback, such as a bundler with worker processes, opts in with `loopback: true`.
 - **Evidence is bound to content.** The candidate is identified by a SHA-256 over its base and
   full diff, rechecked after checks, after review, and before promotion. A receipt records that
   digest with the check definitions, configuration, prompts, and runtimes used, and
@@ -55,7 +59,7 @@ task.json ─► candidate (private clone at the base commit)
   network to reach its model; Apocha keeps the model's actions inside the harness tools, and
   Codex additionally runs with its own read-only sandbox. Run Apocha in a container or VM if
   the repository or the task text could be hostile.
-- Receipts are not signed yet. Anyone with write access to the repository can write a note that `land` will accept. Signed receipts are the next planned change.
+- Signing is opt-in. Without `--require-signed`, `land` checks that each receipt matches its commit, but not who wrote it.
 - A repository's own `.apocha/runtimes.json` is ignored unless you pass `--trust-repo-runtimes`, because it decides which program runs.
 - It does not push, open pull requests, or deploy.
 
@@ -118,10 +122,11 @@ To try it without a model, run the test suite: it drives full runs with a script
 | `apocha init` | Write a starter `apocha.config.json` |
 | `apocha doctor [--live]` | Check git, config, sandbox, and runtimes; `--live` probes each runtime's lock-down |
 | `apocha validate <task.json>` | Validate a task against the schema and the project config |
-| `apocha run <task.json> --base <ref> --batch <name> --message <text>` | Run the code-delivery workflow |
+| `apocha run <task.json> --base <ref> --batch <name> (--message <text> \| --message-file <path>)` | Run the code-delivery workflow |
 | `apocha integrate <topic> --onto <ref> --batch <name>` | Merge a topic, verify and review the merged tree, promote it |
-| `apocha land <source> --target <branch> [--keep-batch]` | Fast-forward a branch whose new commits all carry valid receipts, then delete the landed batch branches |
+| `apocha land <source> --target <branch> [--keep-batch] [--require-signed]` | Fast-forward a branch whose new commits all carry valid receipts (signed, if required), then delete the landed batch branches |
 | `apocha receipt <commit>` | Verify and print a receipt |
+| `apocha verify-range <base>..<head> [--require-signed]` | Check that every commit in a range carries a valid receipt; used by the GitHub Action |
 | `apocha runs`, `apocha show <run-id> [--events]` | Run history and the event log of one run |
 | `apocha resume <run-id> [--decision approve\|reject]` | Resume a run paused by a usage limit or a human gate |
 | `apocha metrics [--ref <ref>]` | Outcomes over all runs, and delivery statistics from receipts |
@@ -130,6 +135,10 @@ To try it without a model, run the test suite: it drives full runs with a script
 | `apocha analytics [--since] [--json\|--format md]` | Run analytics: outcomes, repairs, review, runtimes, tool use, durations |
 
 Exit codes: `0` passed, `2` usage or config error, `10` paused, `20` not passed, `30` error.
+
+## In pull requests
+
+The repository includes a GitHub Action that verifies the receipts of every commit in a pull request (and their signatures, if required) without running any agent. Use it as a required status check. See [docs/github-action.md](docs/github-action.md).
 
 ## Documentation
 
