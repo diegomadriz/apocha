@@ -4,6 +4,7 @@ import path from "node:path";
 import { runCheck } from "../checks/runner.mjs";
 import { effectiveProtectedPaths } from "../config/task.mjs";
 import { snapshotCandidate } from "../git/candidate.mjs";
+import { testEdits } from "../git/test-edits.mjs";
 import { failureFirst, failureSignalLines, utf8Prefix } from "../util/bounded.mjs";
 import { HarnessError } from "../util/errors.mjs";
 import { writeJsonAtomic } from "../util/fs-safe.mjs";
@@ -89,9 +90,11 @@ export async function runChecksStage(_stage, ctx) {
   const protectedPaths = effectiveProtectedPaths(ctx.task, ctx.config, ctx.governance.edits_allowed);
   const outOfScope = snapshot.changed_files.filter((file) => !inAnyScope(file, ctx.task.allowed_paths));
   const protectedHits = snapshot.changed_files.filter((file) => inAnyScope(file, protectedPaths));
+  const tests = testEdits(ctx.candidate, ctx.config, snapshot.changed_files, ctx.task.test_edits);
   const structural = [
     { id: "allowed-scope", status: outOfScope.length ? "fail" : "pass", files: outOfScope },
     { id: "protected-paths", status: protectedHits.length ? "fail" : "pass", files: protectedHits },
+    { id: "test-edits", status: tests.offending.length ? "fail" : "pass", files: tests.offending },
   ];
   if (structural.some((check) => check.status === "fail")) {
     ctx.state.last_verification = {
@@ -104,6 +107,7 @@ export async function runChecksStage(_stage, ctx) {
       status: "violation",
       out_of_scope: outOfScope,
       protected: protectedHits,
+      test_edits: tests.offending,
     });
     return "violation";
   }

@@ -16,6 +16,7 @@ Schema: `schemas/receipt-v3.schema.json`.
 | `promoted_head`, `tree`, `parents`, `base_commit` | The commit's identity; `base_commit` is the first parent |
 | `candidate_digest` | `sha256({ base_commit, changed_files, diff })` of the verified candidate |
 | `checks[]` | Each check's ID, `pass`, the digest of its definition (argv, cwd, timeout, dependencies, network, env), and the sandbox it ran in |
+| `tests` | Test edit policy, added test paths, and modified existing test paths (including deletions). Optional in older v3 receipts. |
 | `review` | `PASS` and the number of findings across the run |
 | `repairs`, `agent_invocations`, `retries` | How much work it took |
 | `runtimes` | Adapter, adapter version, provider, and model for each role |

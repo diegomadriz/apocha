@@ -2,6 +2,7 @@
 import { withLock } from "../core/lock.mjs";
 import { promoteCandidate } from "../git/promotion.mjs";
 import { RECEIPT_SCHEMA, writeReceipt } from "../git/receipts.mjs";
+import { testEdits } from "../git/test-edits.mjs";
 import { HarnessError } from "../util/errors.mjs";
 import { GENERATOR } from "../version.mjs";
 
@@ -35,6 +36,12 @@ export async function runPromoteStage(_stage, ctx) {
         sandbox: /** @type {string} */ (check.sandbox),
       };
     });
+  const { policy, added, modified } = testEdits(
+    ctx.candidate,
+    ctx.config,
+    verified.changed_files,
+    ctx.task.test_edits,
+  );
   return withLock(ctx.stateDir, `promote ${ctx.runId}`, () => {
     const promotion = promoteCandidate({
       repositoryRoot: ctx.repositoryRoot,
@@ -59,6 +66,7 @@ export async function runPromoteStage(_stage, ctx) {
       base_commit: promotion.old_head,
       candidate_digest: verified.candidate_digest,
       checks,
+      tests: { policy, added, modified },
       review: { decision: "PASS", findings: review.findings.length },
       repairs: ctx.state.counters.repairs ?? 0,
       agent_invocations: ctx.state.invocations,

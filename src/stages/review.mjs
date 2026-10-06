@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { effectiveProtectedPaths } from "../config/task.mjs";
 import { snapshotCandidate } from "../git/candidate.mjs";
+import { testEdits } from "../git/test-edits.mjs";
 import { HarnessError } from "../util/errors.mjs";
 import { designReference } from "./agent.mjs";
 import { invokeAgent } from "./invoke.mjs";
@@ -32,7 +33,10 @@ export async function runReviewStage(_stage, ctx) {
   const deletedPaths = snapshot.changed_files.filter(
     (file) => !existsSync(path.join(ctx.candidate.root, file)),
   );
+  const tests = testEdits(ctx.candidate, ctx.config, snapshot.changed_files, ctx.task.test_edits);
   const bundle = {
+    added_tests: tests.added,
+    ...(ctx.task.test_edits === "allowed" && tests.modified.length ? { modified_tests: tests.modified } : {}),
     task: { task_id: ctx.task.task_id, description: ctx.task.description },
     acceptance_criteria: ctx.task.acceptance_criteria,
     candidate: {

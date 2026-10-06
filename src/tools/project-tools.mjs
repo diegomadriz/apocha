@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { runCheck } from "../checks/runner.mjs";
+import { existingTestFiles } from "../git/test-edits.mjs";
 import { failureFirst } from "../util/bounded.mjs";
 import { HarnessError, isObject } from "../util/errors.mjs";
 import {
@@ -61,6 +62,8 @@ export const TOOL_LIMITS = Object.freeze({
  *   protected_paths: string[],
  *   forbidden_paths: string[],
  *   deleted_paths: string[],
+ *   test_edits?: import("../config/task.mjs").Task["test_edits"],
+ *   existing_test_files?: string[],
  *   run_checks: string[],
  *   max_tool_calls: number,
  *   max_run_check_calls: number,
@@ -87,6 +90,8 @@ function tracePaths(paths) {
 /** @param {SessionConfig} session */
 export function createProjectTools(session) {
   const root = session.root;
+  const testPolicy = session.test_edits ?? "additive";
+  const existingTests = new Set(session.existing_test_files ?? existingTestFiles(session, session.project));
   const readableScopes = [...session.allowed_paths, ...session.read_only_paths];
   const deleted = new Set(session.role === "reviewer" ? session.deleted_paths : []);
   const traceFile = path.join(session.session_dir, "tools.jsonl");
@@ -285,6 +290,20 @@ export function createProjectTools(session) {
     for (const [index, edit] of edits.entries()) {
       if (!isObject(edit) || typeof edit.path !== "string") throw toolError(`edit ${index} needs a path`);
       const relative = writablePath(edit.path);
+      if (
+        existingTests.has(relative) &&
+        testPolicy !== "allowed" &&
+        (testPolicy === "new-files" ||
+          edit.delete === true ||
+          (typeof edit.old_text === "string" &&
+            typeof edit.new_text === "string" &&
+            !edit.new_text.includes(edit.old_text)))
+      ) {
+        throw toolError(
+          `test_edits policy '${testPolicy}' refuses this edit to ${relative}; the task can set test_edits to 'allowed' to permit existing test changes`,
+          "test_edit_policy",
+        );
+      }
       if (!files.has(relative)) {
         const { absolute, exists } = resolveInside(root, relative, { allowMissing: true });
         let content = null;

@@ -16,6 +16,7 @@ import { selectChecks } from "./project.mjs";
  *   initial_context: string[],
  *   design_reference: string[],
  *   checks: string[],
+ *   test_edits: "additive" | "new-files" | "allowed",
  *   checks_selected_by_rule: boolean,
  *   max_repair_attempts: number,
  * }} Task
@@ -98,6 +99,7 @@ export function validateTask(raw, config) {
     initial_context: initial,
     design_reference: design,
     checks,
+    test_edits: input.test_edits ?? "additive",
     checks_selected_by_rule: selectedByRule,
     max_repair_attempts: repairs,
   };

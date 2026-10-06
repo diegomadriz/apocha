@@ -24,7 +24,7 @@ export default {
 | Kind | Outcomes | What it does |
 |---|---|---|
 | `agent` | `done`, `no_changes` | Runs the implementer with the task bundle and any findings; snapshots the candidate |
-| `checks` | `pass`, `fail`, `violation`, `infra_error` | Structural checks (scope, protected paths), then the task's catalog checks, then a re-snapshot. A failure becomes findings for the next attempt. |
+| `checks` | `pass`, `fail`, `violation`, `infra_error` | Structural checks (scope, protected paths, test edits), then the task's catalog checks, then a re-snapshot. A failure becomes findings for the next attempt. |
 | `review` | `PASS`, `FIX`, `ESCALATE`, `too_large` | Runs the reviewer on the verified candidate with the full diff; validates the decision and its digest binding |
 | `budget` | `available`, `exhausted` | Spends one unit of a counter (`repairs` is bounded by the task) |
 | `human` | `approve`, `reject` | Pauses the run until `apocha resume <run> --decision approve\|reject` |
@@ -33,6 +33,16 @@ export default {
 
 Terminal states: `PASSED`, `FAILED`, `ESCALATED`. `PAUSED` and `ERROR` come from errors, not
 from definitions (see [architecture.md](architecture.md#the-engine)).
+
+## Test edit check
+
+The `test-edits` structural check compares the final candidate against the base commit,
+even when edits bypassed the tools. For existing files matching `tests.paths`,
+`additive` fails on any removed or changed line or file deletion, and `new-files`
+fails on any modification or deletion. Pure added lines pass under `additive`.
+The `allowed` policy passes this check. New test files are permitted by every
+policy, subject to the normal scope and protected-path checks. Violations list
+the offending files and end the run as `FAILED` before catalog checks or review.
 
 ## Validation
 

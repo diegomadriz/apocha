@@ -63,6 +63,16 @@ When a task names no checks, and for every integration, checks are selected from
 paths: every rule whose `paths` match a changed file contributes its checks, plus
 `default_checks`.
 
+### `tests.paths`
+
+Test detection defaults to `["test/", "tests/", "__tests__/", "*.test.*", "*.spec.*"]`
+when `tests` or `tests.paths` is omitted. An empty list disables detection.
+An entry ending in `/` matches that directory prefix. An entry containing `*`
+matches the file basename: `*` matches any characters within that basename,
+never across `/`. Other entries match exact repository paths. For example,
+`{"tests": {"paths": ["test/", "*.spec.*", "qa/check.mjs"]}}`.
+These settings are included in the project config digest and read from the base commit.
+
 ### `paths`
 
 | Field | Meaning |
@@ -164,5 +174,13 @@ Schema: `schemas/task.schema.json`.
 | `design_reference` | | Up to 5 approved reference files under the design prefix, read from the base commit by both roles |
 | `checks` | | Check IDs from the catalog. Omit to select by rule. A run with no checks is refused. |
 | `max_repair_attempts` | | 0 to 2, at most the project limit |
+| `test_edits` | | `additive` (default): existing test files may gain lines but no existing line may change or be removed. `new-files`: existing tests may not be modified or deleted. `allowed`: any test change, including deletion. |
+
+The test policy applies to files matching `tests.paths` that exist at the base commit.
+New test files are always permitted within `allowed_paths`. Tools reject disallowed
+edits with `test_edit_policy`; under `additive`, each replacement must contain
+`old_text` unchanged as a contiguous substring. The final diff is checked independently.
+Review bundles list `added_tests` under every policy and `modified_tests` when
+`allowed` permits existing test changes; reviewers must judge whether those changes are justified.
 
 A task cannot contain commands, and unknown fields are rejected.

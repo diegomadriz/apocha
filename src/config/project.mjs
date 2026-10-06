@@ -49,6 +49,7 @@ export const DEFAULT_LIMITS = Object.freeze({
  *   checks: Record<string, CheckDefinition>,
  *   check_selection: { paths: string[], checks: string[] }[],
  *   default_checks: string[],
+ *   tests: { paths: string[] },
  *   paths: { protected: string[], governance: string[], forbidden: string[], design_reference_prefix: string },
  *   refs: { batch_prefix: string, notes: string },
  *   sandbox: { mode: "auto" | "required" | "none", network: "deny" | "allow", deny_read: string[] },
@@ -122,6 +123,12 @@ export function normalizeProjectConfig(raw, root) {
     checks,
     check_selection: selection,
     default_checks: defaults,
+    tests: {
+      paths: pathList(
+        input.tests?.paths ?? ["test/", "tests/", "__tests__/", "*.test.*", "*.spec.*"],
+        "tests.paths",
+      ),
+    },
     paths: {
       protected: pathList(input.paths?.protected, "paths.protected"),
       governance,
@@ -204,6 +211,23 @@ export function selectChecks(config, changedFiles) {
     }
   }
   return Object.keys(config.checks).filter((id) => selected.has(id));
+}
+
+/**
+ * Match test directory prefixes, basename wildcards, or exact repository paths.
+ * @param {ProjectConfig} config
+ * @param {string} relativePath
+ */
+export function isTestPath(config, relativePath) {
+  return config.tests.paths.some((entry) => {
+    if (entry.endsWith("/")) return relativePath.startsWith(entry);
+    if (!entry.includes("*")) return relativePath === entry;
+    const pattern = entry
+      .split("*")
+      .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("[^/]*");
+    return new RegExp(`^${pattern}$`).test(path.posix.basename(relativePath));
+  });
 }
 
 /**

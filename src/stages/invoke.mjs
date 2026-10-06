@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { effectiveProtectedPaths } from "../config/task.mjs";
+import { existingTestFiles } from "../git/test-edits.mjs";
 import { toolDefinitions } from "../tools/definitions.mjs";
 import { readSession, TOOL_LIMITS } from "../tools/project-tools.mjs";
 import { digestJson } from "../util/digest.mjs";
@@ -65,6 +66,8 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
       protected_paths: effectiveProtectedPaths(ctx.task, ctx.config, ctx.governance.edits_allowed),
       forbidden_paths: ctx.config.paths.forbidden,
       deleted_paths: options.deletedPaths ?? [],
+      test_edits: ctx.task.test_edits,
+      existing_test_files: existingTestFiles(ctx.candidate, ctx.config),
       run_checks: role === "implementer" ? ctx.task.checks : [],
       max_tool_calls: ctx.runtimes.budgets.max_tool_calls,
       max_run_check_calls: ctx.config.limits.run_check_calls,

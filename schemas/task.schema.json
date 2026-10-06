@@ -42,6 +42,7 @@
       "type": "array", "maxItems": 30, "uniqueItems": true,
       "items": { "$ref": "#/$defs/check_id" }
     },
+    "test_edits": { "enum": ["additive", "new-files", "allowed"], "default": "additive" },
     "max_repair_attempts": { "type": "integer", "minimum": 0, "maximum": 2 }
   },
   "$defs": {
