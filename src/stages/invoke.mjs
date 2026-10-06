@@ -89,6 +89,7 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
       ctx.event("agent.started", {
         role,
         invocation: index,
+        runtime_config_digest: ctx.runtimes.digest,
         adapter: adapter.name,
         model: roleConfig.model ?? null,
       });
@@ -118,6 +119,7 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
     const summary = {
       role,
       invocation: index,
+      runtime_config_digest: ctx.runtimes.digest,
       duration_ms: Date.now() - started,
       tool_calls: trace.length,
       tool_errors: trace.filter((entry) => !entry.ok).length,

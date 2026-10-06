@@ -182,6 +182,7 @@ export async function startRun(options) {
       config_digest: config.digest,
       runtime_config_source: runtimes.source,
       runtime_config_digest: runtimes.digest,
+      runtime_config_digests: [runtimes.digest],
       roles: runtimes.roles,
       sandbox: sandboxBackend,
       pid: process.pid,
@@ -303,10 +304,20 @@ export async function resumeRun(options) {
   });
   let paused = false;
   try {
+    const runtimeConfigDigests = record.runtime_config_digests ?? [record.runtime_config_digest];
+    // Recover the last known resume config from records written before history was stored.
+    if (
+      !record.runtime_config_digests &&
+      record.runtime_config_digest_on_resume &&
+      runtimeConfigDigests.at(-1) !== record.runtime_config_digest_on_resume
+    )
+      runtimeConfigDigests.push(record.runtime_config_digest_on_resume);
+    if (runtimeConfigDigests.at(-1) !== runtimes.digest) runtimeConfigDigests.push(runtimes.digest);
     store.update(options.runId, {
       outcome: "RUNNING",
       pid: process.pid,
       runtime_config_digest_on_resume: runtimes.digest,
+      runtime_config_digests: runtimeConfigDigests,
     });
     ctx.event("run.resumed", {
       stage: state.stage,

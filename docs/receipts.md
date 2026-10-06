@@ -21,12 +21,25 @@ Schema: `schemas/receipt-v3.schema.json`.
 | `repairs`, `agent_invocations`, `retries` | How much work it took |
 | `runtimes` | Adapter, adapter version, provider, and model for each role |
 | `config_digest` | The project config at the base commit |
-| `runtime_config_digest` | The runtime config used |
+| `runtime_config_digest` | The final runtime config used |
+| `runtime_config_digests` | Optional ordered config history, included only when the runtime config changed during the run |
 | `policy_digest` | Prompts, tool definitions and limits, workflow definition, and package version |
 | `governance` | Whether governance edits were allowed, by whom (Git identity), and why |
 
-The digests let two results be compared honestly: same `policy_digest` and
-`runtime_config_digest` means the same harness and runtimes produced them.
+The run record keeps `runtime_config_digests` starting with the start config digest,
+appending each resume's digest only when it differs from the last entry. Returning to an
+earlier config adds another entry. Its existing `runtime_config_digest` remains the start
+digest for compatibility; the receipt's field remains the final digest. Receipts omit the
+history when it has only one entry, preserving the existing receipt format and bytes.
+Older receipts without this optional field still verify. Each `agent.started` and
+`agent.finished` event records the active `runtime_config_digest` for that invocation.
+
+Compare `policy_digest` and the full runtime config history (or `runtime_config_digest`
+when history is absent) to compare the harness and configs used across runs.
+
+Delivery metrics count integer repair values 0, 1, and 2 in their respective buckets.
+Missing counts and all other values count under `unknown`; legacy `repair_attempts`
+is used when `repairs` is absent.
 
 ## Verification
 

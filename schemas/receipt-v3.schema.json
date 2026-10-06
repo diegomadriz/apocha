@@ -66,6 +66,7 @@
     },
     "config_digest": { "$ref": "#/$defs/sha256" },
     "runtime_config_digest": { "$ref": "#/$defs/sha256" },
+    "runtime_config_digests": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/sha256" } },
     "policy_digest": { "$ref": "#/$defs/sha256" },
     "governance": {
       "type": "object", "additionalProperties": false, "required": ["edits_allowed", "by", "reason"],

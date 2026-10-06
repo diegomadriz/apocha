@@ -53,6 +53,7 @@ export async function runPromoteStage(_stage, ctx) {
     });
     ctx.state.promotion = promotion;
     ctx.event("promotion.finished", { promoted_head: promotion.promoted_head, batch_ref: ctx.batchRef });
+    const runtimeConfigDigests = ctx.store.read(ctx.runId).runtime_config_digests ?? [];
     const receipt = {
       schema: RECEIPT_SCHEMA,
       generator: { ...GENERATOR },
@@ -82,6 +83,7 @@ export async function runPromoteStage(_stage, ctx) {
       },
       config_digest: ctx.config.digest,
       runtime_config_digest: ctx.runtimes.digest,
+      ...(runtimeConfigDigests.length > 1 ? { runtime_config_digests: runtimeConfigDigests } : {}),
       policy_digest: ctx.policyDigest,
       governance: { ...ctx.governance },
     };

@@ -22,7 +22,8 @@ export const DEFINITIONS = Object.freeze({
     "Finished runs that ended as ERROR (infra, provider, or tool-protocol failures), divided by all finished runs.",
   delivery: "A promoted commit with a receipt, excluding integrations.",
   integration: "A receipt on a merge commit (two or more parents): a topic integrated onto a base.",
-  delivery_repairs: "Repair rounds recorded in a delivery's receipt (0, 1, or 2).",
+  delivery_repairs:
+    "Repair rounds recorded in a delivery's receipt: integers 0, 1, or 2; missing or invalid values count as unknown (legacy repair_attempts is supported).",
 });
 
 /** @param {number} part @param {number} whole */
@@ -61,7 +62,7 @@ export function computeMetrics(repositoryRoot, options) {
           .map((line) => line.split(" ")[1])
       : [];
   const commits = reachable ? allCommits.filter((commit) => reachable.has(commit)) : allCommits;
-  const repairs = { 0: 0, 1: 0, 2: 0 };
+  const repairs = { 0: 0, 1: 0, 2: 0, unknown: 0 };
   let deliveries = 0;
   let integrations = 0;
   for (const commit of commits) {
@@ -82,8 +83,9 @@ export function computeMetrics(repositoryRoot, options) {
       continue;
     }
     deliveries += 1;
-    const used = receipt.repairs ?? receipt.repair_attempts ?? 0;
-    repairs[used] = (repairs[used] ?? 0) + 1;
+    const used = Object.hasOwn(receipt, "repairs") ? receipt.repairs : receipt.repair_attempts;
+    if (Number.isInteger(used) && used >= 0 && used <= 2) repairs[used] += 1;
+    else repairs.unknown += 1;
   }
   const dates = runs.map((run) => String(run.created_at)).sort();
   return {
