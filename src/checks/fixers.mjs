@@ -8,13 +8,18 @@ import { checkDefinitionDigest, runCheck } from "./runner.mjs";
 
 /** @typedef {{ id: string, definition_digest: string, status: import("./runner.mjs").CheckResult["status"], changed: string[], ignored_changes: string[] }} FixerResult */
 
-/** Snapshot without following symlinks or opening special files. @param {string} root */
-function treeFiles(root) {
+/**
+ * Snapshot candidate files without following symlinks or opening special files.
+ * @param {string} root
+ * @param {string[]} excludedPaths Harness-materialized directories, never candidate files.
+ */
+function treeFiles(root, excludedPaths) {
   /** @type {Map<string, string>} */
   const entries = new Map();
   /** @param {string} relative */
   const visit = (relative) => {
     const absolute = path.join(root, relative);
+    if (excludedPaths.includes(absolute)) return;
     const stat = lstatSync(absolute);
     if (stat.isDirectory()) {
       for (const name of readdirSync(absolute).sort()) visit(relative ? `${relative}/${name}` : name);
@@ -68,6 +73,8 @@ export async function runFixers(ctx, changedFiles) {
     };
     if (files.length) {
       let before = new Map();
+      /** @type {string[]} */
+      let excludedPaths = [];
       /** @type {Map<string, Buffer>} */
       const updates = new Map();
       const result = await runCheck({
@@ -79,11 +86,12 @@ export async function runFixers(ctx, changedFiles) {
         dependencyOptions: { onValidation: (source) => ctx.event("dependencies.validation", { source }) },
         signal: ctx.signal,
         files: files.map((file) => path.posix.relative(check.cwd, file)),
-        onPrepared: (root) => {
-          before = treeFiles(root);
+        onPrepared: (root, excluded) => {
+          excludedPaths = excluded;
+          before = treeFiles(root, excludedPaths);
         },
         onFinished: (root, status) => {
-          const after = treeFiles(root);
+          const after = treeFiles(root, excludedPaths);
           for (const file of [...new Set([...before.keys(), ...after.keys()])].sort()) {
             if (before.get(file) === after.get(file)) continue;
             if (status === "pass" && files.includes(file) && after.has(file)) {

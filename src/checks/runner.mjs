@@ -116,7 +116,7 @@ function materialize(candidateRoot, execRoot, forbidden) {
  *   baseOverlay?: string[],
  *   files?: string[],
  *   maxOutputBytes?: number,
- *   onPrepared?: (root: string) => void,
+ *   onPrepared?: (root: string, excludedPaths: string[]) => void,
  *   onFinished?: (root: string, status: CheckResult["status"]) => void,
  * }} input
  * @returns {Promise<CheckResult>}
@@ -246,7 +246,7 @@ export async function runCheck({
         argv,
       );
       prepared = { ...wrapped, cwd, env };
-      onPrepared?.(execRoot);
+      onPrepared?.(execRoot, [home, tmp, ...(nodePath ? [nodePath] : [])]);
     } catch (error) {
       const cleanupError = cleanup();
       const detail = describeError(error);
