@@ -66,8 +66,11 @@ Without an OS sandbox these socket restrictions cannot be enforced.
   rest of the host filesystem (toolchains live there). The profile denies outbound network and
   listed paths, but DNS and loopback services remain reachable. Keep secrets
   in the denied locations or add their paths. Linux bubblewrap gives a read-only view of the host too, but removes network access entirely. Unlisted local Unix sockets remain reachable; add their paths to `sandbox.deny_sockets`.
-- **Receipts are unsigned.** Anyone with write access to the repository can forge a note that
-  `land` will accept. Signing is planned. See [receipts.md](receipts.md#limits).
+- **Unsigned receipts remain forgeable when signatures are optional.** Require signatures
+  with `land --require-signed` or target config `receipts.require_signed` to close this gap.
+  Trust comes from the target branch's allowed_signers file, a governance path. Protect
+  signing keys outside the repository; signatures attest the operator's key, not the truth
+  of the recorded checks. See [receipts.md](receipts.md#limits).
 - **Repository-level runtime config requires explicit trust.** `.apocha/runtimes.json` chooses
   runtime commands and is ignored unless you pass `--trust-repo-runtimes`. It is a governance
   path, so agents cannot change it, but a person who can commit to the repository can.

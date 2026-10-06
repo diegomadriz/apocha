@@ -57,11 +57,32 @@ is used when `repairs` is absent.
    `candidate_digest`, so the note cannot claim a different change than the commit holds;
 5. every check passed and the review decision is `PASS`.
 
+## SSH signatures
+
+Runtime `signing: { "key": "~/.ssh/receipt_key", "principal": "operator@example.com" }`
+signs every new receipt using offline `ssh-keygen -Y sign`. Keep the private key outside
+the repository. Without this config, receipts remain unsigned.
+
+The optional `signature` object contains `format: "ssh"`, `namespace: "apocha-receipt"`,
+the principal, and armored SSH signature text. Signed bytes are canonical JSON of the
+entire receipt excluding `signature`: recursively sorted object keys, no whitespace.
+Temporary verification files live in a private directory removed after use.
+
+`apocha receipt <commit>` reports `signature.status`: `valid`, `unsigned`,
+`invalid`, or `unknown_signer`, with the claimed principal. Unsigned receipts still
+pass consistency checks, including older receipts. Verification can use a specified Git
+commit for trust; the receipt CLI uses HEAD.
+
 ## Landing
 
 `apocha land <source> --target <branch>`:
 
 - requires the target to be a first-parent ancestor of the source;
+- with `--require-signed` or target config `receipts.require_signed: true`, requires
+  valid signatures for all these commits; unsigned receipts fail with `unsigned_receipt`
+  and bad or unauthorized signatures with `bad_signature`, naming the commit;
+- reads the standard SSH allowed_signers file (`receipts.allowed_signers`, default
+  `.apocha/allowed_signers`) from the target tip before landing, never the source;
 - verifies the receipt of every first-parent commit between them (integration commits carry their
   own receipt; the topic commits they merge are covered by it);
 - fast-forwards the target with a compare-and-swap, or, if the target is checked out in a clean
@@ -91,8 +112,10 @@ keeps its batch prefix and notes ref can land across both histories.
 
 ## Limits
 
-- Notes are not signed. Anyone with write access can add a note, and a forged note that matches
-  the commit's real content and passes the schema would verify. Signing (SSH or Sigstore) and an
-  in-toto envelope are planned.
+- Without required signatures, anyone with repository write access can forge a consistent note.
+  Use `--require-signed` or `receipts.require_signed` to reject these notes.
+- A valid signature proves possession of an authorized signing key and protects receipt contents.
+  It does not prove that checks really ran, that review was competent, or that the signing
+  operator or key was uncompromised.
 - Notes do not travel with `git push` by default. Push the notes ref explicitly
   (`git push origin refs/notes/apocha`) if receipts should be shared.

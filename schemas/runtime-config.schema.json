@@ -6,6 +6,13 @@
   "required": ["version", "roles"],
   "properties": {
     "version": { "const": 1 },
+    "signing": {
+      "type": "object", "additionalProperties": false, "required": ["key", "principal"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "principal": { "type": "string", "minLength": 1 }
+      }
+    },
     "roles": {
       "type": "object", "additionalProperties": false, "required": ["implementer", "reviewer"],
       "properties": {

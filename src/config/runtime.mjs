@@ -14,6 +14,7 @@ export const RUNTIME_CONFIG_FILE = "runtimes.json";
  * @typedef {{
  *   version: 1,
  *   source: string,
+ *   signing?: { key: string, principal: string },
  *   roles: { implementer: RoleRuntime, reviewer: RoleRuntime },
  *   adapters: Record<string, AdapterSettings>,
  *   budgets: { timeout_ms: number, max_tool_calls: number },
@@ -80,6 +81,18 @@ export function normalizeRuntimeConfig(raw, source) {
     adapters: { ...(input.adapters ?? {}) },
     budgets: { ...DEFAULT_BUDGETS, ...(input.budgets ?? {}) },
     retry: { infra: 1, ...(input.retry ?? {}) },
+    ...(input.signing
+      ? {
+          signing: {
+            key: path.resolve(
+              input.signing.key.startsWith("~/")
+                ? path.join(os.homedir(), input.signing.key.slice(2))
+                : input.signing.key,
+            ),
+            principal: input.signing.principal,
+          },
+        }
+      : {}),
   };
   return { ...normalized, source, digest: digestJson(normalized) };
 }

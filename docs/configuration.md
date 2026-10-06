@@ -219,3 +219,19 @@ Review bundles list `added_tests` under every policy and `modified_tests` when
 `allowed` permits existing test changes; reviewers must judge whether those changes are justified.
 
 A task cannot contain commands, and unknown fields are rejected.
+
+## Receipt signing
+
+Operator runtime config may set `"signing": { "key": "~/.ssh/receipt_key", "principal": "operator@example.com" }`.
+The key path supports `~/`; keep the SSH private key outside the repository. SSH signing
+uses `ssh-keygen` offline and adds no dependencies. Omit this setting for unsigned receipts.
+
+Project config may set `"receipts": { "allowed_signers": ".apocha/allowed_signers", "require_signed": true }`.
+Defaults are `.apocha/allowed_signers` and `false`. The repository-relative signers path
+is always a governance path, including custom paths. Use standard SSH allowed_signers
+lines, for example `operator@example.com ssh-ed25519 AAAA...`.
+
+`land --require-signed` also enables enforcement. Land uses both policy and allowed signers
+from the target branch tip; adding a key only on the source does not authorize landing.
+`doctor` reports whether a signing key is configured, whether its public key is authorized
+for its principal in HEAD's allowed signers, and whether signatures are required.

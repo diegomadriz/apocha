@@ -2,6 +2,7 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { loadProjectConfigAt } from "../config/project.mjs";
 import { newRunId, RunStore, stateDir } from "../core/runs.mjs";
 import { HarnessError } from "../util/errors.mjs";
 import { writeJsonAtomic } from "../util/fs-safe.mjs";
@@ -14,7 +15,7 @@ import { verifyReceipt } from "./receipts.mjs";
  * checked out in a worktree, that worktree must be clean and is fast-forwarded
  * in place.
  *
- * @param {{ repositoryRoot: string, notesRef: string, source: string, target: string, batchPrefix?: string, keepBatch?: boolean, onBeforeRetire?: () => void }} input
+ * @param {{ repositoryRoot: string, notesRef: string, source: string, target: string, batchPrefix?: string, keepBatch?: boolean, requireSigned?: boolean, onBeforeRetire?: () => void }} input
  */
 export function landBranch(input) {
   const hooksPath = mkdtempSync(path.join(os.tmpdir(), "apocha-land-hooks-"));
@@ -34,6 +35,7 @@ function landWithoutHooks(
     target,
     batchPrefix = "refs/heads/apocha/batch/",
     keepBatch = false,
+    requireSigned = false,
     onBeforeRetire,
   },
   hooksPath,
@@ -50,6 +52,8 @@ function landWithoutHooks(
     throw new HarnessError("config", "invalid_target", `invalid branch name: ${target}`);
   const oldHead = resolveCommit(repositoryRoot, ref);
   if (!oldHead) throw new HarnessError("config", "unknown_target", `target branch does not exist: ${target}`);
+  const config = loadProjectConfigAt(repositoryRoot, oldHead);
+  requireSigned ||= config.receipts.require_signed;
   const newHead = resolveCommit(repositoryRoot, source);
   if (!newHead)
     throw new HarnessError("config", "unknown_source", `source does not resolve to a commit: ${source}`);
@@ -90,7 +94,13 @@ function landWithoutHooks(
     if (landedCommits.has(oid)) candidates.set(name, oid);
   }
   for (const commit of commits) {
-    const check = verifyReceipt(repositoryRoot, notesRef, commit);
+    const check = verifyReceipt(repositoryRoot, notesRef, commit, oldHead, config.receipts.allowed_signers);
+    if (requireSigned && check.signature.status !== "valid")
+      throw new HarnessError(
+        "integrity",
+        check.signature.status === "unsigned" ? "unsigned_receipt" : "bad_signature",
+        `commit ${commit} has ${check.signature.status} receipt signature`,
+      );
     if (!check.valid)
       throw new HarnessError(
         "integrity",

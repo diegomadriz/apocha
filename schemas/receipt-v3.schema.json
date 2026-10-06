@@ -10,6 +10,16 @@
   ],
   "properties": {
     "schema": { "enum": ["apocha.receipt.v3", "panagent.receipt.v3"] },
+    "signature": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format", "namespace", "principal", "signature"],
+      "properties": {
+        "format": { "const": "ssh" },
+        "namespace": { "const": "apocha-receipt" },
+        "principal": { "type": "string", "minLength": 1 },
+        "signature": { "type": "string", "minLength": 1 }
+      }
+    },
     "generator": {
       "type": "object", "additionalProperties": false, "required": ["name", "version"],
       "properties": { "name": { "type": "string", "minLength": 1 }, "version": { "type": "string", "minLength": 1 } }

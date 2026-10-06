@@ -27,6 +27,13 @@
       "description": "Checks that always run when checks are selected by rule.",
       "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/check_id" }
     },
+    "receipts": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "allowed_signers": { "$ref": "#/$defs/path", "default": ".apocha/allowed_signers" },
+        "require_signed": { "type": "boolean", "default": false }
+      }
+    },
     "review": {
       "type": "object", "additionalProperties": false,
       "properties": {

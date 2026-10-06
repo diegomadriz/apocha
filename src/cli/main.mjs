@@ -17,6 +17,7 @@ import { RunStore, stateDir } from "../core/runs.mjs";
 import { formatStatusText, repositoryStatus } from "../core/status.mjs";
 import { landBranch } from "../git/land.mjs";
 import { verifyReceipt } from "../git/receipts.mjs";
+import { allowedSignersAt, signingKeyAllowed } from "../git/signatures.mjs";
 import { detectBackend, resolveBackend } from "../sandbox/index.mjs";
 import { describeError, HarnessError } from "../util/errors.mjs";
 import { repositoryRoot, resolveCommit } from "../util/git.mjs";
@@ -39,7 +40,7 @@ Commands:
       [--runtimes <file>] [--allow-governance-edits --reason <text>] [--json] [--quiet]
   integrate <topic>             Merge a topic onto a base, verify, review, and promote
       --onto <ref> --batch <name> [--message <text|@file> | --message-file <path>] [--checks a,b] [--max-repairs 0|1|2]
-  land <source> --target <branch> [--keep-batch]   Fast-forward a branch whose commits all carry valid receipts (never pushes)
+  land <source> --target <branch> [--keep-batch] [--require-signed]   Fast-forward a branch whose commits all carry valid receipts (never pushes)
   gc [--apply] [--keep-days N] [--abandon-paused-days N] [--target <branch>] [--json]
                                 Plan cleanup (dry-run by default)
   status [--target <branch>] [--json]   Show repository state and next actions
@@ -310,6 +311,7 @@ export async function main(argv) {
       const { values, positionals } = parse({
         target: { type: "string" },
         "keep-batch": { type: "boolean" },
+        "require-signed": { type: "boolean" },
       });
       if (positionals.length !== 1 || !values.target)
         throw new HarnessError("config", "usage", "land needs <source> --target <branch>");
@@ -325,6 +327,7 @@ export async function main(argv) {
           notesRef: config.refs.notes,
           batchPrefix: config.refs.batch_prefix,
           keepBatch: Boolean(values["keep-batch"]),
+          requireSigned: Boolean(values["require-signed"]),
           source: positionals[0],
           target: /** @type {string} */ (values.target),
         }),
@@ -393,10 +396,11 @@ export async function main(argv) {
       if (positionals.length !== 1)
         throw new HarnessError("config", "usage", "receipt needs exactly one commit");
       const root = repositoryRoot(cwd);
-      const notesRef = values.notes ?? loadProjectConfig(root).refs.notes;
+      const config = loadProjectConfig(root);
+      const notesRef = values.notes ?? config.refs.notes;
       const commit = resolveCommit(root, positionals[0]);
       if (!commit) throw new HarnessError("config", "unknown_commit", `not a commit: ${positionals[0]}`);
-      const result = verifyReceipt(root, notesRef, commit);
+      const result = verifyReceipt(root, notesRef, commit, "HEAD", config.receipts.allowed_signers);
       print(result);
       return result.valid ? EXIT.ok : EXIT.notPassed;
     }
@@ -568,6 +572,25 @@ async function doctor(cwd, options) {
     try {
       const runtimes = loadRuntimeConfig(root, options.runtimesPath, options.trustRepoRuntimes);
       record("runtime config", true, runtimes.source);
+      record(
+        "receipt signing",
+        true,
+        runtimes.signing ? `configured: ${runtimes.signing.principal}` : "no signing key configured",
+      );
+      record("signed receipts required", true, config?.receipts.require_signed ? "yes" : "no");
+      if (runtimes.signing && config) {
+        const allowed = signingKeyAllowed(
+          runtimes.signing,
+          allowedSignersAt(root, "HEAD", config.receipts.allowed_signers),
+        );
+        record(
+          "signing key allowed",
+          allowed,
+          allowed
+            ? "public key is authorized for this principal"
+            : "public key is not authorized for this principal",
+        );
+      }
       const implementer = roleProvider(
         runtimes.roles.implementer,
         runtimes.adapters[runtimes.roles.implementer.adapter],

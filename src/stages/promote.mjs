@@ -101,7 +101,7 @@ export async function runPromoteStage(_stage, ctx) {
       policy_digest: ctx.policyDigest,
       governance: { ...ctx.governance },
     };
-    writeReceipt(ctx.repositoryRoot, ctx.config.refs.notes, receipt);
+    writeReceipt(ctx.repositoryRoot, ctx.config.refs.notes, receipt, ctx.runtimes.signing);
     ctx.event("receipt.written", { commit: promotion.promoted_head, notes_ref: ctx.config.refs.notes });
     return "done";
   });

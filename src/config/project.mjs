@@ -63,6 +63,7 @@ export const DEFAULT_LIMITS = Object.freeze({
  *   default_checks: string[],
  *   tests: { paths: string[], run_files?: CheckDefinition },
  *   review: { require_independent: boolean },
+ *   receipts: { allowed_signers: string, require_signed: boolean },
  *   paths: { protected: string[], governance: string[], forbidden: string[], design_reference_prefix: string },
  *   refs: { batch_prefix: string, notes: string },
  *   sandbox: { mode: "auto" | "required" | "none", network: "deny" | "allow", deny_read: string[], deny_sockets: string[] },
@@ -126,10 +127,18 @@ export function normalizeProjectConfig(raw, root) {
         throw new HarnessError("config", "invalid_path", `${label} may not name .git`);
       return entry;
     });
+  const receipts = {
+    allowed_signers: input.receipts?.allowed_signers ?? ".apocha/allowed_signers",
+    require_signed: input.receipts?.require_signed ?? false,
+  };
+  canonicalPath(receipts.allowed_signers, "receipts.allowed_signers");
+  if (hasGitComponent(receipts.allowed_signers) || receipts.allowed_signers.endsWith("/"))
+    throw new HarnessError("config", "invalid_path", "receipts.allowed_signers must name a repository file");
   const governance = [
     ...new Set([
       PROJECT_CONFIG_FILE,
       LOCAL_CONFIG_DIR,
+      receipts.allowed_signers,
       ...LEGACY_PROJECT_CONFIG_FILES,
       ...LEGACY_LOCAL_CONFIG_DIRS,
       ...pathList(input.paths?.governance, "paths.governance"),
@@ -157,6 +166,7 @@ export function normalizeProjectConfig(raw, root) {
       ),
     },
     review: { require_independent: input.review?.require_independent ?? false },
+    receipts,
     paths: {
       protected: pathList(input.paths?.protected, "paths.protected"),
       governance,

@@ -3,6 +3,7 @@ import { HarnessError, isObject } from "../util/errors.mjs";
 import { commitIdentity, git, OID } from "../util/git.mjs";
 import { loadSchema, validateAgainst } from "../util/schema.mjs";
 import { digestBetweenCommits } from "./candidate.mjs";
+import { allowedSignersAt, signReceipt, verifySignature } from "./signatures.mjs";
 
 /**
  * Receipts are Git notes on promoted commits. A receipt says which candidate
@@ -92,8 +93,10 @@ function legacyViolation(receipt) {
  * @param {string} repositoryRoot
  * @param {string} notesRef
  * @param {Record<string, unknown>} receipt a v3 receipt
+ * @param {{ key: string, principal: string }} [signing]
  */
-export function writeReceipt(repositoryRoot, notesRef, receipt) {
+export function writeReceipt(repositoryRoot, notesRef, receipt, signing) {
+  if (signing) receipt = signReceipt(receipt, signing);
   const errors = validateAgainst(loadSchema("receipt-v3.schema.json"), receipt);
   if (errors.length)
     throw new HarnessError(
@@ -130,26 +133,41 @@ export function readReceipt(repositoryRoot, notesRef, commit) {
  * @param {string} repositoryRoot
  * @param {string} notesRef
  * @param {string} commit full OID
- * @returns {{ valid: boolean, reason: string | null, receipt: any, version: number | null }}
+ * @param {string} [allowedSignersCommit] Git tree supplying trusted signers
+ * @param {string} [allowedSignersFile] repository-relative path
+ * @returns {{ valid: boolean, reason: string | null, receipt: any, version: number | null, signature: import("./signatures.mjs").SignatureStatus }}
  */
-export function verifyReceipt(repositoryRoot, notesRef, commit) {
+export function verifyReceipt(
+  repositoryRoot,
+  notesRef,
+  commit,
+  allowedSignersCommit = "HEAD",
+  allowedSignersFile = ".apocha/allowed_signers",
+) {
+  /** @type {import("./signatures.mjs").SignatureStatus} */
+  let signature = { status: "unsigned", principal: null };
   let receipt;
   let actual;
   try {
     actual = commitIdentity(repositoryRoot, commit);
     receipt = readReceipt(repositoryRoot, notesRef, commit);
-    if (receipt === null) return { valid: false, reason: "missing receipt", receipt: null, version: null };
+    if (receipt === null)
+      return { valid: false, reason: "missing receipt", receipt: null, version: null, signature };
   } catch (error) {
     const reason = error instanceof SyntaxError ? "malformed receipt JSON" : error.message;
-    return { valid: false, reason, receipt: null, version: null };
+    return { valid: false, reason, receipt: null, version: null, signature };
   }
+  signature = verifySignature(
+    receipt ?? {},
+    allowedSignersAt(repositoryRoot, allowedSignersCommit, allowedSignersFile),
+  );
   const version =
     receipt?.schema === RECEIPT_SCHEMA || LEGACY_RECEIPT_SCHEMAS.includes(receipt?.schema)
       ? 3
       : receipt?.version === 1 || receipt?.version === 2
         ? receipt.version
         : null;
-  const invalid = (reason) => ({ valid: false, reason, receipt, version });
+  const invalid = (reason) => ({ valid: false, reason, receipt, version, signature });
   if (version === null) return invalid("unsupported receipt version");
   if (version === 3) {
     const errors = validateAgainst(loadSchema("receipt-v3.schema.json"), receipt);
@@ -170,5 +188,7 @@ export function verifyReceipt(repositoryRoot, notesRef, commit) {
   const recomputed = digestBetweenCommits(repositoryRoot, receipt.base_commit, commit);
   if (recomputed !== receipt.candidate_digest)
     return invalid("candidate_digest does not match the commit's change");
-  return { valid: true, reason: null, receipt, version };
+  if (signature.status === "invalid" || signature.status === "unknown_signer")
+    return invalid(`receipt signature: ${signature.status}`);
+  return { valid: true, reason: null, receipt, version, signature };
 }
