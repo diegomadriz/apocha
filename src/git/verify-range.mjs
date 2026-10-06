@@ -15,6 +15,7 @@ import { verifyReceipt } from "./receipts.mjs";
  */
 export function verifyCommitReceipt(repositoryRoot, notesRef, commit, base, allowedSigners, requireSigned) {
   const check = verifyReceipt(repositoryRoot, notesRef, commit, base, allowedSigners);
+  if (check.reason === "missing receipt") return { ...check, code: "missing_receipt" };
   if (requireSigned && check.signature.status !== "valid")
     return {
       ...check,
@@ -54,7 +55,13 @@ export function verifyRange({ repositoryRoot, base, head, requireSigned = false 
         config.receipts.allowed_signers,
         requireSigned,
       );
-      return { commit, valid: check.valid, reason: check.reason, signature: check.signature };
+      return {
+        commit,
+        valid: check.valid,
+        code: check.code,
+        reason: check.reason,
+        signature: check.signature,
+      };
     });
   const firstFailure = commits.find((check) => !check.valid);
   return {

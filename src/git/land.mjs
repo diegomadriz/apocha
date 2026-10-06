@@ -114,7 +114,13 @@ function landWithoutHooks(
       for (const [name, oid] of batchRefs) {
         if (oid === topic) candidates.set(name, oid);
       }
-      const topicReceipt = verifyReceipt(repositoryRoot, notesRef, topic);
+      const topicReceipt = verifyReceipt(
+        repositoryRoot,
+        notesRef,
+        topic,
+        oldHead,
+        config.receipts.allowed_signers,
+      );
       for (const run of runs) {
         if (
           (run.promoted_head === topic ||

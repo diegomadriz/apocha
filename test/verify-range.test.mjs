@@ -101,7 +101,10 @@ test("verify-range checks two controller commits across a land and writes a summ
     const signed = cli(repo.root, ["verify-range", `${base}..${second}`, "--require-signed"]);
     assert.notEqual(signed.status, 0);
     assert.ok(signed.stdout.includes(`First failing commit: ${first}`));
-    assert.match(signed.stdout, /unsigned/);
+    assert.match(signed.stdout, /receipt signature: unsigned/);
+    const signedJson = cli(repo.root, ["verify-range", `${base}..${second}`, "--require-signed", "--json"]);
+    assert.notEqual(signedJson.status, 0);
+    assert.equal(JSON.parse(signedJson.stdout).commits[0].code, "unsigned_receipt");
   } finally {
     repo.cleanup();
   }
@@ -129,6 +132,13 @@ test("verify-range reports every commit and names the first missing receipt thro
     assert.notEqual(printed.status, 0);
     assert.ok(printed.stdout.includes(`First failing commit: ${manual}`));
     assert.match(printed.stdout, /missing receipt/);
+    const signed = cli(repo.root, ["verify-range", `${base}..${head}`, "--require-signed"]);
+    assert.notEqual(signed.status, 0);
+    assert.ok(signed.stdout.includes(`${manual} missing receipt`));
+    const signedJson = cli(repo.root, ["verify-range", `${base}..${head}`, "--require-signed", "--json"]);
+    assert.notEqual(signedJson.status, 0);
+    assert.equal(JSON.parse(signedJson.stdout).commits[0].code, "missing_receipt");
+    assert.equal(JSON.parse(signedJson.stdout).commits[1].code, "unsigned_receipt");
   } finally {
     repo.cleanup();
   }
@@ -185,23 +195,35 @@ for (const scenario of ["signed", "head-only", "config-required"]) {
   });
 }
 
-test("root action parses as JSON-form YAML and runs only receipt verification", () => {
-  // JSON is a YAML 1.2 subset, so this parses the action without a new dependency.
-  const action = JSON.parse(readFileSync(new URL("../action.yml", import.meta.url), "utf8"));
-  assert.equal(action.runs.using, "composite");
-  assert.equal(action.inputs["require-signed"].default, "false");
-  assert.equal(action.inputs["node-version"].default, "24");
-  assert.equal(action.inputs.base.default, `\${{ github.event.pull_request.base.sha }}`);
-  assert.equal(action.inputs.head.default, `\${{ github.event.pull_request.head.sha }}`);
-  assert.ok(action.runs.steps.some((step) => step.uses === "actions/setup-node@v7"));
-  const scripts = action.runs.steps.map((step) => step.run ?? "").join("\n");
-  assert.match(scripts, /git fetch origin "\+refs\/notes\/\*:refs\/notes\/\*"/);
-  assert.match(scripts, /git fetch --unshallow/);
-  assert.match(scripts, /npm ci --omit=dev/);
-  assert.match(scripts, /bin\/apocha\.mjs" verify-range/);
-  assert.ok(action.runs.steps.some((step) => step["working-directory"] === `\${{ github.action_path }}`));
+test("root action uses block YAML and runs only receipt verification", () => {
+  const action = readFileSync(new URL("../action.yml", import.meta.url), "utf8");
+  assert.match(action, /^name: Apocha receipts$/m);
+  assert.match(action, /^inputs:$/m);
+  assert.match(action, /^runs:\n {2}using: composite\n {2}steps:$/m);
+  for (const [input, value] of [
+    ["require-signed", "'false'"],
+    ["node-version", "'24'"],
+    ["base", `'\${{ github.event.pull_request.base.sha }}'`],
+    ["head", `'\${{ github.event.pull_request.head.sha }}'`],
+  ]) {
+    const lines = action.split("\n");
+    const index = lines.indexOf(`  ${input}:`);
+    assert.ok(index >= 0);
+    assert.equal(lines[index + 2], `    default: ${value}`);
+  }
+  assert.match(action, /^ {4}- uses: actions\/setup-node@v7$/m);
+  assert.match(action, /^ {4}- name: Fetch history and receipt notes\n {6}shell: bash$/m);
+  assert.match(action, /^ {8}git fetch origin "\+refs\/notes\/\*:refs\/notes\/\*"$/m);
+  assert.match(action, /^ {10}git fetch --unshallow origin$/m);
+  assert.match(action, /^ {6}working-directory: \$\{\{ github.action_path \}\}$/m);
+  assert.match(action, /^ {8}npm ci --omit=dev$/m);
+  assert.match(action, /^ {4}- name: Verify receipts\n {6}shell: bash$/m);
+  assert.match(
+    action,
+    /^ {8}node "\$APOCHA_ACTION_PATH\/bin\/apocha\.mjs" verify-range "\$APOCHA_BASE\.\.\$APOCHA_HEAD" "\$\{args\[@\]\}"$/m,
+  );
   assert.doesNotMatch(
-    scripts,
+    action,
     /git push|apocha\.mjs" (?:run|integrate|resume)|OPENAI_API_KEY|ANTHROPIC_API_KEY/,
   );
 });

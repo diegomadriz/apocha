@@ -46,7 +46,20 @@ test("socket defaults and additions appear in both backend policies", () => {
     for (const entry of denySockets) {
       const rule = `(deny network-outbound (remote unix-socket (path-literal "${entry}")))`;
       assert.ok(profile.includes(rule), profile);
-      assert.ok(profile.indexOf(rule) > profile.indexOf("(allow network* (remote unix-socket))"));
+      const orderingProfile = seatbeltProfile({
+        ...policy,
+        network: false,
+        writable: ["/workspace", "/scratch"],
+      });
+      const workspaceAllows = [
+        ...orderingProfile.matchAll(/\(allow [^\n]*unix-socket \(path-prefix [^\n]+/g),
+      ];
+      assert.equal(workspaceAllows.length, 4, orderingProfile);
+      for (const deny of [rule, `(deny file-read* (literal "${entry}"))`])
+        assert.ok(
+          workspaceAllows.every((allow) => orderingProfile.indexOf(deny) > allow.index),
+          orderingProfile,
+        );
       const index = args.indexOf(entry);
       assert.deepEqual(args.slice(index - 2, index + 1), ["--ro-bind", "/dev/null", entry]);
     }

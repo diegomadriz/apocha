@@ -96,8 +96,14 @@ export function repositoryStatus(repositoryRoot, options = {}) {
         .split("\n")
         .filter(Boolean);
       const receipts = commits.map((commit) => {
-        const check = verifyReceipt(repositoryRoot, config.refs.notes, commit);
-        return { commit, valid: check.valid, reason: check.reason };
+        const check = verifyReceipt(
+          repositoryRoot,
+          config.refs.notes,
+          commit,
+          tip,
+          config.receipts.allowed_signers,
+        );
+        return { commit, valid: check.valid, reason: check.reason, signature: check.signature };
       });
       const receipted = receipts.every((receipt) => receipt.valid);
       const behind = Number(gitText(repositoryRoot, ["rev-list", "--count", `${batch.tip}..${tip}`]));
@@ -111,7 +117,13 @@ export function repositoryStatus(repositoryRoot, options = {}) {
           : receipted
             ? "ready"
             : "unreceipted";
-      const receipt = verifyReceipt(repositoryRoot, config.refs.notes, batch.tip);
+      const receipt = verifyReceipt(
+        repositoryRoot,
+        config.refs.notes,
+        batch.tip,
+        tip,
+        config.receipts.allowed_signers,
+      );
       const producer = runs.find(
         (run) => run.promoted_head === batch.tip || (receipt.valid && run.run_id === receipt.receipt.run_id),
       );

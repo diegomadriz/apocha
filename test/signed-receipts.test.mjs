@@ -157,7 +157,16 @@ for (const scenario of ["sign", "land", "forgery", "unknown", "tamper", "source-
         assert.throws(land, (e) => e.code === "unsigned_receipt" && e.message.includes(commit));
         const refused = cli(repo.root, ["land", commit, "--target", "main", "--require-signed"]);
         assert.notEqual(refused.status, 0);
-        assert.match(refused.stderr, /unsigned/);
+        assert.ok(refused.stderr.includes(commit));
+        assert.match(refused.stderr, /receipt signature: unsigned/);
+        git(repo.root, ["notes", `--ref=${notes}`, "remove", commit]);
+        const missing = cli(repo.root, ["land", commit, "--target", "main", "--require-signed"]);
+        assert.notEqual(missing.status, 0);
+        assert.ok(missing.stderr.includes(commit));
+        assert.doesNotMatch(missing.stderr, /receipt signature: unsigned/);
+        assert.match(missing.stderr, /missing receipt/);
+        assert.throws(land, (e) => e.code === "missing_receipt");
+        replaceNote(repo.root, commit, receipt);
         const accepted = cli(repo.root, ["land", commit, "--target", "main"]);
         assert.equal(accepted.status, 0, accepted.stderr);
       } else if (scenario === "config-required") {
@@ -184,3 +193,45 @@ for (const scenario of ["sign", "land", "forgery", "unknown", "tamper", "source-
     }
   });
 }
+
+test("custom allowed signers support signed landing and status", async () => {
+  const trusted = keyPair("custom-signers");
+  const repo = makeRepo({
+    files: { ".apocha/signers": trusted.line },
+    config: {
+      version: 1,
+      checks: { ok: { run: ["node", "-e", "process.exit(0)"] } },
+      sandbox: { mode: "none" },
+      receipts: { allowed_signers: ".apocha/signers" },
+    },
+  });
+  try {
+    const commit = await run(repo.root, trusted.key);
+    const printed = cli(repo.root, ["status", "--target", "main", "--json"]);
+    assert.equal(printed.status, 0, printed.stderr);
+    const batch = JSON.parse(printed.stdout).batches.find((entry) => entry.tip === commit);
+    assert.ok(batch);
+    assert.equal(batch.state, "ready");
+    assert.equal(batch.receipted, true);
+    assert.equal(batch.receipts[0].valid, true);
+    assert.equal(batch.receipts[0].signature.status, "valid");
+    const landed = cli(repo.root, [
+      "land",
+      "apocha/batch/signed",
+      "--target",
+      "main",
+      "--require-signed",
+      "--keep-batch",
+    ]);
+    assert.equal(landed.status, 0, landed.stderr);
+    assert.equal(resolveCommit(repo.root, "main"), commit);
+    const status = cli(repo.root, ["status", "--target", "main", "--json"]);
+    assert.equal(status.status, 0, status.stderr);
+    assert.equal(JSON.parse(status.stdout).batches.find((entry) => entry.tip === commit).state, "landed");
+    const receipt = cli(repo.root, ["receipt", commit]);
+    assert.equal(receipt.status, 0, receipt.stderr);
+    assert.equal(JSON.parse(receipt.stdout).signature.status, "valid");
+  } finally {
+    repo.cleanup();
+  }
+});

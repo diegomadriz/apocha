@@ -1,59 +1,52 @@
-{
-  "name": "Apocha receipts",
-  "description": "Verify pull request receipts without running agents",
-  "inputs": {
-    "require-signed": {
-      "description": "Require a valid authorized receipt signature",
-      "default": "false"
-    },
-    "node-version": {
-      "description": "Node.js version",
-      "default": "24"
-    },
-    "base": {
-      "description": "Base commit supplying trusted configuration",
-      "default": "${{ github.event.pull_request.base.sha }}"
-    },
-    "head": {
-      "description": "Pull request head commit",
-      "default": "${{ github.event.pull_request.head.sha }}"
-    }
-  },
-  "runs": {
-    "using": "composite",
-    "steps": [
-      {
-        "uses": "actions/setup-node@v7",
-        "with": {
-          "node-version": "${{ inputs.node-version }}"
-        }
-      },
-      {
-        "name": "Fetch history and receipt notes",
-        "shell": "bash",
-        "env": {
-          "APOCHA_BASE": "${{ inputs.base }}",
-          "APOCHA_HEAD": "${{ inputs.head }}"
-        },
-        "run": "if [ \"$(git rev-parse --is-shallow-repository)\" = \"true\" ]; then\n  git fetch --unshallow origin\nfi\ngit fetch origin \"$APOCHA_BASE\" \"$APOCHA_HEAD\"\ngit fetch origin \"+refs/notes/*:refs/notes/*\""
-      },
-      {
-        "name": "Install Apocha",
-        "shell": "bash",
-        "working-directory": "${{ github.action_path }}",
-        "run": "npm ci --omit=dev"
-      },
-      {
-        "name": "Verify receipts",
-        "shell": "bash",
-        "env": {
-          "APOCHA_ACTION_PATH": "${{ github.action_path }}",
-          "APOCHA_BASE": "${{ inputs.base }}",
-          "APOCHA_HEAD": "${{ inputs.head }}",
-          "APOCHA_REQUIRE_SIGNED": "${{ inputs.require-signed }}"
-        },
-        "run": "args=()\ncase \"$APOCHA_REQUIRE_SIGNED\" in\n  true) args+=(--require-signed) ;;\n  false) ;;\n  *) echo \"require-signed must be true or false\" >&2; exit 2 ;;\nesac\nnode \"$APOCHA_ACTION_PATH/bin/apocha.mjs\" verify-range \"$APOCHA_BASE..$APOCHA_HEAD\" \"${args[@]}\""
-      }
-    ]
-  }
-}
+name: Apocha receipts
+description: Verify pull request receipts without running agents
+inputs:
+  require-signed:
+    description: Require a valid authorized receipt signature
+    default: 'false'
+  node-version:
+    description: Node.js version
+    default: '24'
+  base:
+    description: Base commit supplying trusted configuration
+    default: '${{ github.event.pull_request.base.sha }}'
+  head:
+    description: Pull request head commit
+    default: '${{ github.event.pull_request.head.sha }}'
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+    - name: Fetch history and receipt notes
+      shell: bash
+      env:
+        APOCHA_BASE: ${{ inputs.base }}
+        APOCHA_HEAD: ${{ inputs.head }}
+      run: |
+        if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+          git fetch --unshallow origin
+        fi
+        git fetch origin "$APOCHA_BASE" "$APOCHA_HEAD"
+        git fetch origin "+refs/notes/*:refs/notes/*"
+    - name: Install Apocha
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        npm ci --omit=dev
+    - name: Verify receipts
+      shell: bash
+      env:
+        APOCHA_ACTION_PATH: ${{ github.action_path }}
+        APOCHA_BASE: ${{ inputs.base }}
+        APOCHA_HEAD: ${{ inputs.head }}
+        APOCHA_REQUIRE_SIGNED: ${{ inputs.require-signed }}
+      run: |
+        args=()
+        case "$APOCHA_REQUIRE_SIGNED" in
+          true) args+=(--require-signed) ;;
+          false) ;;
+          *) echo "require-signed must be true or false" >&2; exit 2 ;;
+        esac
+        node "$APOCHA_ACTION_PATH/bin/apocha.mjs" verify-range "$APOCHA_BASE..$APOCHA_HEAD" "${args[@]}"

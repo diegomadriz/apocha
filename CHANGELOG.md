@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+- Test edits are additive by default, enforced by the test-edits check.
+- tests_on_base records evidence that new tests fail on the base.
+- Candidate digests are independent of project configuration.
+- Runtime config history is recorded across resumes; repairs can use an unknown bucket.
+- --message-file supports commit messages from files, with clearer errors.
+- land runs without Git hooks and retires stacked batches.
+- Daemon sockets are denied, and secrets are scanned once per run.
+- Aborts are never retried.
+- The legacy PANAGENT_SANDBOX marker remains supported.
+- Reviewer independence is recorded and can be required.
+- SSH-signed receipts use allowed signers; land --require-signed enforces signatures.
+- The macOS sandbox denies access by default, with per-check loopback access.
+  Check definition digests now include the loopback setting.
+- verify-range and a verify-only GitHub Action check receipts.
+- Dependencies are validated once per run and copied with copy-on-write where available.
+  Checks run in parallel with fail_fast support.
+
 ## 0.1.0 (unreleased)
 
 First release as a standalone package.
