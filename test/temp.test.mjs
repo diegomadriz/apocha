@@ -126,6 +126,7 @@ test("finished fake runs leave no temp directories and paused runs retain only t
   });
   const paused = await startRun({
     ...options,
+    message: "Set value after resume",
     batch: "paused",
     adapters: { implementer: limited, reviewer: limited },
   });

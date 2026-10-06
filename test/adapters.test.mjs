@@ -288,7 +288,8 @@ test("the MCP tool server lists role tools and serves calls over stdio", async (
   });
   const entry = fileURLToPath(new URL("../src/adapters/mcp-server-main.mjs", import.meta.url));
   const child = spawn(process.execPath, [entry], {
-    env: { ...process.env, APOCHA_SESSION: sessionFile },
+    // Inherited Node test worker variables can prevent the server from answering on Linux.
+    env: { PATH: process.env.PATH, HOME: process.env.HOME, APOCHA_SESSION: sessionFile },
     stdio: ["pipe", "pipe", "pipe"],
   });
   const responses = new Map();
