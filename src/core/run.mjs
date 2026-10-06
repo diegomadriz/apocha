@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { adapterForRole } from "../adapters/index.mjs";
 import { loadProjectConfigAt } from "../config/project.mjs";
-import { loadRuntimeConfig } from "../config/runtime.mjs";
+import { loadRuntimeConfig, roleProvider } from "../config/runtime.mjs";
 import { taskDigest, validateTask } from "../config/task.mjs";
 import { attachCandidate, createCandidate } from "../git/candidate.mjs";
 import { assertBatchRef, reserveBatchRef } from "../git/promotion.mjs";
@@ -59,6 +59,7 @@ export async function startRun(options) {
   const config = loadProjectConfigAt(repositoryRoot, baseCommit);
   const runtimes =
     options.runtimes ?? loadRuntimeConfig(repositoryRoot, options.runtimesPath, options.trustRepoRuntimes);
+  assertReviewIndependence(config, runtimes);
   if (typeof options.message !== "string" || !options.message.trim())
     throw new HarnessError("config", "invalid_message", "a commit message is required");
 
@@ -264,6 +265,7 @@ export async function resumeRun(options) {
   const config = loadProjectConfigAt(repositoryRoot, record.base_commit);
   const runtimes =
     options.runtimes ?? loadRuntimeConfig(repositoryRoot, options.runtimesPath, options.trustRepoRuntimes);
+  assertReviewIndependence(config, runtimes);
   const state = record.state;
   if (state.awaiting) {
     if (!options.decision)
@@ -340,6 +342,25 @@ export async function resumeRun(options) {
     throw error;
   } finally {
     if (!paused) ctx.candidate.cleanup();
+  }
+}
+
+/**
+ * @param {import("../config/project.mjs").ProjectConfig} config
+ * @param {import("../config/runtime.mjs").RuntimeConfig} runtimes
+ */
+function assertReviewIndependence(config, runtimes) {
+  const implementer = roleProvider(
+    runtimes.roles.implementer,
+    runtimes.adapters[runtimes.roles.implementer.adapter],
+  );
+  const reviewer = roleProvider(runtimes.roles.reviewer, runtimes.adapters[runtimes.roles.reviewer.adapter]);
+  if (config.review.require_independent && implementer === reviewer) {
+    throw new HarnessError(
+      "config",
+      "reviewer_not_independent",
+      `independent review required: implementer provider=${implementer}, reviewer provider=${reviewer}`,
+    );
   }
 }
 

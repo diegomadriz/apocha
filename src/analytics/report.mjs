@@ -115,6 +115,17 @@ function sections(analytics) {
       ]),
     },
     {
+      title: "Review independence",
+      headers: ["Independent", "Same-provider", "Unknown"],
+      rows: [
+        [
+          analytics.review_independence.independent,
+          analytics.review_independence.same_provider,
+          analytics.review_independence.unknown,
+        ],
+      ],
+    },
+    {
       title: "Tools",
       headers: ["Role", "Median calls per run", "Error rate", "run_check calls", "run_check pass rate"],
       rows: Object.entries(analytics.tools).map(([role, tools]) => [

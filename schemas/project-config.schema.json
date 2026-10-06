@@ -27,6 +27,12 @@
       "description": "Checks that always run when checks are selected by rule.",
       "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/check_id" }
     },
+    "review": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "require_independent": { "type": "boolean", "default": false }
+      }
+    },
     "tests": {
       "type": "object", "additionalProperties": false,
       "properties": {

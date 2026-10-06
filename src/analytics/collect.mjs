@@ -9,7 +9,7 @@ import { RunStore } from "../core/runs.mjs";
  * run_id: string, workflow: string, task_id: string, family: string, outcome: string,
  * stale: boolean, error_class: string | null, created_at: string, finished_at: string | null,
  * duration_ms: number | null, repairs: number, agent_invocations: number, retries: number,
- * runtimes: Record<string, { adapter: string, model?: string | null }>,
+ * runtimes: Record<string, { adapter: string, provider?: string | null, model?: string | null }>,
  * usage: Record<string, Record<string, number>>,
  * checks: { id: string, status: string, duration_ms: number | null, attempt: number }[],
  * review_decisions: string[], review_events: { decision: string, findings: number }[],

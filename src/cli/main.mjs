@@ -7,7 +7,7 @@ import { collectRunFacts } from "../analytics/collect.mjs";
 import { computeAnalytics, DEFINITIONS } from "../analytics/compute.mjs";
 import { formatAnalyticsMarkdown, formatAnalyticsText } from "../analytics/report.mjs";
 import { loadProjectConfig, loadProjectConfigAt, PROJECT_CONFIG_FILE } from "../config/project.mjs";
-import { loadRuntimeConfig } from "../config/runtime.mjs";
+import { loadRuntimeConfig, roleProvider } from "../config/runtime.mjs";
 import { validateTask } from "../config/task.mjs";
 import { applyGc, planGc } from "../core/gc.mjs";
 import { withLock } from "../core/lock.mjs";
@@ -568,6 +568,20 @@ async function doctor(cwd, options) {
     try {
       const runtimes = loadRuntimeConfig(root, options.runtimesPath, options.trustRepoRuntimes);
       record("runtime config", true, runtimes.source);
+      const implementer = roleProvider(
+        runtimes.roles.implementer,
+        runtimes.adapters[runtimes.roles.implementer.adapter],
+      );
+      const reviewer = roleProvider(
+        runtimes.roles.reviewer,
+        runtimes.adapters[runtimes.roles.reviewer.adapter],
+      );
+      const sameProvider = implementer === reviewer;
+      record(
+        "review independence",
+        !sameProvider || !config?.review.require_independent,
+        `${sameProvider ? "warning: same-provider review" : "independent review"}; implementer=${implementer}, reviewer=${reviewer}; ${config?.review.require_independent ? "required" : "optional"}`,
+      );
       for (const role of /** @type {const} */ (["implementer", "reviewer"])) {
         const adapter = adapterForRole(runtimes, role);
         const probe = await adapter.probe();

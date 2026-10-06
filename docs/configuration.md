@@ -90,6 +90,13 @@ infrastructure failure), or `not_run` (over the limit).
 A passing-on-base result is evidence for the reviewer, not proof of a bad test:
 refactors and new coverage of existing behavior may legitimately pass.
 
+### `review.require_independent`
+
+Boolean, default `false`. When `true`, start and resume refuse equal implementer
+and reviewer providers with config error `reviewer_not_independent`, before any
+agent starts or the run becomes RUNNING. This policy comes from the base commit.
+`doctor` reports whether independence is required and warns for same-provider roles.
+
 ### `paths`
 
 | Field | Meaning |

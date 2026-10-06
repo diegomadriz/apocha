@@ -1,4 +1,5 @@
 // @ts-check
+import { roleProvider } from "../config/runtime.mjs";
 import { TERMINAL } from "../core/runs.mjs";
 
 /** @typedef {import("./collect.mjs").RunFact} RunFact */
@@ -106,6 +107,16 @@ export function computeAnalytics(facts) {
       run_check_pass_rate: percent(passes, checks),
     };
   }
+  const reviewIndependence = { independent: 0, same_provider: 0, unknown: 0 };
+  for (const fact of facts) {
+    const implementer = fact.runtimes.implementer;
+    const reviewer = fact.runtimes.reviewer;
+    const left = implementer ? roleProvider(implementer) : "unknown";
+    const right = reviewer ? roleProvider(reviewer) : "unknown";
+    if (left === "unknown" || right === "unknown") reviewIndependence.unknown += 1;
+    else if (left === right) reviewIndependence.same_provider += 1;
+    else reviewIndependence.independent += 1;
+  }
   const stageNames = new Set(facts.flatMap((fact) => Object.keys(fact.stage_ms)));
   const days = groupBy(facts, (fact) => fact.created_at.slice(0, 10));
   return {
@@ -154,6 +165,7 @@ export function computeAnalytics(facts) {
         ];
       }),
     ),
+    review_independence: reviewIndependence,
     review: {
       reviews: decisions.length,
       by_decision: byDecision,
@@ -231,6 +243,8 @@ export const DEFINITIONS = Object.freeze({
   checks: "Check executions in finished runs group by check ID, with nearest-rank duration percentiles.",
   fail_rate: "Failed check executions as a percentage of check executions in finished runs.",
   review: "Review decisions and findings count review events in finished runs.",
+  review_independence:
+    "All runs count as independent or same-provider using recorded role runtimes; missing providers count as unknown.",
   fix_rate: "FIX decisions as a percentage of review decisions in finished runs.",
   findings_per_fix:
     "Findings on FIX review events in finished runs divided by the number of those FIX review events.",

@@ -62,6 +62,7 @@ export const DEFAULT_LIMITS = Object.freeze({
  *   check_selection: { paths: string[], checks: string[] }[],
  *   default_checks: string[],
  *   tests: { paths: string[], run_files?: CheckDefinition },
+ *   review: { require_independent: boolean },
  *   paths: { protected: string[], governance: string[], forbidden: string[], design_reference_prefix: string },
  *   refs: { batch_prefix: string, notes: string },
  *   sandbox: { mode: "auto" | "required" | "none", network: "deny" | "allow", deny_read: string[], deny_sockets: string[] },
@@ -155,6 +156,7 @@ export function normalizeProjectConfig(raw, root) {
         "tests.paths",
       ),
     },
+    review: { require_independent: input.review?.require_independent ?? false },
     paths: {
       protected: pathList(input.paths?.protected, "paths.protected"),
       governance,

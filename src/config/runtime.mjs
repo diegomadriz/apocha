@@ -22,6 +22,21 @@ export const RUNTIME_CONFIG_FILE = "runtimes.json";
  * }} RuntimeConfig
  */
 
+/**
+ * Resolve a role's vendor without starting its adapter. Pi role settings override
+ * adapter settings; an unspecified provider remains unknown.
+ * @param {{ adapter: string, provider?: string | null }} role
+ * @param {{ provider?: string }} [settings]
+ * @returns {string}
+ */
+export function roleProvider(role, settings = {}) {
+  if (role.adapter === "codex") return "openai";
+  if (role.adapter === "claude-code") return "anthropic";
+  if (role.adapter === "fake") return "fake";
+  const provider = role.provider ?? settings.provider ?? "unknown";
+  return provider === "openai-codex" ? "openai" : provider;
+}
+
 export const DEFAULT_BUDGETS = Object.freeze({ timeout_ms: 1200000, max_tool_calls: 150 });
 
 /**

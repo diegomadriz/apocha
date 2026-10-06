@@ -18,6 +18,7 @@ Schema: `schemas/receipt-v3.schema.json`.
 | `checks[]` | Each check's ID, `pass`, the digest of its definition (argv, cwd, timeout, dependencies, network, env), and the sandbox it ran in |
 | `tests` | Test edit policy, added test paths, and modified existing test paths (including deletions). Optional in older v3 receipts. |
 | `review` | `PASS` and the number of findings across the run |
+| `review_independence` | Configured `implementer_provider`, `reviewer_provider`, and boolean `independent` (providers differ). Written on every new receipt; optional so older receipts still verify. |
 | `repairs`, `agent_invocations`, `retries` | How much work it took |
 | `runtimes` | Adapter, adapter version, provider, and model for each role |
 | `config_digest` | The project config at the base commit |
@@ -36,6 +37,10 @@ Older receipts without this optional field still verify. Each `agent.started` an
 
 Compare `policy_digest` and the full runtime config history (or `runtime_config_digest`
 when history is absent) to compare the harness and configs used across runs.
+
+Analytics counts runs with recorded role runtimes under `review_independence`:
+`independent`, `same_provider`, or `unknown` when provider evidence is missing.
+These counts use the runtimes recorded per run, rather than the current config.
 
 Delivery metrics count integer repair values 0, 1, and 2 in their respective buckets.
 Missing counts and all other values count under `unknown`; legacy `repair_attempts`

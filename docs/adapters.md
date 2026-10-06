@@ -76,6 +76,16 @@ runtime dependency, and only the tool server process loads it.
 - Pi's `openai-codex` provider reaches a ChatGPT subscription through an unofficial path. Prefer
   the `codex` adapter for subscription use.
 
+## Reviewer independence
+
+Provider identity is resolved before agents run: Codex is `openai`, Claude Code is
+`anthropic`, and fake is `fake`. Pi uses the role's provider, falling back to
+`adapters.pi.provider`; `openai-codex` normalizes to `openai`, and other provider
+strings are preserved. An unspecified Pi provider is `unknown`.
+Different adapters can therefore share a provider. Same-provider judges tend to
+prefer their own model family's output, so cross-provider review is stronger evidence.
+Set project `review.require_independent` to require different providers.
+
 ## Checking the lock-down
 
 ```bash

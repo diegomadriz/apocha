@@ -1,4 +1,5 @@
 // @ts-check
+import { roleProvider } from "../config/runtime.mjs";
 import { withLock } from "../core/lock.mjs";
 import { promoteCandidate } from "../git/promotion.mjs";
 import { RECEIPT_SCHEMA, writeReceipt } from "../git/receipts.mjs";
@@ -54,6 +55,14 @@ export async function runPromoteStage(_stage, ctx) {
     ctx.state.promotion = promotion;
     ctx.event("promotion.finished", { promoted_head: promotion.promoted_head, batch_ref: ctx.batchRef });
     const runtimeConfigDigests = ctx.store.read(ctx.runId).runtime_config_digests ?? [];
+    const implementerProvider = roleProvider(
+      ctx.runtimes.roles.implementer,
+      ctx.runtimes.adapters[ctx.runtimes.roles.implementer.adapter],
+    );
+    const reviewerProvider = roleProvider(
+      ctx.runtimes.roles.reviewer,
+      ctx.runtimes.adapters[ctx.runtimes.roles.reviewer.adapter],
+    );
     const receipt = {
       schema: RECEIPT_SCHEMA,
       generator: { ...GENERATOR },
@@ -74,6 +83,11 @@ export async function runPromoteStage(_stage, ctx) {
         ...(ctx.config.tests.run_files ? { on_base: verified.tests_on_base ?? [] } : {}),
       },
       review: { decision: "PASS", findings: review.findings.length },
+      review_independence: {
+        implementer_provider: implementerProvider,
+        reviewer_provider: reviewerProvider,
+        independent: implementerProvider !== reviewerProvider,
+      },
       repairs: ctx.state.counters.repairs ?? 0,
       agent_invocations: ctx.state.invocations,
       retries: ctx.state.retries,

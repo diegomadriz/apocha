@@ -57,6 +57,15 @@
       "type": "object", "additionalProperties": false, "required": ["decision", "findings"],
       "properties": { "decision": { "const": "PASS" }, "findings": { "type": "integer", "minimum": 0 } }
     },
+    "review_independence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["implementer_provider", "reviewer_provider", "independent"],
+      "properties": {
+        "implementer_provider": { "type": "string" },
+        "reviewer_provider": { "type": "string" },
+        "independent": { "type": "boolean" }
+      }
+    },
     "repairs": { "type": "integer", "minimum": 0, "maximum": 2 },
     "agent_invocations": { "type": "integer", "minimum": 0 },
     "retries": { "type": "integer", "minimum": 0 },
