@@ -157,16 +157,14 @@ export function snapshotCandidate(candidate) {
  * @returns {Snapshot}
  */
 function identityFromIndex(root, baseCommit, inspect = () => {}) {
-  const names = String(
-    git(root, ["diff", "--cached", "--no-renames", "--name-only", "-z", baseCommit, "--"]).stdout,
-  );
+  const names = String(digestDiff(root, ["--cached", "--name-only", "-z", baseCommit]).stdout);
   const changedFiles = names
     .split("\0")
     .filter(Boolean)
     .map((name) => canonicalPath(name, "changed path"))
     .sort();
   changedFiles.forEach(inspect);
-  const diff = diffText(root, ["diff", "--cached", baseCommit]);
+  const diff = diffText(root, ["--cached", baseCommit]);
   return {
     base_commit: baseCommit,
     changed_files: changedFiles,
@@ -175,12 +173,65 @@ function identityFromIndex(root, baseCommit, inspect = () => {}) {
   };
 }
 
+/**
+ * Digest diffs use Git's default rendering, independent of user configuration.
+ * Keep repository attributes, but never execute their diff or textconv drivers.
+ * @param {string} root
+ * @param {string[]} args
+ */
+function digestDiff(root, args) {
+  const defaults = [
+    "diff.noprefix=false",
+    "diff.mnemonicPrefix=false",
+    "diff.relative=false",
+    "diff.renames=false",
+    "diff.algorithm=myers",
+    "diff.context=3",
+    "diff.interHunkContext=0",
+    "diff.suppressBlankEmpty=false",
+    "diff.indentHeuristic=true",
+    "diff.submodule=short",
+    "diff.outputIndicatorNew=+",
+    "diff.outputIndicatorOld=-",
+    "diff.outputIndicatorContext= ",
+    "core.quotePath=true",
+    "color.diff=false",
+  ];
+  return git(
+    root,
+    [
+      ...defaults.flatMap((value) => ["-c", value]),
+      "diff",
+      "--no-renames",
+      "--no-ext-diff",
+      "--no-textconv",
+      "--no-color",
+      "--src-prefix=a/",
+      "--dst-prefix=b/",
+      "-U3",
+      "--inter-hunk-context=0",
+      "--diff-algorithm=myers",
+      "--indent-heuristic",
+      "--no-relative",
+      "-O/dev/null",
+      ...args,
+      "--",
+    ],
+    {
+      env: {
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: "/dev/null",
+        GIT_CONFIG_COUNT: "0",
+        GIT_CONFIG_PARAMETERS: "",
+        GIT_DIFF_OPTS: "",
+      },
+    },
+  );
+}
+
 /** @param {string} root @param {string[]} prefix */
 function diffText(root, prefix) {
-  return String(
-    git(root, [...prefix, "--no-renames", "--binary", "--full-index", "--no-color", "--no-ext-diff", "--"])
-      .stdout,
-  ).replaceAll("\r\n", "\n");
+  return String(digestDiff(root, [...prefix, "--binary", "--full-index"]).stdout).replaceAll("\r\n", "\n");
 }
 
 /** @param {string} baseCommit @param {string[]} changedFiles @param {string} diff */
@@ -196,11 +247,9 @@ export function identityDigest(baseCommit, changedFiles, diff) {
  * @param {string} headCommit
  */
 export function digestBetweenCommits(repositoryRoot, baseCommit, headCommit) {
-  const names = String(
-    git(repositoryRoot, ["diff", "--no-renames", "--name-only", "-z", baseCommit, headCommit, "--"]).stdout,
-  );
+  const names = String(digestDiff(repositoryRoot, ["--name-only", "-z", baseCommit, headCommit]).stdout);
   const changedFiles = names.split("\0").filter(Boolean).sort();
-  const diff = diffText(repositoryRoot, ["diff", baseCommit, headCommit]);
+  const diff = diffText(repositoryRoot, [baseCommit, headCommit]);
   return identityDigest(baseCommit, changedFiles, diff);
 }
 
