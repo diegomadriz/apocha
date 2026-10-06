@@ -1,16 +1,18 @@
 // @ts-check
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import {
+import fs, {
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   realpathSync,
+  rmSync,
   symlinkSync,
   utimesSync,
   writeFileSync,
 } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -208,9 +210,101 @@ test("gc scopes dead owners to the repository and protects legacy run candidates
   for (const directory of [own, legacyOwner, legacy]) assert.equal(existsSync(directory), false);
 });
 
+test("gc skips temp directories that vanish during inspection and propagates other errors", (t) => {
+  const repo = makeRepo();
+  const temporary = testTempDir("gc-vanishing");
+  const previous = process.env.TMPDIR;
+  process.env.TMPDIR = temporary;
+  const directory = path.join(temporary, "apocha-vanishing");
+  const original = fs.lstatSync;
+  try {
+    for (const stage of ["directory", "child", "error"]) {
+      mkdirSync(directory);
+      const child = path.join(directory, "payload");
+      writeFileSync(child, "payload");
+      utimesSync(directory, new Date("2020-01-01"), new Date("2020-01-01"));
+      const failure = Object.assign(new Error("stat denied"), { code: "EACCES" });
+      let inspected = false;
+      const stat = t.mock.method(fs, "lstatSync", (target, options) => {
+        if (!inspected && target === (stage === "child" ? child : directory)) {
+          inspected = true;
+          if (stage === "error") throw failure;
+          rmSync(directory, { recursive: true });
+        }
+        return original(target, options);
+      });
+      syncBuiltinESMExports();
+      try {
+        if (stage === "error") {
+          assert.throws(
+            () => planGc(repo.root),
+            (error) => error === failure,
+          );
+        } else {
+          const plan = planGc(repo.root);
+          assert.equal(
+            plan.items.some((item) => item.path === directory),
+            false,
+          );
+          assert.equal(existsSync(directory), false);
+        }
+      } finally {
+        stat.mock.restore();
+        syncBuiltinESMExports();
+        rmSync(directory, { recursive: true, force: true });
+      }
+    }
+  } finally {
+    if (previous === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = previous;
+    repo.cleanup();
+  }
+});
+
+test("gc records temp directories removed before or during apply as skipped", async (t) => {
+  const repo = makeRepo();
+  const temporary = testTempDir("gc-removed");
+  const previous = process.env.TMPDIR;
+  process.env.TMPDIR = temporary;
+  const directory = path.join(temporary, "apocha-removed");
+  const original = fs.rmSync;
+  try {
+    for (const stage of ["before", "during"]) {
+      mkdirSync(directory);
+      utimesSync(directory, new Date("2020-01-01"), new Date("2020-01-01"));
+      const plan = planGc(repo.root);
+      assert.ok(plan.items.some((item) => item.path === directory));
+      const removal = t.mock.method(fs, "rmSync", (target, options) => {
+        if (target === directory) original(directory, { recursive: true, force: true });
+        return original(target, options);
+      });
+      if (stage === "before") original(directory, { recursive: true });
+      syncBuiltinESMExports();
+      try {
+        const result = await applyGc(repo.root, plan);
+        assert.equal(
+          result.done.some((item) => item.path === directory),
+          false,
+        );
+        assert.equal(result.skipped.find((item) => item.path === directory)?.reason, "already removed");
+      } finally {
+        removal.mock.restore();
+        syncBuiltinESMExports();
+      }
+    }
+  } finally {
+    if (previous === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = previous;
+    repo.cleanup();
+  }
+});
+
 test("gc validates day options and rejects session paths through symlinks", () => {
   const repo = makeRepo();
   const outside = testTempDir("gc-outside");
+  const temporary = testTempDir("gc-symlink");
+  const previous = process.env.TMPDIR;
+  process.env.TMPDIR = temporary;
   try {
     for (const keepDays of [-1, NaN, Infinity])
       assert.throws(() => planGc(repo.root, { keepDays }), /nonnegative/);
@@ -222,6 +316,8 @@ test("gc validates day options and rejects session paths through symlinks", () =
     assert.throws(() => planGc(repo.root), /symlink/);
     assert.ok(existsSync(outside));
   } finally {
+    if (previous === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = previous;
     repo.cleanup();
   }
 });

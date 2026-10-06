@@ -1,5 +1,5 @@
 // @ts-check
-import { existsSync, lstatSync, readdirSync, realpathSync, rmSync } from "node:fs";
+import { lstatSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import path from "node:path";
 import { collectRunFacts } from "../analytics/collect.mjs";
 import { loadProjectConfig } from "../config/project.mjs";
@@ -113,25 +113,29 @@ export function planGc(repositoryRoot, options = {}) {
       });
   }
   for (const entry of listTempDirs()) {
-    if (protectedRuns.some((run) => candidateIn(run, entry.path) || run.run_id === entry.owner?.run_id))
-      continue;
-    if (entry.owner?.repository !== undefined) {
-      if (entry.owner.repository !== common || alive(entry.owner.pid)) continue;
-    } else {
-      if (runs.some((run) => candidateIn(run, entry.path))) continue;
-      if (lstatSync(entry.path).mtimeMs >= now - DAY) continue;
+    try {
+      if (protectedRuns.some((run) => candidateIn(run, entry.path) || run.run_id === entry.owner?.run_id))
+        continue;
+      if (entry.owner?.repository !== undefined) {
+        if (entry.owner.repository !== common || alive(entry.owner.pid)) continue;
+      } else {
+        if (runs.some((run) => candidateIn(run, entry.path))) continue;
+        if (lstatSync(entry.path).mtimeMs >= now - DAY) continue;
+      }
+      const abandoning = abandoned.some((run) => candidateIn(run, entry.path));
+      items.push({
+        kind: "temp",
+        path: entry.path,
+        size: sizeOf(entry.path),
+        reason: abandoning
+          ? "abandoned candidate"
+          : entry.owner?.repository !== undefined
+            ? "owner pid is dead"
+            : "unowned for more than one day",
+      });
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
     }
-    const abandoning = abandoned.some((run) => candidateIn(run, entry.path));
-    items.push({
-      kind: "temp",
-      path: entry.path,
-      size: sizeOf(entry.path),
-      reason: abandoning
-        ? "abandoned candidate"
-        : entry.owner?.repository !== undefined
-          ? "owner pid is dead"
-          : "unowned for more than one day",
-    });
   }
   for (const run of runs) {
     if (!TERMINAL.has(run.outcome) || !(Date.parse(run.finished_at) < now - (options.keepDays ?? 30) * DAY))
@@ -180,6 +184,15 @@ export async function applyGc(repositoryRoot, plan) {
     /** @type {GcItem[]} */
     const skipped = [];
     for (const item of plan.items) {
+      if (item.kind === "temp" && item.path) {
+        try {
+          lstatSync(item.path);
+        } catch (error) {
+          if (error.code !== "ENOENT") throw error;
+          skipped.push({ ...item, reason: "already removed" });
+          continue;
+        }
+      }
       if (!eligible.has(itemKey(item))) {
         skipped.push({ ...item, reason: "no longer eligible" });
         continue;
@@ -219,7 +232,13 @@ export async function applyGc(repositoryRoot, plan) {
         store.update(item.run_id, { archived_tools: fact.tools, pruned_sessions: [...archived] });
         rmSync(item.path, { recursive: true, force: true });
       } else if (item.kind === "temp" && item.path) {
-        if (existsSync(item.path)) rmSync(item.path, { recursive: true, force: true });
+        try {
+          rmSync(item.path, { recursive: true });
+        } catch (error) {
+          if (error.code !== "ENOENT") throw error;
+          skipped.push({ ...item, reason: "already removed" });
+          continue;
+        }
       } else if (item.kind === "worktree") {
         git(repositoryRoot, ["worktree", "prune"]);
       }
