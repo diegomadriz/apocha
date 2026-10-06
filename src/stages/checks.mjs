@@ -174,7 +174,7 @@ export async function runChecksStage(_stage, ctx) {
       stderr_truncated: false,
       output_digest: "",
       definition_digest: checkDefinitionDigest(ctx.config.checks[id]),
-      sandbox: ctx.sandboxBackend,
+      sandbox: ctx.config.checks[id].unsandboxed ? "none" : ctx.sandboxBackend,
       duration_ms: 0,
     };
   }

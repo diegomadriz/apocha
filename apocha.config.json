@@ -3,7 +3,8 @@
   "checks": {
     "lint": { "description": "Biome lint and format check", "run": ["npx", "--no-install", "biome", "check", "."], "cwd": ".", "timeout_ms": 120000, "dependencies": "npm" },
     "typecheck": { "description": "tsc --noEmit over JSDoc types", "run": ["npx", "--no-install", "tsc", "-p", "tsconfig.json"], "cwd": ".", "timeout_ms": 180000, "dependencies": "npm" },
-    "test": { "description": "node --test suite", "run": ["npm", "test"], "cwd": ".", "timeout_ms": 600000, "dependencies": "npm" }
+    "test": { "description": "node --test suite", "run": ["npm", "test"], "cwd": ".", "timeout_ms": 600000, "dependencies": "npm" },
+    "sandbox-selftest": { "description": "Real OS sandbox tests", "run": ["node", "--test", "test/sandbox.test.mjs", "test/sandbox-defaults.test.mjs", "test/sandbox-strict.test.mjs", "test/sandbox-markers.test.mjs", "test/source-secrets.test.mjs"], "cwd": ".", "timeout_ms": 300000, "dependencies": "npm", "unsandboxed": true }
   },
   "fixers": {
     "format": { "description": "Biome formatter", "run": ["npx", "--no-install", "biome", "format", "--write", "--files-ignore-unknown=true", "{files}"], "cwd": ".", "timeout_ms": 120000, "dependencies": "npm" }
@@ -14,6 +15,9 @@
     "run_files": { "run": ["node", "--test", "{files}"], "cwd": ".", "timeout_ms": 300000, "dependencies": "npm" }
   },
   "default_checks": ["lint", "typecheck", "test"],
+  "check_selection": [
+    { "paths": ["src/sandbox/", "src/checks/", "test/sandbox.test.mjs", "test/sandbox-defaults.test.mjs", "test/sandbox-strict.test.mjs", "test/sandbox-markers.test.mjs", "test/source-secrets.test.mjs"], "checks": ["sandbox-selftest"] }
+  ],
   "paths": {
     "protected": [".github/", "LICENSE"],
     "governance": ["AGENTS.md", "src/prompts/", "schemas/", "apocha.config.json"],

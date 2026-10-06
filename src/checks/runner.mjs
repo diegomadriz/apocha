@@ -3,7 +3,13 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, realpathSync, rmSync } from "node:fs";
 import path from "node:path";
-import { resolveDenyPaths, resolveSocketPaths, SANDBOX_MARKER, wrapCommand } from "../sandbox/index.mjs";
+import {
+  resolveBackend,
+  resolveDenyPaths,
+  resolveSocketPaths,
+  SANDBOX_MARKER,
+  wrapCommand,
+} from "../sandbox/index.mjs";
 import { decodeCaptured } from "../util/bounded.mjs";
 import { digestJson, sha256 } from "../util/digest.mjs";
 import { describeError } from "../util/errors.mjs";
@@ -59,6 +65,7 @@ export function checkDefinitionDigest(check) {
     dependencies: check.dependencies,
     network: check.network,
     loopback: check.loopback,
+    unsandboxed: check.unsandboxed,
     env: check.env,
   });
 }
@@ -135,6 +142,7 @@ export async function runCheck({
   onPrepared,
   onFinished,
 }) {
+  if (check.unsandboxed) backend = "none";
   const definitionDigest = checkDefinitionDigest(check);
   const started = Date.now();
   let workspace = null;
@@ -152,6 +160,8 @@ export async function runCheck({
     /** @type {{ command: string, args: string[], cwd: string, env: Record<string, string> }} */
     let prepared;
     try {
+      if (!check.unsandboxed && backend === "none" && config.sandbox.mode === "required")
+        backend = resolveBackend("required");
       workspace = makeTempDir("check", { repository: gitCommonDir(candidate.repository_root) });
       const execRoot = path.join(workspace, "tree");
       const home = path.join(workspace, "home");
@@ -217,6 +227,10 @@ export async function runCheck({
         ...(nodePath ? { NODE_PATH: nodePath } : {}),
         ...check.env,
       });
+      if (check.unsandboxed) {
+        delete env[SANDBOX_MARKER];
+        delete env.PANAGENT_SANDBOX;
+      }
       // Older repository commits use the pre-rename marker to avoid nested sandboxes.
       if (env[SANDBOX_MARKER]) env.PANAGENT_SANDBOX = env[SANDBOX_MARKER];
       const argv = check.run.flatMap((part) =>

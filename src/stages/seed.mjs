@@ -1,4 +1,5 @@
 // @ts-check
+import { warnCatalogUnsandboxedChecks } from "../checks/sandbox.mjs";
 import { selectChecks } from "../config/project.mjs";
 import { taskDigest, validateTask } from "../config/task.mjs";
 import { snapshotCandidate } from "../git/candidate.mjs";
@@ -70,6 +71,7 @@ export async function runMergeSeedStage(_stage, ctx) {
     },
     ctx.config,
   );
+  warnCatalogUnsandboxedChecks(ctx);
   ctx.taskDigest = taskDigest(ctx.task);
   ctx.state.seed = { changed_files: snapshot.changed_files.length, checks };
   ctx.state.implementation = {

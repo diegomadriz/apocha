@@ -49,6 +49,7 @@ The closed catalog. Each check:
 | `cwd` | `.` | Working directory inside the materialized tree |
 | `timeout_ms` | 300000 | A timeout is an infrastructure error, not a failure |
 | `dependencies` | `none` | `none`: nothing added. `npm`: copy `node_modules` from the source checkout after checking that `package.json` and `package-lock.json` equal the base commit and that installed direct dependencies match the lock. |
+| `unsandboxed` | `false` | Skip the OS sandbox for this check, even under `sandbox.mode: "required"`. No sandbox markers are set; the result and receipt record `none`. A governance-controlled catalog choice, warned on every run and listed by doctor. |
 | `network` | `false` | Allow network for this check |
 | `loopback` | `false` | Seatbelt: allow loopback bind, listen and connect, including host loopback services. Bubblewrap: accepted as a no-op inside its private network namespace. |
 | `env` | `{}` | Literal environment additions. No host variables are forwarded except `PATH`, locale, and terminal settings. |

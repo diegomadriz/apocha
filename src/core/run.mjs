@@ -2,6 +2,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { adapterForRole } from "../adapters/index.mjs";
+import { warnCatalogUnsandboxedChecks } from "../checks/sandbox.mjs";
 import { loadProjectConfigAt } from "../config/project.mjs";
 import { loadRuntimeConfig, roleProvider } from "../config/runtime.mjs";
 import { taskDigest, validateTask } from "../config/task.mjs";
@@ -138,7 +139,14 @@ export async function startRun(options) {
       reason: options.governanceReason.trim().slice(0, 1000),
     };
   }
-  const sandboxBackend = resolveBackend(config.sandbox.mode);
+  // Integration selects its checks after merging; runCheck enforces required mode then.
+  const needsSandbox =
+    !integration &&
+    (task.checks.some((id) => !config.checks[id].unsandboxed) ||
+      (task.fixers ?? config.default_fixers).length > 0);
+  const sandboxBackend = resolveBackend(
+    config.sandbox.mode === "required" && !needsSandbox ? "auto" : config.sandbox.mode,
+  );
   const adapters = options.adapters ?? {
     implementer: adapterForRole(runtimes, "implementer"),
     reviewer: adapterForRole(runtimes, "reviewer"),
@@ -366,6 +374,7 @@ function assertReviewIndependence(config, runtimes) {
 
 /** @param {import("./context.mjs").RunContext} ctx */
 function warnUnsandboxedChecks(ctx) {
+  warnCatalogUnsandboxedChecks(ctx);
   if (ctx.config.sandbox.mode === "auto" && ctx.sandboxBackend === "none") {
     ctx.event("sandbox.warning", {
       reason: "sandbox_unavailable",

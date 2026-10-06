@@ -32,6 +32,20 @@ index (no `.git`, no untracked or ignored files, no forbidden paths), under an O
 | bubblewrap | Linux | Read-only view of the host root, writable workspace, tmpfs over denied directories, read-only `/dev/null` over denied files, `--unshare-net` unless the check allows network, `--unshare-pid`, `--die-with-parent` |
 | none | anywhere | Scratch `HOME` and `TMPDIR` and the env allowlist still apply. Recorded as `none` in the receipt. Set `sandbox.mode: "required"` to refuse running without a backend. |
 
+A catalog check can set `unsandboxed: true` to skip the OS sandbox even when
+`sandbox.mode` is `required`. Agent-written code executed by that check runs without
+an OS sandbox: host read, write, network, and socket restrictions are not enforced.
+The fresh workspace, scratch `HOME` and `TMPDIR`, environment allowlist, and source-secret
+discovery still apply, but discovery alone cannot block host reads. Neither
+`APOCHA_SANDBOX` nor `PANAGENT_SANDBOX` is set. Results and receipts record `sandbox: "none"`;
+every run warns by check name, and doctor lists opted-out checks.
+
+This is a governance-controlled choice in the base commit's closed catalog, not an
+option an agent or task can supply. Apocha's `sandbox-selftest` uses it because macOS
+cannot nest Seatbelt profiles: without the opt-out, the real-sandbox tests see the
+outer sandbox markers and skip. Selection rules run it for sandbox and check-runner
+code or the real-sandbox test files, rather than as a default check.
+
 The default deny list covers `~/.ssh`, `~/.aws`, `~/.azure`, `~/.config/gcloud`, `~/.config/gh`,
 `~/.codex`, `~/.claude`, `~/.pi`, `~/.gnupg`, `~/.netrc`, `~/.npmrc`, `~/.pypirc`, `~/.docker`,
 `~/.kube`, `~/.git-credentials`, and `~/Library/Keychains`. Add more with `sandbox.deny_read`.

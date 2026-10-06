@@ -134,6 +134,7 @@
         "cwd": { "type": "string", "minLength": 1, "maxLength": 400 },
         "timeout_ms": { "type": "integer", "minimum": 1000, "maximum": 3600000 },
         "dependencies": { "enum": ["none", "npm"] },
+        "unsandboxed": { "description": "Skip the OS sandbox for this check, even in required mode. Governance-controlled opt-out.", "type": "boolean", "default": false },
         "network": { "type": "boolean" },
         "loopback": { "description": "Allow loopback bind and connect on Seatbelt; no-op on bubblewrap.", "type": "boolean", "default": false },
         "env": {

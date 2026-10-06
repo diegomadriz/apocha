@@ -583,6 +583,14 @@ async function doctor(cwd, options) {
     detected ?? "none available (checks run without an OS sandbox)",
   );
   if (config) {
+    record(
+      "unsandboxed checks",
+      true,
+      Object.values(config.checks)
+        .filter((check) => check.unsandboxed)
+        .map((check) => check.id)
+        .join(", ") || "none",
+    );
     try {
       record(
         "sandbox for this project",
