@@ -4,7 +4,7 @@
 
 - Test edits are additive by default, enforced by the test-edits check.
 - tests_on_base records evidence that new tests fail on the base.
-- Candidate digests are independent of project configuration.
+- Candidate digests no longer depend on the user's Git configuration.
 - Runtime config history is recorded across resumes; repairs can use an unknown bucket.
 - --message-file supports commit messages from files, with clearer errors.
 - land runs without Git hooks and retires stacked batches.

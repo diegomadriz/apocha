@@ -1,6 +1,6 @@
 {
   "name": "apocha",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A deterministic controller for coding agents: scoped tools, closed check catalogs, independent review, and Git receipts.",
   "license": "MIT",
   "type": "module",
