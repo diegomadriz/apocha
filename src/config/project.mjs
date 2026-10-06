@@ -62,6 +62,8 @@ export const DEFAULT_LIMITS = Object.freeze({
  *   checks: Record<string, CheckDefinition>,
  *   check_selection: { paths: string[], checks: string[] }[],
  *   default_checks: string[],
+ *   fixers: Record<string, CheckDefinition>,
+ *   default_fixers: string[],
  *   tests: { paths: string[], run_files?: CheckDefinition },
  *   review: { require_independent: boolean },
  *   receipts: { allowed_signers: string, require_signed: boolean },
@@ -110,6 +112,25 @@ export function normalizeProjectConfig(raw, root) {
       "tests.run_files.run must contain exactly one {files} element",
     );
   }
+  /** @type {Record<string, CheckDefinition>} */
+  const fixers = {};
+  for (const [id, fixer] of Object.entries(input.fixers ?? {})) {
+    if (
+      fixer.run.some((part) => part.includes("{files}") && part !== "{files}") ||
+      fixer.run.filter((part) => part === "{files}").length > 1
+    )
+      throw new HarnessError(
+        "config",
+        "invalid_fixer_command",
+        "fixers use at most one whole {files} element",
+      );
+    fixers[id] = normalizeCheck(id, fixer);
+  }
+  const defaultFixers = [...(input.default_fixers ?? [])];
+  for (const id of defaultFixers) {
+    if (!Object.hasOwn(fixers, id))
+      throw new HarnessError("config", "unknown_fixer", `default_fixers names unknown fixer: ${id}`);
+  }
   const known = (id, where) => {
     if (!Object.hasOwn(checks, id))
       throw new HarnessError("config", "unknown_check", `${where} names unknown check: ${id}`);
@@ -156,6 +177,8 @@ export function normalizeProjectConfig(raw, root) {
     version: /** @type {1} */ (1),
     root,
     checks,
+    fixers,
+    default_fixers: defaultFixers,
     check_selection: selection,
     default_checks: defaults,
     tests: {

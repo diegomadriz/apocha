@@ -2,6 +2,7 @@
 
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { runFixers } from "../checks/fixers.mjs";
 import { checkDefinitionDigest, runCheck } from "../checks/runner.mjs";
 import { effectiveProtectedPaths } from "../config/task.mjs";
 import { snapshotCandidate } from "../git/candidate.mjs";
@@ -66,7 +67,7 @@ function appendHistory(history, attempt, results) {
 }
 
 /**
- * `checks` stage: structural checks, then the task's catalog checks, then a
+ * `checks` stage: automatic fixers, structural and catalog checks, then a
  * re-snapshot proving the candidate did not change while checks ran.
  * @param {import("../core/workflow.mjs").StageDefinition} _stage
  * @param {import("../core/context.mjs").RunContext} ctx
@@ -75,8 +76,13 @@ export async function runChecksStage(_stage, ctx) {
   const started = Date.now();
   if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
   let snapshot;
+  /** @type {import("../checks/fixers.mjs").FixerResult[]} */
+  let fixers = [];
   try {
     snapshot = snapshotCandidate(ctx.candidate);
+    fixers = await runFixers(ctx, snapshot.changed_files);
+    if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
+    if (fixers.some((fixer) => fixer.changed.length)) snapshot = snapshotCandidate(ctx.candidate);
   } catch (error) {
     if (error instanceof HarnessError && error.errorClass === "integrity") {
       ctx.state.last_verification = {
@@ -84,6 +90,7 @@ export async function runChecksStage(_stage, ctx) {
         duration_ms: Date.now() - started,
         candidate_digest: "",
         changed_files: [],
+        fixers,
         checks: [{ id: "candidate-integrity", status: "fail", error: error.message }],
       };
       ctx.event("verification.finished", {
@@ -111,6 +118,7 @@ export async function runChecksStage(_stage, ctx) {
       candidate_digest: snapshot.candidate_digest,
       changed_files: snapshot.changed_files,
       checks: structural,
+      fixers,
     };
     ctx.event("verification.finished", {
       status: "violation",
@@ -257,6 +265,7 @@ export async function runChecksStage(_stage, ctx) {
     candidate_digest: snapshot.candidate_digest,
     changed_files: snapshot.changed_files,
     structural,
+    fixers,
     results,
     tests_on_base: testsOnBase,
   });
@@ -264,6 +273,7 @@ export async function runChecksStage(_stage, ctx) {
     status,
     duration_ms,
     tests_on_base: testsOnBase,
+    fixers,
     candidate_digest: snapshot.candidate_digest,
     changed_files: snapshot.changed_files,
     checks: [

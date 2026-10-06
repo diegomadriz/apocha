@@ -42,6 +42,11 @@
       "type": "array", "maxItems": 30, "uniqueItems": true,
       "items": { "$ref": "#/$defs/check_id" }
     },
+    "fixers": {
+      "description": "Fixer IDs from the base catalog. Omit for default_fixers; [] disables fixers.",
+      "type": "array", "maxItems": 30, "uniqueItems": true,
+      "items": { "$ref": "#/$defs/check_id" }
+    },
     "fail_fast": { "type": "boolean", "default": false },
     "new_tests_must_fail_on_base": { "type": "boolean", "default": false },
     "test_edits": { "enum": ["additive", "new-files", "allowed"], "default": "additive" },

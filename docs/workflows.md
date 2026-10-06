@@ -24,7 +24,7 @@ export default {
 | Kind | Outcomes | What it does |
 |---|---|---|
 | `agent` | `done`, `no_changes` | Runs the implementer with the task bundle and any findings; snapshots the candidate |
-| `checks` | `pass`, `fail`, `violation`, `infra_error` | Structural checks (scope, protected paths, test edits), then the task's catalog checks, then a re-snapshot. A failure becomes findings for the next attempt. |
+| `checks` | `pass`, `fail`, `violation`, `infra_error` | Automatic fixers, then structural checks (scope, protected paths, test edits), then the task's catalog checks, then a re-snapshot. A failure becomes findings for the next attempt. |
 | `review` | `PASS`, `FIX`, `ESCALATE`, `too_large` | Runs the reviewer on the verified candidate with the full diff; validates the decision and its digest binding |
 | `budget` | `available`, `exhausted` | Spends one unit of a counter (`repairs` is bounded by the task) |
 | `human` | `approve`, `reject` | Pauses the run until `apocha resume <run> --decision approve\|reject` |
@@ -42,6 +42,26 @@ failure are recorded as `skipped`; running checks finish. Aborts stop running
 checks and prevent new checks from starting. Per-check `duration_ms` and the
 checks stage's total wall time are recorded in verification evidence.
 Base test runs remain sequential and start only after all catalog checks pass.
+
+## Automatic fixers
+
+At the start of every verification attempt, selected fixers run sequentially once,
+before structural and catalog checks. Each uses the check sandbox, npm dependency
+handling, environment allowlist, and a fresh tree from the candidate. With no eligible
+files the fixer is skipped. Eligible files are added or modified existing regular files
+inside `allowed_paths`, excluding read-only, protected, design reference, forbidden,
+and governance paths (even when governance edits are authorized).
+
+Only successful exit-zero executions copy changed contents back, and only for files
+in the eligible `{files}` list. Other writes, creations, deletions, and unsafe replacements
+are ignored and recorded as `ignored_changes`. Non-zero exits and timeouts copy nothing;
+catalog checks still decide whether verification passes. Fixers cannot create or delete
+candidate files or copy changes outside the eligible list.
+
+Every fixer emits `fixer.finished` with status, changed paths, and ignored changes.
+Verification records include `fixers`; receipts include each ID, definition digest,
+status, and changed paths. Verification snapshots follow fixers, so the candidate digest
+and the reviewer's diff cover the fixed content.
 
 ## Test edit check
 

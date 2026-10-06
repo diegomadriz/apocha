@@ -45,6 +45,18 @@
         }
       }
     },
+    "fixers": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "definition_digest", "status", "changed"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "definition_digest": { "$ref": "#/$defs/sha256" },
+          "status": { "enum": ["pass", "fail", "infra_error", "skipped"] },
+          "changed": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
     "tests": {
       "type": "object", "additionalProperties": false, "required": ["policy", "added", "modified"],
       "properties": {

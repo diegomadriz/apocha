@@ -68,6 +68,21 @@ remain available for tool IPC. Set `loopback: true` for checks that run local se
 workers; this does not enable DNS or external network. `network: true` or `sandbox.network: "allow"`
 enables network regardless of `loopback`, while listed daemon sockets remain denied.
 
+### `fixers` and `default_fixers`
+
+Optional closed fixer catalog, read from the base commit and included in the config digest.
+Each definition accepts `description`, `run` (argv, no shell), `cwd`, `timeout_ms`,
+`dependencies: "npm"` or omitted, and literal `env`, with the same defaults and
+validation as checks. An optional whole `{files}` argv element expands to eligible
+changed paths relative to `cwd`; embedded or repeated placeholders are rejected.
+
+For example:
+`{"fixers":{"format":{"run":["npx","--no-install","biome","format","--write","{files}"],"dependencies":"npm"}},"default_fixers":["format"]}`.
+
+`default_fixers` is an ordered list of catalog IDs (default empty). A task may
+set `fixers` to a subset, including `[]` to disable all fixers. Unknown IDs and
+task-supplied commands are rejected. The implementer bundle names the automatic fixers.
+
 ### `check_selection` and `default_checks`
 
 When a task names no checks, and for every integration, checks are selected from the changed
@@ -219,6 +234,7 @@ Schema: `schemas/task.schema.json`.
 | `initial_context` | | Files placed in the implementer's first prompt (must be readable) |
 | `design_reference` | | Up to 5 approved reference files under the design prefix, read from the base commit by both roles |
 | `checks` | | Check IDs from the catalog. Omit to select by rule. A run with no checks is refused. |
+| `fixers` | | Fixer IDs from the base catalog. Omit for `default_fixers`; `[]` disables automatic fixers. |
 | `fail_fast` | | Boolean, default false. After a failing check, skip checks not yet started; running checks finish. |
 | `max_repair_attempts` | | 0 to 2, at most the project limit |
 | `new_tests_must_fail_on_base` | | Boolean, default false. With `tests.run_files` enabled, any `passes_on_base` result fails `tests-fail-before` and goes to repair. Errors do not count as evidence. |

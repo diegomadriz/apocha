@@ -116,6 +116,8 @@ function materialize(candidateRoot, execRoot, forbidden) {
  *   baseOverlay?: string[],
  *   files?: string[],
  *   maxOutputBytes?: number,
+ *   onPrepared?: (root: string) => void,
+ *   onFinished?: (root: string, status: CheckResult["status"]) => void,
  * }} input
  * @returns {Promise<CheckResult>}
  */
@@ -130,6 +132,8 @@ export async function runCheck({
   signal,
   files,
   maxOutputBytes = config.limits.check_output_bytes,
+  onPrepared,
+  onFinished,
 }) {
   const definitionDigest = checkDefinitionDigest(check);
   const started = Date.now();
@@ -242,6 +246,7 @@ export async function runCheck({
         argv,
       );
       prepared = { ...wrapped, cwd, env };
+      onPrepared?.(execRoot);
     } catch (error) {
       const cleanupError = cleanup();
       const detail = describeError(error);
@@ -270,6 +275,11 @@ export async function runCheck({
         settled = true;
         clearTimeout(timer);
         signal?.removeEventListener("abort", abort);
+        try {
+          if (workspace) onFinished?.(path.join(workspace, "tree"), outcome.status);
+        } catch (error) {
+          outcome = { status: "infra_error", exit_code: outcome.exit_code, error: error.message };
+        }
         const cleanupError = cleanup();
         if (cleanupError)
           outcome = { status: "infra_error", exit_code: outcome.exit_code, error: cleanupError };

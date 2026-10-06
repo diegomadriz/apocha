@@ -66,6 +66,11 @@ export function implementerBundle(ctx) {
     read_only_paths: ctx.task.read_only_paths,
     protected_paths: effectiveProtectedPaths(ctx.task, ctx.config, ctx.governance.edits_allowed),
     checks,
+    fixers: ctx.task.fixers.map((id) => ({
+      id,
+      description: ctx.config.fixers[id].description ?? null,
+      automatic: "runs before checks; you do not need to hand-format",
+    })),
     attempt: ctx.state.attempt,
     findings: ctx.state.findings,
     verification_history: ctx.state.verification_history,

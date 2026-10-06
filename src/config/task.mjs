@@ -16,6 +16,7 @@ import { selectChecks } from "./project.mjs";
  *   initial_context: string[],
  *   design_reference: string[],
  *   checks: string[],
+ *   fixers: string[],
  *   test_edits: "additive" | "new-files" | "allowed",
  *   new_tests_must_fail_on_base: boolean,
  *   checks_selected_by_rule: boolean,
@@ -83,6 +84,12 @@ export function validateTask(raw, config) {
   const selectedByRule = checks === null;
   if (checks === null) checks = selectChecks(config, allowed);
 
+  const fixers = [...(input.fixers ?? config.default_fixers)];
+  for (const id of fixers) {
+    if (!Object.hasOwn(config.fixers, id))
+      throw new HarnessError("config", "unknown_fixer", `unknown fixer ID: ${id}`);
+  }
+
   const repairs = input.max_repair_attempts ?? config.limits.default_repair_attempts;
   if (repairs > config.limits.max_repair_attempts) {
     throw new HarnessError(
@@ -101,6 +108,7 @@ export function validateTask(raw, config) {
     initial_context: initial,
     design_reference: design,
     checks,
+    fixers,
     test_edits: input.test_edits ?? "additive",
     new_tests_must_fail_on_base: input.new_tests_must_fail_on_base ?? false,
     checks_selected_by_rule: selectedByRule,
