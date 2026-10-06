@@ -1,6 +1,6 @@
 // @ts-check
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
@@ -102,6 +102,79 @@ test("a passing run promotes the candidate and writes a verifiable receipt", asy
     });
     assert.equal(landed.commits.length, 1);
     assert.equal(resolveCommit(repo.root, "main"), head);
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test("a deleted file passes review and promotion with a successful read trace", async () => {
+  const oldContent = "obsolete fixture content\n";
+  const repo = makeRepo({ files: { "src/old.txt": oldContent } });
+  try {
+    const implementer = async ({ call }) => {
+      const current = await call("read_files", { paths: ["src/value.txt"] });
+      await call("apply_patch", {
+        edits: [
+          { path: "src/value.txt", old_text: current.files[0].content, new_text: "2\n" },
+          { path: "src/old.txt", delete: true },
+        ],
+      });
+      await call("submit_result", { summary: "set value to 2 and delete the obsolete file" });
+    };
+    const reviewer = async ({ bundle, call }) => {
+      const findings = [];
+      try {
+        assert.ok(bundle.candidate.deleted_files.includes("src/old.txt"));
+        const read = await call("read_files", { paths: ["src/old.txt"] });
+        assert.equal(read.files[0].path, "src/old.txt");
+        assert.equal(read.files[0].deleted_in_candidate, true);
+        const stat = await call("stat_paths", { paths: ["src/old.txt"] });
+        assert.equal(stat.paths[0].path, "src/old.txt");
+        assert.equal(stat.paths[0].deleted_in_candidate, true);
+        assert.equal(stat.paths[0].exists, false);
+        assert.equal(stat.paths[0].type, "missing");
+        const original = await call("read_base_file", { path: "src/old.txt" });
+        assert.equal(original.exists_at_base, true);
+        assert.equal(original.content, oldContent);
+        const search = await call("search_code", { query: "obsolete", paths: ["src/"] });
+        assert.ok(!search.results.some((hit) => hit.path === "src/old.txt"));
+      } catch (error) {
+        findings.push({
+          id: "deleted-file-review",
+          path: "src/old.txt",
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
+      await call("submit_result", {
+        decision: findings.length ? "FIX" : "PASS",
+        findings,
+        candidate_digest: bundle.candidate.candidate_digest,
+      });
+    };
+    const summary = await startRun({
+      ...base(repo.root),
+      task: valueTask({ max_repair_attempts: 0 }),
+      adapters: adapters(implementer, reviewer),
+    });
+    assert.equal(summary.outcome, "PASSED", summary.reason ?? "");
+    assert.equal(summary.repairs, 0);
+    const head = resolveCommit(repo.root, "refs/heads/apocha/batch/set-value");
+    assert.equal(head, summary.promoted_head);
+    assert.throws(() => git(repo.root, ["cat-file", "-e", `${head}:src/old.txt`]));
+    assert.equal(gitText(repo.root, ["show", `${head}:src/value.txt`]), "2");
+    const receipt = verifyReceipt(repo.root, "refs/notes/apocha", /** @type {string} */ (head));
+    assert.equal(receipt.valid, true, receipt.reason ?? "");
+    const sessions = path.join(new RunStore(repo.root).dir(summary.run_id), "sessions");
+    const deletedReads = readdirSync(sessions).flatMap((session) =>
+      readFileSync(path.join(sessions, session, "tools.jsonl"), "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line))
+        .filter((entry) => entry.tool === "read_files" && entry.paths.includes("src/old.txt")),
+    );
+    assert.equal(deletedReads.length, 1, "reviewer records one read of the deleted file");
+    assert.equal(deletedReads[0].ok, true);
+    assert.equal(deletedReads[0].error_code, undefined);
   } finally {
     repo.cleanup();
   }
