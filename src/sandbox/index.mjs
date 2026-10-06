@@ -36,7 +36,7 @@ export const SANDBOX_MARKER = "APOCHA_SANDBOX";
  * @returns {SandboxBackend | null}
  */
 export function detectBackend() {
-  if (process.env[SANDBOX_MARKER]) return null;
+  if (process.env[SANDBOX_MARKER] || process.env.PANAGENT_SANDBOX) return null;
   if (process.platform === "darwin" && existsSync(SANDBOX_EXEC)) return "seatbelt";
   if (process.platform === "linux") {
     const found = spawnSync("sh", ["-c", "command -v bwrap"], { encoding: "utf8" });

@@ -50,6 +50,7 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
   const roleConfig = ctx.runtimes.roles[role];
   const maxAttempts = 1 + ctx.runtimes.retry.infra;
   for (let attempt = 1; ; attempt += 1) {
+    if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
     ctx.state.invocations += 1;
     const index = ctx.state.invocations;
     const sessionDir = ctx.store.sessionDir(ctx.runId, index);
@@ -128,6 +129,8 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
     };
     ctx.event("agent.finished", summary);
 
+    if (ctx.signal?.aborted || (failure instanceof HarnessError && failure.code === "aborted"))
+      throw new HarnessError("infra", "aborted", "run aborted");
     if (failure) {
       const errorClass = failure instanceof HarnessError ? failure.errorClass : "infra";
       // A runtime that crashed after the agent already submitted a valid result still counts.

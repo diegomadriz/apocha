@@ -72,6 +72,7 @@ function appendHistory(history, attempt, results) {
  * @param {import("../core/context.mjs").RunContext} ctx
  */
 export async function runChecksStage(_stage, ctx) {
+  if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
   let snapshot;
   try {
     snapshot = snapshotCandidate(ctx.candidate);
@@ -118,6 +119,7 @@ export async function runChecksStage(_stage, ctx) {
   const results = [];
   const secretFileCache = (ctx.secretFileCache ??= { files: new Map() });
   for (const id of ctx.task.checks) {
+    if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
     const result = await runCheck({
       check: ctx.config.checks[id],
       candidate: ctx.candidate,
@@ -125,6 +127,7 @@ export async function runChecksStage(_stage, ctx) {
       backend: ctx.sandboxBackend,
       secretFileCache,
     });
+    if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
     results.push(result);
     ctx.event("check.finished", {
       id,
@@ -144,6 +147,7 @@ export async function runChecksStage(_stage, ctx) {
       .sort();
     const support = tests.added.filter((file) => existsSync(path.join(ctx.candidate.root, file)));
     for (const [index, file] of files.entries()) {
+      if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
       if (index >= 10) {
         testsOnBase.push({ path: file, result: "not_run" });
         continue;
@@ -157,6 +161,7 @@ export async function runChecksStage(_stage, ctx) {
         baseOverlay: [...new Set([file, ...support])],
         files: [path.posix.relative(runFiles.cwd, file)],
       });
+      if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
       const classification =
         result.error || result.exit_code === null || result.status === "infra_error"
           ? "error"

@@ -207,6 +207,8 @@ export async function runCheck({
         ...(nodePath ? { NODE_PATH: nodePath } : {}),
         ...check.env,
       });
+      // Older repository commits use the pre-rename marker to avoid nested sandboxes.
+      if (env[SANDBOX_MARKER]) env.PANAGENT_SANDBOX = env[SANDBOX_MARKER];
       const argv = check.run.flatMap((part) =>
         part === "{files}" && files ? files : [part.replaceAll("{source}", sourceRoot)],
       );

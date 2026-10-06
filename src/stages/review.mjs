@@ -18,6 +18,7 @@ import { invokeAgent } from "./invoke.mjs";
  * @param {import("../core/context.mjs").RunContext} ctx
  */
 export async function runReviewStage(_stage, ctx) {
+  if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
   const verified = ctx.state.last_verification;
   if (verified?.status !== "pass")
     throw new HarnessError("integrity", "unverified", "review requires a passing verification");

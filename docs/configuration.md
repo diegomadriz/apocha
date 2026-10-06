@@ -111,7 +111,6 @@ from another harness can keep its existing refs, so its old receipts stay checka
 | `mode` | `auto` (default), `required`, `none` | `auto` uses Seatbelt or bubblewrap when present. `required` makes a missing backend an infrastructure error. |
 | `network` | `deny` (default), `allow` | Project-wide network default for checks |
 | `deny_read` | paths, `~/` allowed | Added to the built-in list of credential locations (`~/.ssh`, `~/.aws`, `~/.codex`, `~/.claude`, `~/.npmrc`, `~/.netrc`, `~/Library/Keychains`, and more) |
-
 | `deny_sockets` | paths, `~/` allowed | Added to the built-in local daemon socket deny list, regardless of the network setting |
 
 Socket defaults are `/var/run/docker.sock`, `/run/docker.sock`,

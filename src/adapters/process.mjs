@@ -17,6 +17,10 @@ import { HarnessError } from "../util/errors.mjs";
  */
 export function runJsonlProcess(options) {
   return new Promise((resolve, reject) => {
+    if (options.signal?.aborted) {
+      reject(new HarnessError("infra", "aborted", "run aborted"));
+      return;
+    }
     let child;
     try {
       child = spawn(options.command, options.args, {
