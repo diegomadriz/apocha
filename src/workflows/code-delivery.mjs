@@ -14,7 +14,11 @@ export default {
     "Implement a task, verify it with named checks, review it independently, and promote it with a receipt.",
   start: "implement",
   stages: {
-    implement: { kind: "agent", role: "implementer", on: { done: "verify", no_changes: "ESCALATED" } },
+    implement: {
+      kind: "agent",
+      role: "implementer",
+      on: { done: "verify", no_changes: "ESCALATED", blocked: "ESCALATED" },
+    },
     verify: {
       kind: "checks",
       on: { pass: "review", fail: "repair", violation: "FAILED", infra_error: "ESCALATED" },

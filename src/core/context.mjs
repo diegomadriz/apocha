@@ -20,7 +20,7 @@
  *     checks: { id: string, status: string, exit_code?: number | null, error?: string | null, definition_digest?: string, sandbox?: string, output_digest?: string, duration_ms?: number, files?: string[] }[],
  *   },
  *   last_review: null | { decision: string, findings: any[], reason?: string, candidate_digest: string },
- *   implementation: null | { summary: string, unresolved_uncertainties: string[] },
+ *   implementation: null | { summary: string, unresolved_uncertainties: string[], status?: "blocked", blocked_reason?: string },
  *   runtimes: { implementer?: any, reviewer?: any },
  *   usage: Record<string, Record<string, number>>,
  *   decisions: Record<string, "approve" | "reject">,

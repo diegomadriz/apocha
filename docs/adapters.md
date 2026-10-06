@@ -25,6 +25,12 @@ reads them from there. Every runtime calls the same `submit_result` tool, so the
 format and no runtime-specific output parsing. Adapters parse their runtime's stream only for exit
 status, usage, model identity, error classification, and policy checks.
 
+Implementer `submit_result` requires `summary` and accepts `unresolved_uncertainties`.
+Optional `status` is `done` (the default when omitted) or `blocked`. A blocked result requires
+`blocked_reason`, a string of 1–2000 characters naming the conflicting test, check, or path
+and explaining the conflict. `blocked_reason` must be absent for `done` or omitted status.
+Schema validation enforces this pairing before recording the result.
+
 ## How tools reach each runtime
 
 | Runtime | Binding | Notes |
