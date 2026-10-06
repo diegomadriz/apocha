@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-10-06)
 
 - Test edits are additive by default, enforced by the test-edits check.
 - tests_on_base records evidence that new tests fail on the base.
@@ -18,8 +18,10 @@
 - verify-range and a verify-only GitHub Action check receipts.
 - Dependencies are validated once per run and copied with copy-on-write where available.
   Checks run in parallel with fail_fast support.
+- Fixers such as a formatter run on the changed files before checks, configured with `fixers` and `default_fixers`. Their changes become part of the candidate and are recorded.
+- A check can skip the OS sandbox with `unsandboxed: true`, set only in the project config. Apocha uses this for a sandbox self-test, and makes the paths that trigger it governance paths.
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-10-05)
 
 First release as a standalone package.
 
