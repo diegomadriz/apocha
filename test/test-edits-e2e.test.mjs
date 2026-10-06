@@ -8,6 +8,7 @@ import { isTestPath, normalizeProjectConfig } from "../src/config/project.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { RunStore } from "../src/core/runs.mjs";
 import { verifyReceipt } from "../src/git/receipts.mjs";
+import { classifyTestFileChange } from "../src/git/test-edits.mjs";
 import { git } from "../src/util/git.mjs";
 import { fakeRuntimes, makeRepo, passReviewer, valueTask } from "./helpers.mjs";
 
@@ -150,7 +151,13 @@ test("additive rejects assertion rewrites through apply_patch and giving up cann
         call("apply_patch", {
           edits: [{ path: "test/existing.test.mjs", old_text: original, new_text: rewritten }],
         }),
-        /test_edits policy 'additive'.*test_edits to 'allowed'/,
+        (error) => {
+          assert.match(error.message, /assert.equal\(2, 2\)/);
+          assert.match(error.message, /status "blocked"/);
+          assert.match(error.message, /Only added lines and added import names/);
+          assert.equal(error.message.includes("test_edits"), false);
+          return true;
+        },
       );
       refused = true;
       await call("submit_result", { summary: "Could not rewrite assertion" });
@@ -229,7 +236,7 @@ test("new-files rejects even pure additions to existing tests", async () => {
           call("apply_patch", {
             edits: [{ path: "test/existing.test.mjs", old_text: original, new_text: original + addition }],
           }),
-          /test_edits policy 'new-files'/,
+          /test edit policy 'new-files'/,
         );
         refused = true;
         await call("submit_result", { summary: "Could not add to existing test" });
@@ -278,4 +285,144 @@ test("isTestPath uses defaults, directory prefixes, basename wildcards, and exac
     normalizeProjectConfig({ version: 1, checks: {}, tests: {} }, "/fixture").digest,
     defaults.digest,
   );
+});
+
+const importBase = 'import { a, b as c } from "./m.mjs";\n';
+const cases = [
+  {
+    name: "middle insertion",
+    base: original + addition,
+    next: original + 'test("middle", () => {});\n' + addition,
+    additive: true,
+  },
+  {
+    name: "named import extension",
+    base: 'import { a } from "./m.mjs";\n',
+    next: 'import { a, b } from "./m.mjs";\n',
+    additive: true,
+  },
+  {
+    name: "aliased import extension",
+    base: importBase,
+    next: 'import { a, b as c, d } from "./m.mjs";\n',
+    additive: true,
+  },
+  {
+    name: "default import extension",
+    base: 'import def, { a } from "./m.mjs";\n',
+    next: 'import def, { a, b } from "./m.mjs";\n',
+    additive: true,
+  },
+  { name: "assertion change", base: original, next: rewritten, additive: false },
+  { name: "dropped import name", base: importBase, next: 'import { a } from "./m.mjs";\n', additive: false },
+  {
+    name: "changed module",
+    base: importBase,
+    next: 'import { a, b as c, d } from "./other.mjs";\n',
+    additive: false,
+  },
+  {
+    name: "changed alias",
+    base: importBase,
+    next: 'import { a, b as other } from "./m.mjs";\n',
+    additive: false,
+  },
+  {
+    name: "changed default",
+    base: 'import def, { a } from "./m.mjs";\n',
+    next: 'import other, { a, b } from "./m.mjs";\n',
+    additive: false,
+  },
+  {
+    name: "substring assertion change",
+    base: original,
+    next: original.replace("2, 2", "2, 20"),
+    additive: false,
+  },
+];
+
+// Every scenario exercises the real controller as well as its tool binding.
+// Refused changes are written directly to ensure the structural check sees them.
+for (const scenario of cases) {
+  test(`tool and structural check agree: ${scenario.name}`, async () => {
+    const repo = makeRepo({ files: { "test/existing.test.mjs": scenario.base } });
+    try {
+      const summary = await run(repo.root, async ({ call, root }) => {
+        const patch = {
+          edits: [{ path: "test/existing.test.mjs", old_text: scenario.base, new_text: scenario.next }],
+        };
+        if (scenario.additive) await call("apply_patch", patch);
+        else {
+          await assert.rejects(call("apply_patch", patch), /status "blocked"/);
+          writeFileSync(path.join(root, "test/existing.test.mjs"), scenario.next);
+        }
+        await call("submit_result", { summary: scenario.name });
+      });
+      assert.equal(summary.outcome, scenario.additive ? "PASSED" : "FAILED", summary.reason ?? "");
+      assert.equal(
+        summary.checks.find((check) => check.id === "test-edits")?.status,
+        scenario.additive ? "pass" : "fail",
+      );
+    } finally {
+      repo.cleanup();
+    }
+  });
+}
+
+test("separate patches are judged cumulatively against base lines", async () => {
+  const repo = makeRepo({ files: { "test/existing.test.mjs": original } });
+  try {
+    const summary = await run(repo.root, async ({ call, root }) => {
+      await call("apply_patch", {
+        edits: [{ path: "test/existing.test.mjs", old_text: original, new_text: original + addition }],
+      });
+      await assert.rejects(
+        call("apply_patch", {
+          edits: [
+            {
+              path: "test/existing.test.mjs",
+              old_text: "assert.equal(2, 2)",
+              new_text: "assert.equal(2, 2) && false",
+            },
+          ],
+        }),
+        /status "blocked"/,
+      );
+      assert.equal(readFileSync(path.join(root, "test/existing.test.mjs"), "utf8"), original + addition);
+      // Intermediate changes within one call are judged only after all edits compose.
+      await call("apply_patch", {
+        edits: [
+          { path: "test/existing.test.mjs", old_text: original, new_text: rewritten },
+          { path: "test/existing.test.mjs", old_text: rewritten, new_text: original + addition },
+        ],
+      });
+      await call("submit_result", { summary: "Kept additive final content" });
+    });
+    assert.equal(summary.outcome, "PASSED", summary.reason ?? "");
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test("classifier preserves ordered lines and reports bounded removals and import extensions", () => {
+  for (const scenario of cases) {
+    const result = classifyTestFileChange(scenario.base, scenario.next);
+    assert.equal(result.additive, scenario.additive, scenario.name);
+    if (scenario.name.includes("import extension")) assert.equal(result.import_extensions, 1);
+  }
+  assert.deepEqual(classifyTestFileChange("X\nY\n", "X\nNEW\nY\n"), {
+    additive: true,
+    removed_lines: [],
+    import_extensions: 0,
+  });
+  assert.deepEqual(classifyTestFileChange("X\nY\n", "Y\nX\n").removed_lines, ["X"]);
+  assert.equal(classifyTestFileChange("", null).additive, false);
+  const large = Array.from({ length: 3000 }, (_, i) => `line ${i}`).join("\n");
+  assert.equal(
+    classifyTestFileChange(large, large.replace("line 1500\n", "line 1500\nNEW\n")).additive,
+    true,
+  );
+  const removed = classifyTestFileChange(large, "");
+  assert.equal(removed.additive, false);
+  assert.equal(removed.removed_lines.length, 20);
 });

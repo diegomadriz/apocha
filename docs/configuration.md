@@ -239,12 +239,17 @@ Schema: `schemas/task.schema.json`.
 | `fail_fast` | | Boolean, default false. After a failing check, skip checks not yet started; running checks finish. |
 | `max_repair_attempts` | | 0 to 2, at most the project limit |
 | `new_tests_must_fail_on_base` | | Boolean, default false. With `tests.run_files` enabled, any `passes_on_base` result fails `tests-fail-before` and goes to repair. Errors do not count as evidence. |
-| `test_edits` | | `additive` (default): existing test files may gain lines but no existing line may change or be removed. `new-files`: existing tests may not be modified or deleted. `allowed`: any test change, including deletion. |
+| `test_edits` | | `additive` (default): existing test files may gain lines anywhere and named specifiers on single-line ES imports; all base lines must remain in order except for these import extensions. `new-files`: existing tests may not be modified or deleted. `allowed`: any test change, including deletion. |
 
 The test policy applies to files matching `tests.paths` that exist at the base commit.
 New test files are always permitted within `allowed_paths`. Tools reject disallowed
-edits with `test_edit_policy`; under `additive`, each replacement must contain
-`old_text` unchanged as a contiguous substring. The final diff is checked independently.
+edits with `test_edit_policy`. Under `additive`, the tool judges the resulting file
+after all edits against the base commit, cumulatively across calls. The structural
+check uses the same line-level classifier. A single-line `import { a, b as c } from "module";`
+may gain named specifiers while preserving every old specifier, the module, and any
+default binding. Other changed or removed base lines, including file deletion, are
+refused. If this prevents completing the task, submit status `"blocked"` with the
+tests and reason in `blocked_reason`.
 Review bundles list `added_tests` under every policy and `modified_tests` when
 `allowed` permits existing test changes; reviewers must judge whether those changes are justified.
 

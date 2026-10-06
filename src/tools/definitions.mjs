@@ -93,6 +93,14 @@ export function toolDefinitions(role) {
     title: _t,
     ...outputSchema
   } = loadSchema(role === "implementer" ? "implementer-output.schema.json" : "reviewer-output.schema.json");
+  for (const keyword of ["if", "then", "else", "not", "allOf", "anyOf", "oneOf"])
+    delete outputSchema[keyword];
+  if (role === "implementer") {
+    outputSchema.properties.status.description =
+      'Use "blocked" when the task cannot be completed; status "blocked" requires blocked_reason. Otherwise use "done" (the default) and omit blocked_reason.';
+    outputSchema.properties.blocked_reason.description =
+      'Required only when status is "blocked"; explain the blocking tests, checks, or paths and why. Must be omitted otherwise.';
+  }
   list.push({
     name: "submit_result",
     description:
