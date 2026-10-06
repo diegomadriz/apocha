@@ -12,7 +12,7 @@ base commit, and the runtime CLIs are trusted**.
 | The repository outside the task | Agent edits files it should not | Tool scopes (`allowed_paths`), protected paths, structural scope check on the final diff |
 | Private files in the repository | Agent reads and leaks them through output or a model call | `paths.forbidden` are unreadable by tools, removed from the tree checks run in, and denied to sandboxed checks in the source checkout |
 | Credentials on the host | Agent-written code (run by checks) reads them | Sandbox deny list for credential stores; scratch `HOME`; env allowlist without provider keys |
-| The host | Agent-written code writes outside its tree or calls out | Sandbox: writes only in the per-check workspace; Linux removes network access unless a check allows it; macOS denies outbound network but DNS and loopback services remain reachable |
+| The host | Agent-written code writes outside its tree or calls out | Sandbox: writes only in the per-check workspace; network denied unless a check allows it; macOS loopback requires explicit opt-in |
 | History | Unverified commits reach a branch | Receipts bound to content; `land` checks every first-parent commit; promotion by compare-and-swap |
 
 ## Where untrusted code runs
@@ -28,7 +28,7 @@ index (no `.git`, no untracked or ignored files, no forbidden paths), under an O
 
 | Backend | Platform | Policy |
 |---|---|---|
-| Seatbelt | macOS (`/usr/bin/sandbox-exec`) | Writes only in the check workspace (its tree, scratch `HOME`, and `TMPDIR`). Reads denied for credential stores, the candidate clone, the source `.git`, and forbidden paths. Outbound network denied, but DNS and loopback services remain reachable. Listed local daemon sockets are denied. The profile allows everything else by default. |
+| Seatbelt | macOS (`/usr/bin/sandbox-exec`) | Writes only in the check workspace (its tree, scratch `HOME`, and `TMPDIR`). Reads denied for credential stores, the candidate clone, the source `.git`, and forbidden paths. Deny by default, with explicit process and system-service allows. Broad toolchain reads remain intentional. DNS, host loopback and outside Unix sockets are denied unless network is allowed; `loopback: true` permits loopback only. Workspace Unix sockets work. Listed local daemon sockets stay denied. |
 | bubblewrap | Linux | Read-only view of the host root, writable workspace, tmpfs over denied directories, read-only `/dev/null` over denied files, `--unshare-net` unless the check allows network, `--unshare-pid`, `--die-with-parent` |
 | none | anywhere | Scratch `HOME` and `TMPDIR` and the env allowlist still apply. Recorded as `none` in the receipt. Set `sandbox.mode: "required"` to refuse running without a backend. |
 
@@ -53,6 +53,17 @@ and existing symlink targets are also denied. Seatbelt denies outbound connectio
 these paths; bubblewrap hides existing paths with read-only `/dev/null` bindings.
 Without an OS sandbox these socket restrictions cannot be enforced.
 
+Seatbelt starts from `(deny default)` when network is denied. It explicitly permits process
+execution, self introspection, sysctl reads, and logging, notification and user/group lookup
+services. It grants no DNS or network-configuration service access. Reads remain broad for
+host toolchains, with the deny lists overriding them; metadata reads remain available everywhere.
+Writes stay confined to the workspace and standard device streams. Unix sockets inside the
+workspace support tool IPC. `checks.<id>.loopback: true` allows loopback binding, listening and
+connections, including access to host loopback services. Use it only for checks that need this.
+On bubblewrap the option is accepted as a no-op: loopback is inside its isolated network namespace.
+Enabling network retains the previous permissive service policy, with read, write and socket
+restrictions still enforced.
+
 ## Known gaps
 
 - **The runtime process is not sandboxed by Apocha.** Codex, Claude Code, and Pi need your
@@ -62,10 +73,6 @@ Without an OS sandbox these socket restrictions cannot be enforced.
 - **Lock-down depends on runtime flags.** A runtime update can add a capability that is on by
   default. The stream checks catch the use of anything outside the harness tools, but only after
   the fact. Run `apocha doctor --live` after every runtime upgrade.
-- **Seatbelt allows by default and denies listed operations.** On macOS, checks can read the
-  rest of the host filesystem (toolchains live there). The profile denies outbound network and
-  listed paths, but DNS and loopback services remain reachable. Keep secrets
-  in the denied locations or add their paths. Linux bubblewrap gives a read-only view of the host too, but removes network access entirely. Unlisted local Unix sockets remain reachable; add their paths to `sandbox.deny_sockets`.
 - **Unsigned receipts remain forgeable when signatures are optional.** Require signatures
   with `land --require-signed` or target config `receipts.require_signed` to close this gap.
   Trust comes from the target branch's allowed_signers file, a governance path. Protect
@@ -85,6 +92,6 @@ Without an OS sandbox these socket restrictions cannot be enforced.
 
 Repository files are untrusted input to the agent. The design limits the damage an injected
 instruction can do: the agent cannot run commands, cannot read forbidden paths or credentials,
-cannot change the checks, and cannot accept its own work. Linux bubblewrap removes network access from checks unless a check allows it. On macOS, Seatbelt denies outbound network but DNS and loopback services remain reachable. The remaining exposure is that the
+cannot change the checks, and cannot accept its own work. Linux bubblewrap removes network access from checks unless a check allows it. On macOS, Seatbelt denies network and DNS services by default; checks can opt into loopback. The remaining exposure is that the
 model sends readable repository content to its provider, which is inherent to using a hosted model
 on that repository.

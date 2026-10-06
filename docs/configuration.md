@@ -49,13 +49,18 @@ The closed catalog. Each check:
 | `cwd` | `.` | Working directory inside the materialized tree |
 | `timeout_ms` | 300000 | A timeout is an infrastructure error, not a failure |
 | `dependencies` | `none` | `none`: nothing added. `npm`: copy `node_modules` from the source checkout after checking that `package.json` and `package-lock.json` equal the base commit and that installed direct dependencies match the lock. |
-| `network` | `false` | Allow outbound network for this check |
+| `network` | `false` | Allow network for this check |
+| `loopback` | `false` | Seatbelt: allow loopback bind, listen and connect, including host loopback services. Bubblewrap: accepted as a no-op inside its private network namespace. |
 | `env` | `{}` | Literal environment additions. No host variables are forwarded except `PATH`, locale, and terminal settings. |
 | `description` | | Shown to the implementer next to the check ID |
 
 Every check runs in a fresh directory built from the candidate's Git index: tracked files only, no
 `.git`, no untracked or ignored files, and no forbidden paths. `HOME`, `TMPDIR`, and the XDG
 directories point at per-check scratch directories.
+Seatbelt denies DNS, loopback and outside Unix sockets by default. Workspace Unix sockets
+remain available for tool IPC. Set `loopback: true` for checks that run local servers or bundler
+workers; this does not enable DNS or external network. `network: true` or `sandbox.network: "allow"`
+enables network regardless of `loopback`, while listed daemon sockets remain denied.
 
 ### `check_selection` and `default_checks`
 

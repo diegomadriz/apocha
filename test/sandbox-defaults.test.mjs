@@ -79,12 +79,13 @@ socket.setTimeout(3000);
 socket.on("connect", () => { console.log("CONNECTED"); socket.destroy(); });
 socket.on("error", () => { console.log("DENIED"); process.exitCode = 1; });
 socket.on("timeout", () => { console.log("TIMEOUT"); socket.destroy(); process.exitCode = 2; });`;
+    // Outside-workspace sockets require network access under the strict Seatbelt policy.
     for (const network of [false, true]) {
       for (const denied of [false, true]) {
         const config = normalizeProjectConfig(
           {
             version: 1,
-            checks: { probe: { run: ["node", "-e", script], network } },
+            checks: { probe: { run: ["node", "-e", script], network: denied ? network : true } },
             sandbox: { mode: "required", deny_sockets: denied ? [alias] : [] },
           },
           repo.root,

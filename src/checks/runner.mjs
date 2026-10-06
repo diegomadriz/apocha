@@ -58,6 +58,7 @@ export function checkDefinitionDigest(check) {
     timeout_ms: check.timeout_ms,
     dependencies: check.dependencies,
     network: check.network,
+    loopback: check.loopback,
     env: check.env,
   });
 }
@@ -232,7 +233,7 @@ export async function runCheck({
       );
       const wrapped = wrapCommand(
         backend,
-        { writable: [workspace], denyRead, denySockets, network, cwd },
+        { writable: [workspace], denyRead, denySockets, network, loopback: check.loopback, cwd },
         argv,
       );
       prepared = { ...wrapped, cwd, env };

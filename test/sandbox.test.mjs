@@ -28,6 +28,7 @@ async function sandboxed(script, options = {}) {
           run: ["node", "probe.mjs", "{source}"],
           cwd: ".",
           network: options.network ?? false,
+          loopback: true,
           timeout_ms: 20000,
         },
       },

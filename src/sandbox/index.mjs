@@ -19,7 +19,8 @@ import { expandHome } from "../util/paths.mjs";
  * - writes only inside the exec root and the per-check scratch directories;
  * - reads everywhere except the deny list (credential stores, the candidate
  *   clone and source `.git` with their full history, and forbidden repo paths);
- * - no network unless the check sets `network: true` (loopback is allowed).
+ * - no network unless allowed; Seatbelt loopback requires `loopback: true`.
+ *   Workspace Unix sockets and bubblewrap namespace loopback support local IPC.
  */
 
 /** @typedef {"seatbelt" | "bwrap" | "none"} SandboxBackend */
@@ -96,25 +97,51 @@ function sbplString(value) {
 }
 
 /**
- * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean }} policy
+ * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, loopback?: boolean }} policy
  */
 export function seatbeltProfile(policy) {
-  const lines = ["(version 1)", "(allow default)"];
+  const lines = ["(version 1)", policy.network ? "(allow default)" : "(deny default)"];
   if (!policy.network) {
     lines.push(
+      "; Process execution for toolchains at arbitrary paths and their child processes.",
+      "(allow process-fork process-exec)",
+      "; Signals stay within this sandbox; runtime introspection stays on self.",
+      "(allow signal (target same-sandbox))",
+      "(allow process-info* (target self))",
+      "; CPU, memory and platform discovery by libc, node and python.",
+      "(allow sysctl-read)",
+      "; Toolchains and shared libraries can be anywhere on the read-only host view.",
+      "(allow file-read*)",
+      "; libc logging, notifications and user/group lookups; no general Mach access.",
+      '(allow mach-lookup (global-name "com.apple.system.logger") (global-name "com.apple.system.notification_center") (global-name "com.apple.notifyd") (global-name "com.apple.system.opendirectoryd.libinfo") (global-name "com.apple.system.opendirectoryd.membership"))',
+      "; Block DNS and network configuration brokers as well as direct network access.",
+      '(deny mach-lookup (global-name "com.apple.dnssd.service") (global-name "com.apple.mDNSResponder") (global-name "com.apple.SystemConfiguration.configd") (global-name "com.apple.SystemConfiguration.DNSConfiguration") (global-name "com.apple.SystemConfiguration.NetworkConfiguration"))',
       "(deny network*)",
-      '(allow network* (remote ip "localhost:*"))',
-      // Bundlers such as Turbopack bind worker ports. Listening is allowed on loopback
-      // addresses only, and outbound connections stay on loopback.
-      "(allow network-bind)",
-      '(allow network-inbound (local ip "localhost:*"))',
-      "(allow network* (remote unix-socket))",
     );
+    for (const entry of policy.writable) {
+      const prefix = sbplString(`${entry.endsWith("/") ? entry.slice(0, -1) : entry}/`);
+      lines.push(
+        "; Workspace Unix sockets provide IPC for tools without reaching host daemons.",
+        `(allow network* (remote unix-socket (path-prefix ${prefix})))`,
+        `(allow network-bind network-inbound (local unix-socket (path-prefix ${prefix})))`,
+      );
+    }
+    if (policy.loopback) {
+      lines.push(
+        "; Explicit per-check loopback access for bundler workers and local test servers.",
+        '(allow network-outbound (remote ip "localhost:*"))',
+        '(allow network-bind network-inbound (local ip "localhost:*"))',
+      );
+    }
   }
   for (const entry of policy.denySockets ?? []) {
-    lines.push(`(deny network-outbound (remote unix-socket (path-literal ${sbplString(entry)})))`);
+    lines.push(
+      "; Listed daemon sockets remain inaccessible after every network allow.",
+      `(deny network-outbound (remote unix-socket (path-literal ${sbplString(entry)})))`,
+      `(deny file-read* (literal ${sbplString(entry)}))`,
+    );
   }
-  lines.push("(deny file-write*)");
+  lines.push("; Writes are confined to scratch space and standard device streams.", "(deny file-write*)");
   const writable = policy.writable.map((entry) => `(subpath ${sbplString(entry)})`);
   lines.push(
     `(allow file-write* ${[
@@ -126,6 +153,12 @@ export function seatbeltProfile(policy) {
       '(regex #"^/dev/tty")',
     ].join(" ")})`,
   );
+  lines.push("; Terminal and descriptor controls used by command-line tools.");
+  lines.push(
+    `(allow file-ioctl ${writable
+      .concat(['(literal "/dev/null")', '(literal "/dev/zero")', '(regex #"^/dev/(fd/|tty)")'])
+      .join(" ")})`,
+  );
   if (policy.denyRead.length) {
     const denied = policy.denyRead.map((entry) => {
       let isDirectory = false;
@@ -134,13 +167,18 @@ export function seatbeltProfile(policy) {
       } catch {}
       return isDirectory ? `(subpath ${sbplString(entry)})` : `(literal ${sbplString(entry)})`;
     });
+    lines.push("; Credentials, source history and forbidden paths override broad reads.");
     lines.push(`(deny file-read* ${denied.join(" ")})`);
   }
+  lines.push(
+    "; Metadata is available everywhere for toolchain path discovery.",
+    "(allow file-read-metadata)",
+  );
   return `${lines.join("\n")}\n`;
 }
 
 /**
- * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, cwd: string }} policy
+ * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, loopback?: boolean, cwd: string }} policy
  * @param {string[]} argv
  */
 export function bwrapArgs(policy, argv) {
@@ -174,7 +212,7 @@ export function bwrapArgs(policy, argv) {
 /**
  * Wrap a command for the chosen backend.
  * @param {SandboxBackend} backend
- * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, cwd: string }} policy
+ * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, loopback?: boolean, cwd: string }} policy
  * @param {string[]} argv
  * @returns {{ command: string, args: string[] }}
  */

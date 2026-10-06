@@ -111,6 +111,7 @@
         "timeout_ms": { "type": "integer", "minimum": 1000, "maximum": 3600000 },
         "dependencies": { "enum": ["none", "npm"] },
         "network": { "type": "boolean" },
+        "loopback": { "description": "Allow loopback bind and connect on Seatbelt; no-op on bubblewrap.", "type": "boolean", "default": false },
         "env": {
           "description": "Fixed environment additions. Values are literal; no host variables are forwarded.",
           "type": "object", "additionalProperties": { "type": "string", "maxLength": 2000 }

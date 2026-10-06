@@ -54,7 +54,7 @@ export const DEFAULT_LIMITS = Object.freeze({
 });
 
 /**
- * @typedef {{ id: string, run: string[], cwd: string, timeout_ms: number, dependencies: "none" | "npm", network: boolean, env: Record<string, string>, description?: string }} CheckDefinition
+ * @typedef {{ id: string, run: string[], cwd: string, timeout_ms: number, dependencies: "none" | "npm", network: boolean, loopback: boolean, env: Record<string, string>, description?: string }} CheckDefinition
  * @typedef {{
  *   version: 1,
  *   root: string,
@@ -94,6 +94,7 @@ export function normalizeProjectConfig(raw, root) {
       timeout_ms: check.timeout_ms ?? 300000,
       dependencies: check.dependencies ?? "none",
       network: check.network ?? false,
+      loopback: check.loopback ?? false,
       env: { ...(check.env ?? {}) },
       ...(check.description ? { description: check.description } : {}),
     };
