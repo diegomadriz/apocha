@@ -20,7 +20,7 @@
   ],
   "paths": {
     "protected": [".github/", "LICENSE"],
-    "governance": ["AGENTS.md", "src/prompts/", "schemas/", "apocha.config.json"],
+    "governance": ["AGENTS.md", "src/prompts/", "schemas/", "apocha.config.json", "src/sandbox/", "src/checks/", "test/sandbox.test.mjs", "test/sandbox-defaults.test.mjs", "test/sandbox-strict.test.mjs", "test/sandbox-markers.test.mjs", "test/source-secrets.test.mjs"],
     "forbidden": []
   },
   "sandbox": { "mode": "auto", "network": "deny" }

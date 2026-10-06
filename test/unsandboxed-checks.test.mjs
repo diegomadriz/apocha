@@ -178,6 +178,22 @@ test("CLI warns in quiet mode and doctor lists explicitly unsandboxed checks wit
   assert.match(doctor.stdout, /"detail": "selftest"/);
 });
 
+test("Apocha config governs every selection path for unsandboxed checks", () => {
+  const root = fileURLToPath(new URL("../", import.meta.url));
+  const config = loadProjectConfig(root);
+  for (const rule of config.check_selection) {
+    if (!rule.checks.some((id) => config.checks[id].unsandboxed)) continue;
+    for (const selectedPath of rule.paths) {
+      assert.ok(
+        config.paths.governance.some(
+          (entry) => selectedPath === entry || (entry.endsWith("/") && selectedPath.startsWith(entry)),
+        ),
+        `Unsandboxed check selection path must be governed: ${selectedPath}`,
+      );
+    }
+  }
+});
+
 test("loaded Apocha config selects sandbox-selftest only for sandbox, check runner, and real sandbox tests", () => {
   const root = fileURLToPath(new URL("../", import.meta.url));
   const config = loadProjectConfig(root);
