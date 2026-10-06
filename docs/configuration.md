@@ -112,6 +112,17 @@ from another harness can keep its existing refs, so its old receipts stay checka
 | `network` | `deny` (default), `allow` | Project-wide network default for checks |
 | `deny_read` | paths, `~/` allowed | Added to the built-in list of credential locations (`~/.ssh`, `~/.aws`, `~/.codex`, `~/.claude`, `~/.npmrc`, `~/.netrc`, `~/Library/Keychains`, and more) |
 
+| `deny_sockets` | paths, `~/` allowed | Added to the built-in local daemon socket deny list, regardless of the network setting |
+
+Socket defaults are `/var/run/docker.sock`, `/run/docker.sock`,
+`~/.docker/run/docker.sock`, `~/.colima/default/docker.sock`,
+`~/.orbstack/run/docker.sock`, `/run/containerd/containerd.sock`,
+`/run/podman/podman.sock`, and
+`~/.local/share/containers/podman/machine/podman.sock`.
+User entries extend these defaults. Home paths are expanded and existing symlink
+targets are included. Seatbelt denies outbound connections; bubblewrap binds
+`/dev/null` over each existing socket path.
+
 `apocha init` writes mode `required`. In `auto` mode, a run with no available
 backend emits a warning event and a stderr warning suggesting `sandbox.mode: required`.
 

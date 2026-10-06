@@ -116,12 +116,14 @@ export async function runChecksStage(_stage, ctx) {
   ctx.event("verification.started", { candidate_digest: snapshot.candidate_digest, checks: ctx.task.checks });
   /** @type {import("../checks/runner.mjs").CheckResult[]} */
   const results = [];
+  const secretFileCache = (ctx.secretFileCache ??= { files: new Map() });
   for (const id of ctx.task.checks) {
     const result = await runCheck({
       check: ctx.config.checks[id],
       candidate: ctx.candidate,
       config: ctx.config,
       backend: ctx.sandboxBackend,
+      secretFileCache,
     });
     results.push(result);
     ctx.event("check.finished", {
@@ -151,6 +153,7 @@ export async function runChecksStage(_stage, ctx) {
         candidate: ctx.candidate,
         config: ctx.config,
         backend: ctx.sandboxBackend,
+        secretFileCache,
         baseOverlay: [...new Set([file, ...support])],
         files: [path.posix.relative(runFiles.cwd, file)],
       });

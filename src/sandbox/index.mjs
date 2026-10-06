@@ -81,13 +81,22 @@ export function resolveDenyPaths(entries) {
   return [...out].sort();
 }
 
+/**
+ * Socket paths, including absent paths and existing symlink targets.
+ * @param {string[]} entries
+ */
+export function resolveSocketPaths(entries) {
+  const absolute = entries.map((entry) => path.resolve(expandHome(entry)));
+  return [...new Set([...absolute, ...resolveDenyPaths(entries)])].sort();
+}
+
 /** SBPL string literal. @param {string} value */
 function sbplString(value) {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
 /**
- * @param {{ writable: string[], denyRead: string[], network: boolean }} policy
+ * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean }} policy
  */
 export function seatbeltProfile(policy) {
   const lines = ["(version 1)", "(allow default)"];
@@ -101,6 +110,9 @@ export function seatbeltProfile(policy) {
       '(allow network-inbound (local ip "localhost:*"))',
       "(allow network* (remote unix-socket))",
     );
+  }
+  for (const entry of policy.denySockets ?? []) {
+    lines.push(`(deny network-outbound (remote unix-socket (path-literal ${sbplString(entry)})))`);
   }
   lines.push("(deny file-write*)");
   const writable = policy.writable.map((entry) => `(subpath ${sbplString(entry)})`);
@@ -128,7 +140,7 @@ export function seatbeltProfile(policy) {
 }
 
 /**
- * @param {{ writable: string[], denyRead: string[], network: boolean, cwd: string }} policy
+ * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, cwd: string }} policy
  * @param {string[]} argv
  */
 export function bwrapArgs(policy, argv) {
@@ -154,6 +166,7 @@ export function bwrapArgs(policy, argv) {
     else args.push("--ro-bind", "/dev/null", entry);
   }
   for (const entry of policy.writable) args.push("--bind", entry, entry);
+  for (const entry of policy.denySockets ?? []) args.push("--ro-bind", "/dev/null", entry);
   args.push("--chdir", policy.cwd, "--", ...argv);
   return args;
 }
@@ -161,7 +174,7 @@ export function bwrapArgs(policy, argv) {
 /**
  * Wrap a command for the chosen backend.
  * @param {SandboxBackend} backend
- * @param {{ writable: string[], denyRead: string[], network: boolean, cwd: string }} policy
+ * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, cwd: string }} policy
  * @param {string[]} argv
  * @returns {{ command: string, args: string[] }}
  */

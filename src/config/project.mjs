@@ -33,6 +33,18 @@ export const DEFAULT_DENY_READ = Object.freeze([
   "~/Library/Keychains",
 ]);
 
+/** Local daemon sockets no sandboxed check may connect to. */
+export const DEFAULT_DENY_SOCKETS = Object.freeze([
+  "/var/run/docker.sock",
+  "/run/docker.sock",
+  "~/.docker/run/docker.sock",
+  "~/.colima/default/docker.sock",
+  "~/.orbstack/run/docker.sock",
+  "/run/containerd/containerd.sock",
+  "/run/podman/podman.sock",
+  "~/.local/share/containers/podman/machine/podman.sock",
+]);
+
 export const DEFAULT_LIMITS = Object.freeze({
   max_repair_attempts: 2,
   default_repair_attempts: 1,
@@ -52,7 +64,7 @@ export const DEFAULT_LIMITS = Object.freeze({
  *   tests: { paths: string[], run_files?: CheckDefinition },
  *   paths: { protected: string[], governance: string[], forbidden: string[], design_reference_prefix: string },
  *   refs: { batch_prefix: string, notes: string },
- *   sandbox: { mode: "auto" | "required" | "none", network: "deny" | "allow", deny_read: string[] },
+ *   sandbox: { mode: "auto" | "required" | "none", network: "deny" | "allow", deny_read: string[], deny_sockets: string[] },
  *   limits: typeof DEFAULT_LIMITS,
  *   digest: string,
  * }} ProjectConfig
@@ -157,6 +169,7 @@ export function normalizeProjectConfig(raw, root) {
       mode: input.sandbox?.mode ?? "auto",
       network: input.sandbox?.network ?? "deny",
       deny_read: [...new Set([...DEFAULT_DENY_READ, ...(input.sandbox?.deny_read ?? [])])],
+      deny_sockets: [...new Set([...DEFAULT_DENY_SOCKETS, ...(input.sandbox?.deny_sockets ?? [])])],
     },
     limits: { ...DEFAULT_LIMITS, ...(input.limits ?? {}) },
   };

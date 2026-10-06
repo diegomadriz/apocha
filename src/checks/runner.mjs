@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, realpathSync, rmSync } from "node:fs";
 import path from "node:path";
-import { resolveDenyPaths, SANDBOX_MARKER, wrapCommand } from "../sandbox/index.mjs";
+import { resolveDenyPaths, resolveSocketPaths, SANDBOX_MARKER, wrapCommand } from "../sandbox/index.mjs";
 import { decodeCaptured } from "../util/bounded.mjs";
 import { digestJson, sha256 } from "../util/digest.mjs";
 import { describeError } from "../util/errors.mjs";
@@ -23,6 +23,8 @@ import { prepareNpmDependencies } from "./dependencies.mjs";
  *   output_digest: string, definition_digest: string, sandbox: string, duration_ms: number,
  * }} CheckResult
  */
+
+/** @typedef {{ files: Map<string, string[]>, discover?: typeof sourceSecretFiles }} SecretFileCache */
 
 const EMPTY = sha256(Buffer.alloc(0));
 const ENV_PASSTHROUGH = ["PATH", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE", "TERM", "TZ"];
@@ -107,6 +109,7 @@ function materialize(candidateRoot, execRoot, forbidden) {
  *   candidate: { root: string, repository_root: string, base_commit: string },
  *   config: import("../config/project.mjs").ProjectConfig,
  *   backend: import("../sandbox/index.mjs").SandboxBackend,
+ *   secretFileCache?: SecretFileCache,
  *   baseOverlay?: string[],
  *   files?: string[],
  *   maxOutputBytes?: number,
@@ -119,6 +122,7 @@ export async function runCheck({
   config,
   backend,
   baseOverlay,
+  secretFileCache,
   files,
   maxOutputBytes = config.limits.check_output_bytes,
 }) {
@@ -207,16 +211,28 @@ export async function runCheck({
         part === "{files}" && files ? files : [part.replaceAll("{source}", sourceRoot)],
       );
       const commonDir = realpathSync(gitCommonDir(sourceRoot));
+      let secrets = secretFileCache?.files.get(sourceRoot);
+      if (!secrets) {
+        secrets = (secretFileCache?.discover ?? sourceSecretFiles)(sourceRoot);
+        secretFileCache?.files.set(sourceRoot, secrets);
+      }
       const denyRead = resolveDenyPaths([
         ...config.sandbox.deny_read,
-        ...sourceSecretFiles(sourceRoot),
+        ...secrets,
         realpathSync(candidate.root),
         commonDir,
         path.join(sourceRoot, ".git"),
         ...config.paths.forbidden.map((scope) => path.join(sourceRoot, scope)),
       ]).filter((entry) => !isInside(workspace, entry));
       const network = check.network || config.sandbox.network === "allow";
-      const wrapped = wrapCommand(backend, { writable: [workspace], denyRead, network, cwd }, argv);
+      const denySockets = (backend === "bwrap" ? resolveDenyPaths : resolveSocketPaths)(
+        config.sandbox.deny_sockets,
+      );
+      const wrapped = wrapCommand(
+        backend,
+        { writable: [workspace], denyRead, denySockets, network, cwd },
+        argv,
+      );
       prepared = { ...wrapped, cwd, env };
     } catch (error) {
       const cleanupError = cleanup();

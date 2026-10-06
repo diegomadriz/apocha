@@ -55,6 +55,7 @@
       "properties": {
         "mode": { "enum": ["auto", "required", "none"] },
         "network": { "enum": ["deny", "allow"] },
+        "deny_sockets": { "description": "Additional local daemon socket paths to deny; built-in defaults always apply. ~/ is expanded.", "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
         "deny_read": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
       }
     },

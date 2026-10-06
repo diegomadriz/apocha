@@ -28,7 +28,7 @@ index (no `.git`, no untracked or ignored files, no forbidden paths), under an O
 
 | Backend | Platform | Policy |
 |---|---|---|
-| Seatbelt | macOS (`/usr/bin/sandbox-exec`) | Writes only in the check workspace (its tree, scratch `HOME`, and `TMPDIR`). Reads denied for credential stores, the candidate clone, the source `.git`, and forbidden paths. Outbound network denied, but DNS, loopback services, and local Unix sockets such as Docker's remain reachable. The profile allows everything else by default. |
+| Seatbelt | macOS (`/usr/bin/sandbox-exec`) | Writes only in the check workspace (its tree, scratch `HOME`, and `TMPDIR`). Reads denied for credential stores, the candidate clone, the source `.git`, and forbidden paths. Outbound network denied, but DNS and loopback services remain reachable. Listed local daemon sockets are denied. The profile allows everything else by default. |
 | bubblewrap | Linux | Read-only view of the host root, writable workspace, tmpfs over denied directories, read-only `/dev/null` over denied files, `--unshare-net` unless the check allows network, `--unshare-pid`, `--die-with-parent` |
 | none | anywhere | Scratch `HOME` and `TMPDIR` and the env allowlist still apply. Recorded as `none` in the receipt. Set `sandbox.mode: "required"` to refuse running without a backend. |
 
@@ -40,7 +40,18 @@ Sandboxed checks also deny reads of untracked files in the source checkout, incl
 files, whose basenames match `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, or
 `id_ed25519*`, at any depth (for example `apps/web/.env.local`). Tracked files are excluded
 from this discovery. `apocha doctor` reports the count and relative paths of the files found.
+Discovery is cached once per run per source root, including across repair attempts.
 This default applies to both Seatbelt and bubblewrap; without an OS sandbox it cannot block reads.
+
+Local daemon sockets are denied independently of the network setting. The defaults are
+`/var/run/docker.sock`, `/run/docker.sock`, `~/.docker/run/docker.sock`,
+`~/.colima/default/docker.sock`, `~/.orbstack/run/docker.sock`,
+`/run/containerd/containerd.sock`, `/run/podman/podman.sock`, and
+`~/.local/share/containers/podman/machine/podman.sock`. Add paths with
+`sandbox.deny_sockets`; additions cannot remove the defaults. Home paths are expanded,
+and existing symlink targets are also denied. Seatbelt denies outbound connections to
+these paths; bubblewrap hides existing paths with read-only `/dev/null` bindings.
+Without an OS sandbox these socket restrictions cannot be enforced.
 
 ## Known gaps
 
@@ -53,8 +64,8 @@ This default applies to both Seatbelt and bubblewrap; without an OS sandbox it c
   the fact. Run `apocha doctor --live` after every runtime upgrade.
 - **Seatbelt allows by default and denies listed operations.** On macOS, checks can read the
   rest of the host filesystem (toolchains live there). The profile denies outbound network and
-  listed paths, but DNS, loopback services, and the Docker socket remain reachable. Keep secrets
-  in the denied locations or add their paths. Linux bubblewrap gives a read-only view of the host too, but removes network access entirely. On both backends a local Unix socket such as Docker's may be reachable; add its path to sandbox.deny_read if checks must not use it.
+  listed paths, but DNS and loopback services remain reachable. Keep secrets
+  in the denied locations or add their paths. Linux bubblewrap gives a read-only view of the host too, but removes network access entirely. Unlisted local Unix sockets remain reachable; add their paths to `sandbox.deny_sockets`.
 - **Receipts are unsigned.** Anyone with write access to the repository can forge a note that
   `land` will accept. Signing is planned. See [receipts.md](receipts.md#limits).
 - **Repository-level runtime config requires explicit trust.** `.apocha/runtimes.json` chooses

@@ -41,6 +41,7 @@
  *   taskDigest: string,
  *   candidate: import("../git/candidate.mjs").Candidate,
  *   adapters: { implementer: import("../adapters/contract.mjs").Adapter, reviewer: import("../adapters/contract.mjs").Adapter },
+ *   secretFileCache?: import("../checks/runner.mjs").SecretFileCache,
  *   sandboxBackend: import("../sandbox/index.mjs").SandboxBackend,
  *   batchRef: string,
  *   message: string,
