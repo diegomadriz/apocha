@@ -60,7 +60,7 @@ export function validateTask(raw, config) {
       throw new HarnessError(
         "config",
         "invalid_path",
-        `initial_context is outside allowed and read-only paths: ${entry}`,
+        `initial_context entry ${entry} is outside allowed_paths and read_only_paths; add it to read_only_paths to let the agent read it without editing it`,
       );
     }
   }

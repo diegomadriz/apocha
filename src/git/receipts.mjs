@@ -107,7 +107,11 @@ export function writeReceipt(repositoryRoot, notesRef, receipt) {
     allowFailure: true,
   });
   if (existing.status === 0)
-    throw new HarnessError("integrity", "receipt_exists", `a receipt already exists for ${commit}`);
+    throw new HarnessError(
+      "integrity",
+      "receipt_exists",
+      `a receipt already exists for ${commit}: another run already produced and receipted this exact commit; two runs making the identical change with the same message in the same second produce the same commit; the existing receipt still covers it`,
+    );
   git(repositoryRoot, ["notes", `--ref=${notesRef}`, "add", "-F", "-", commit], {
     input: `${JSON.stringify(receipt)}\n`,
     env: NOTE_ENV,

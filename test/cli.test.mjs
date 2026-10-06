@@ -288,3 +288,132 @@ test("run with a scripted fake runtime warns when auto has no sandbox and passes
     repo.cleanup();
   }
 });
+
+test("message options conflict with a usage error on run and integrate", () => {
+  for (const command of ["run", "integrate"]) {
+    const result = cli(os.tmpdir(), [
+      command,
+      "input",
+      command === "run" ? "--base" : "--onto",
+      "main",
+      "--batch",
+      "conflict",
+      "--message",
+      "",
+      "--message-file",
+      "missing.txt",
+    ]);
+    assert.equal(result.code, 2, result.stderr);
+    assert.match(result.stderr, /--message and --message-file are mutually exclusive/);
+  }
+});
+
+test("validate explains how to make initial_context readable", () => {
+  const repo = makeRepo();
+  const fixtures = testTempDir("cli-context");
+  try {
+    const task = path.join(fixtures, "task.json");
+    writeFileSync(
+      task,
+      JSON.stringify({
+        task_id: "context-hint",
+        description: "Read documentation",
+        acceptance_criteria: ["context is readable"],
+        allowed_paths: ["src/"],
+        initial_context: ["README.md"],
+      }),
+    );
+    const result = cli(repo.root, ["validate", task]);
+    assert.equal(result.code, 2, result.stderr);
+    assert.match(
+      result.stderr,
+      /initial_context entry README\.md is outside allowed_paths and read_only_paths; add it to read_only_paths to let the agent read it without editing it/,
+    );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+for (const command of ["run", "integrate"]) {
+  for (const mode of ["file", "literal", "shorthand"]) {
+    test(`${command} promotes the commit message from ${mode}`, () => {
+      const repo = makeRepo();
+      const fixtures = testTempDir("cli-message");
+      try {
+        const script = path.join(fixtures, "fake.mjs");
+        writeFileSync(
+          script,
+          `export default {
+  async implementer({ call }) {
+    await call("apply_patch", { edits: [{ path: "src/value.txt", old_text: "1\\n", new_text: "2\\n" }] });
+    await call("submit_result", { summary: "set to 2" });
+  },
+  async reviewer({ bundle, call }) {
+    await call("submit_result", { decision: "PASS", findings: [], candidate_digest: bundle.candidate.candidate_digest });
+  },
+};
+`,
+        );
+        const runtimes = path.join(fixtures, "runtimes.json");
+        writeFileSync(
+          runtimes,
+          JSON.stringify({
+            version: 1,
+            roles: { implementer: { adapter: "fake" }, reviewer: { adapter: "fake" } },
+            adapters: { fake: { script } },
+          }),
+        );
+        const task = path.join(fixtures, "task.json");
+        writeFileSync(
+          task,
+          JSON.stringify({
+            task_id: "cli-message",
+            description: "Set src/value.txt to 2",
+            acceptance_criteria: ["value is 2"],
+            allowed_paths: ["src/"],
+          }),
+        );
+        if (command === "integrate") {
+          git(repo.root, ["checkout", "-qb", "topic"]);
+          writeFileSync(path.join(repo.root, "src/value.txt"), "2\n");
+          git(repo.root, ["commit", "-qam", "Topic change"]);
+          git(repo.root, ["checkout", "-q", "main"]);
+        }
+        const messageFile = "message.txt";
+        const expected = mode === "literal" ? "@literal" : "@file contents\n\nMessage body";
+        writeFileSync(path.join(repo.root, messageFile), `${expected}\n`);
+        const messageArgs =
+          mode === "file"
+            ? ["--message-file", messageFile]
+            : ["--message", mode === "literal" ? "@@literal" : `@${messageFile}`];
+        const result = cli(repo.root, [
+          command,
+          command === "run" ? task : "topic",
+          command === "run" ? "--base" : "--onto",
+          "main",
+          "--batch",
+          "cli-message",
+          ...messageArgs,
+          "--runtimes",
+          runtimes,
+          "--json",
+          "--quiet",
+        ]);
+        assert.equal(result.code, 0, result.stderr + result.stdout);
+        const summary = JSON.parse(result.stdout);
+        assert.equal(summary.outcome, "PASSED");
+        const message = git(repo.root, ["show", "-s", "--format=%B", summary.promoted_head]);
+        assert.equal(String(message.stdout).trimEnd(), expected);
+      } finally {
+        repo.cleanup();
+      }
+    });
+  }
+}
+
+test("help documents message files and literal leading at signs", () => {
+  const result = cli(os.tmpdir(), ["help"]);
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /--message-file <path>/);
+  assert.match(result.stdout, /--message @@text for a literal leading @/);
+});

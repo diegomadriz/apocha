@@ -35,10 +35,10 @@ Commands:
   doctor [--live]               Check git, config, runtimes, and the sandbox (--live probes each runtime's lock-down)
   validate <task.json>          Validate a task manifest against the schema and project config
   run <task.json>               Run the code-delivery workflow
-      --base <ref> --batch <name> --message <text|@file>
+      --base <ref> --batch <name> (--message <text|@file> | --message-file <path>)
       [--runtimes <file>] [--allow-governance-edits --reason <text>] [--json] [--quiet]
   integrate <topic>             Merge a topic onto a base, verify, review, and promote
-      --onto <ref> --batch <name> [--message <text|@file>] [--checks a,b] [--max-repairs 0|1|2]
+      --onto <ref> --batch <name> [--message <text|@file> | --message-file <path>] [--checks a,b] [--max-repairs 0|1|2]
   land <source> --target <branch> [--keep-batch]   Fast-forward a branch whose commits all carry valid receipts (never pushes)
   gc [--apply] [--keep-days N] [--abandon-paused-days N] [--target <branch>] [--json]
                                 Plan cleanup (dry-run by default)
@@ -52,6 +52,9 @@ Commands:
       [--json] [--format text|md]  Analytics over recorded runs in this repository
   version                       Print the version
 
+Message options (run, integrate): --message and --message-file are mutually exclusive.
+Use --message @file to read a file, or --message @@text for a literal leading @.
+
 Runtime options (run, integrate, resume, doctor): --runtimes <file> --trust-repo-runtimes
 
 Exit codes: 0 passed, 2 usage or config error, 10 paused, 20 not passed, 30 error.
@@ -60,9 +63,21 @@ Docs: docs/ in the package, starting with docs/architecture.md.
 
 /** @param {string} value */
 function textOrFile(value) {
+  if (value.startsWith("@@")) return value.slice(1);
   if (typeof value === "string" && value.startsWith("@") && value.length > 1)
     return readFileSync(path.resolve(value.slice(1)), "utf8");
   return value;
+}
+
+/**
+ * @param {Record<string, any>} values
+ * @param {string} fallback
+ */
+function commitMessage(values, fallback) {
+  if (values.message !== undefined && values["message-file"] !== undefined)
+    throw new HarnessError("config", "usage", "--message and --message-file are mutually exclusive");
+  if (values["message-file"] !== undefined) return readFileSync(path.resolve(values["message-file"]), "utf8");
+  return values.message !== undefined ? textOrFile(values.message) : fallback;
 }
 
 /** @param {unknown} value */
@@ -216,16 +231,18 @@ export async function main(argv) {
         base: { type: "string" },
         batch: { type: "string" },
         message: { type: "string" },
+        "message-file": { type: "string" },
         runtimes: { type: "string" },
         "trust-repo-runtimes": { type: "boolean" },
         "allow-governance-edits": { type: "boolean" },
         reason: { type: "string" },
       });
-      if (positionals.length !== 1 || !values.base || !values.batch || !values.message) {
+      const message = commitMessage(values, "");
+      if (positionals.length !== 1 || !values.base || !values.batch || !message) {
         throw new HarnessError(
           "config",
           "usage",
-          "run needs <task.json> --base <ref> --batch <name> --message <text|@file>",
+          "run needs <task.json> --base <ref> --batch <name> (--message <text|@file> | --message-file <path>)",
         );
       }
       return withRunSignals(async (signal) => {
@@ -235,7 +252,7 @@ export async function main(argv) {
           task: JSON.parse(readFileSync(path.resolve(positionals[0]), "utf8")),
           base: values.base,
           batch: values.batch,
-          message: textOrFile(values.message),
+          message,
           runtimesPath: values.runtimes,
           trustRepoRuntimes: Boolean(values["trust-repo-runtimes"]),
           allowGovernanceEdits: Boolean(values["allow-governance-edits"]),
@@ -252,6 +269,7 @@ export async function main(argv) {
         onto: { type: "string" },
         batch: { type: "string" },
         message: { type: "string" },
+        "message-file": { type: "string" },
         checks: { type: "string" },
         "max-repairs": { type: "string" },
         runtimes: { type: "string" },
@@ -261,6 +279,7 @@ export async function main(argv) {
       });
       if (positionals.length !== 1 || !values.onto || !values.batch)
         throw new HarnessError("config", "usage", "integrate needs <topic> --onto <ref> --batch <name>");
+      const message = commitMessage(values, `Integrate ${positionals[0]} into ${values.onto}`);
       const maxRepairs = values["max-repairs"] === undefined ? undefined : Number(values["max-repairs"]);
       if (maxRepairs !== undefined && ![0, 1, 2].includes(maxRepairs))
         throw new HarnessError("config", "usage", "--max-repairs must be 0, 1, or 2");
@@ -270,9 +289,7 @@ export async function main(argv) {
           workflow: "integrate",
           base: values.onto,
           batch: values.batch,
-          message: values.message
-            ? textOrFile(values.message)
-            : `Integrate ${positionals[0]} into ${values.onto}`,
+          message,
           runtimesPath: values.runtimes,
           trustRepoRuntimes: Boolean(values["trust-repo-runtimes"]),
           allowGovernanceEdits: Boolean(values["allow-governance-edits"]),

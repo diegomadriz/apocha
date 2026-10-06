@@ -101,6 +101,23 @@ and its existing suggestion strings (`land <ref> --target <branch>`,
 `resume <run-id>`, and `apocha gc`). Suggestions are guidance; commands
 revalidate their own preconditions (including landing's clean tracked-worktree requirement).
 
+## Commit messages
+
+Both `run` and `integrate` accept `--message <text>` or `--message-file <path>`,
+which reads the commit message from a UTF-8 file relative to the current directory.
+Giving both options is a usage error (exit code 2). A message is required for
+`run`; `integrate` defaults to `Integrate <topic> into <base>`.
+
+The compatible `--message @file` shorthand also reads a file. To pass text
+starting with a literal `@`, double the first `@`: `--message "@@literal"`
+produces `@literal`. File contents are used directly, without interpreting
+leading `@` characters.
+
+```bash
+apocha run task.json --base main --batch example --message-file message.txt
+apocha integrate topic --onto main --batch integration --message "@@literal"
+```
+
 ## Runs
 
 Every `run` and `integrate` creates a run record under `<git-common-dir>/apocha/runs/<run-id>/`,
