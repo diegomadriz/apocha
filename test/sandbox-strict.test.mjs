@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { checkDefinitionDigest, runCheck } from "../src/checks/runner.mjs";
 import { normalizeProjectConfig } from "../src/config/project.mjs";
 import { bwrapArgs, detectBackend, SANDBOX_MARKER, seatbeltProfile } from "../src/sandbox/index.mjs";
-import { makeRepo, testCandidate, testTempDir } from "./helpers.mjs";
+import { makeRepo, testCandidate, testSocketDir, testTempDir } from "./helpers.mjs";
 
 const available = detectBackend();
 const unavailable =
@@ -76,9 +76,15 @@ server.listen(0, "127.0.0.1", () => {
   socket.on("data", data => { console.log(String(data)); socket.destroy(); server.close(); });
 });`;
 
+const workspaceSocketSkip =
+  "workspace Unix socket path exceeds the 100-byte safety limit (macOS sun_path: 104 bytes)";
 const workspaceSocket = `import net from "node:net";
 import path from "node:path";
-const address = path.join(process.env.TMPDIR, "ipc.sock");
+const address = path.join(process.cwd(), "s");
+if (Buffer.byteLength(address) >= 100) {
+  console.log(${JSON.stringify(workspaceSocketSkip)});
+  process.exit(0);
+}
 const server = net.createServer(socket => socket.end("pong"));
 server.on("error", error => { console.error(error); process.exitCode = 1; });
 server.listen(address, () => {
@@ -174,7 +180,7 @@ dns.lookup("example.com", error => {
       assert.equal(result.stdout.trim(), "pong");
     });
     await t.test("outside Unix socket isolation", async () => {
-      const address = path.join(testTempDir("ipc"), "host.sock");
+      const address = path.join(testSocketDir("host.sock"), "host.sock");
       const server = net.createServer((socket) => socket.end());
       await listen(server, { path: address });
       try {
@@ -188,9 +194,13 @@ dns.lookup("example.com", error => {
         await close(server);
       }
     });
-    await t.test("workspace Unix sockets work without loopback", async () => {
+    await t.test("workspace Unix sockets work without loopback", async (t) => {
       const result = await probe(backend, workspaceSocket);
       passed(result);
+      if (result.stdout.trim() === workspaceSocketSkip) {
+        t.skip(workspaceSocketSkip);
+        return;
+      }
       assert.equal(result.stdout.trim(), "pong");
     });
     await t.test("denied directory reads and writes stay denied on both backends", async () => {

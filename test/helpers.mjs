@@ -14,6 +14,27 @@ export function testTempDir(kind) {
   return root;
 }
 
+/**
+ * Choose a temp directory for socket paths below 100 bytes (macOS sun_path is 104 bytes).
+ * @param {string} socketName The longest socket filename that will be used in this directory.
+ */
+export function socketTempDir(socketName) {
+  for (const temporary of [os.tmpdir(), "/tmp"]) {
+    const parent = realpathSync(temporary);
+    // mkdtemp appends six characters; count UTF-8 bytes, including the filename.
+    const prefix = path.join(parent, "apocha-ipc-");
+    if (Buffer.byteLength(path.join(`${prefix}XXXXXX`, socketName)) < 100) return parent;
+  }
+  throw new Error("Unix socket fixture path exceeds the 100-byte safety limit");
+}
+
+/** Create a short socket fixture directory and register cleanup. @param {string} socketName */
+export function testSocketDir(socketName) {
+  const root = mkdtempSync(path.join(socketTempDir(socketName), "apocha-ipc-"));
+  after(() => rmSync(root, { recursive: true, force: true }));
+  return root;
+}
+
 /** @param {string} repositoryRoot @param {string} base */
 export function testCandidate(repositoryRoot, base) {
   const candidate = createCandidate(repositoryRoot, base);
