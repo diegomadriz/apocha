@@ -165,6 +165,12 @@ export function computeAnalytics(facts) {
         ];
       }),
     ),
+    blocked: {
+      runs: facts.filter((fact) => (fact.blocked?.reports ?? 0) > 0).length,
+      reports: facts.reduce((sum, fact) => sum + (fact.blocked?.reports ?? 0), 0),
+      confirmed: facts.reduce((sum, fact) => sum + (fact.blocked?.confirmed ?? 0), 0),
+      rejected: facts.reduce((sum, fact) => sum + (fact.blocked?.rejected ?? 0), 0),
+    },
     review_independence: reviewIndependence,
     review: {
       reviews: decisions.length,
@@ -242,6 +248,8 @@ export const DEFINITIONS = Object.freeze({
     "Passed code-delivery runs with at most one repair as a percentage of passed code-delivery runs.",
   checks: "Check executions in finished runs group by check ID, with nearest-rank duration percentiles.",
   fail_rate: "Failed check executions as a percentage of check executions in finished runs.",
+  blocked:
+    "Blocked runs and reports count implementer.blocked events; confirmations and rejections count reviewer claim decisions.",
   review: "Review decisions and findings count review events in finished runs.",
   review_independence:
     "All runs count as independent or same-provider using recorded role runtimes; missing providers count as unknown.",

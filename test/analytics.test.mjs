@@ -93,6 +93,7 @@ test("collects run metadata, event histories, stage totals and role tool traces"
         { id: "test", status: "fail", duration_ms: 100, attempt: 0 },
         { id: "test", status: "pass", duration_ms: 200, attempt: 1 },
       ],
+      blocked: { reports: 0, confirmed: 0, rejected: 0 },
       review_decisions: ["FIX", "PASS"],
       review_events: [
         { decision: "FIX", findings: 2 },

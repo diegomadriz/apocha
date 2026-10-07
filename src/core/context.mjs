@@ -34,6 +34,7 @@
  *   },
  *   last_review: null | { decision: string, findings: any[], reason?: string, candidate_digest: string },
  *   implementation: null | { summary: string, unresolved_uncertainties: string[], status?: "blocked", blocked_reason?: string },
+ *   blocked_claims?: { blocked_reason?: string, summary?: string, decision: string, confirmed: boolean, reviewer_reason?: string }[],
  *   runtimes: { implementer?: any, reviewer?: any },
  *   usage: Record<string, Record<string, number>>,
  *   decisions: Record<string, "approve" | "reject">,

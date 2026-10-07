@@ -7,7 +7,7 @@ import { HarnessError, isObject } from "../util/errors.mjs";
  * stage's outcome to the next stage or a terminal state. The engine is the
  * only thing that moves a run between stages.
  *
- * @typedef {{ kind: string, role?: "implementer" | "reviewer", counter?: string, prompt?: string, on: Record<string, string> }} StageDefinition
+ * @typedef {{ kind: string, role?: "implementer" | "reviewer", counter?: string, prompt?: string, mode?: "blocked-claim", on: Record<string, string> }} StageDefinition
  * @typedef {{ id: string, version: number, description?: string, start: string, stages: Record<string, StageDefinition> }} WorkflowDefinition
  */
 

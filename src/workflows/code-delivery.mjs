@@ -17,13 +17,19 @@ export default {
     implement: {
       kind: "agent",
       role: "implementer",
-      on: { done: "verify", no_changes: "ESCALATED", blocked: "ESCALATED" },
+      on: { done: "verify", no_changes: "ESCALATED", blocked: "blocked-review" },
     },
     verify: {
       kind: "checks",
       on: { pass: "review", fail: "repair", violation: "FAILED", infra_error: "ESCALATED" },
     },
     repair: { kind: "budget", counter: "repairs", on: { available: "implement", exhausted: "ESCALATED" } },
+    "blocked-review": {
+      kind: "review",
+      role: "reviewer",
+      mode: "blocked-claim",
+      on: { PASS: "repair", FIX: "repair", ESCALATE: "ESCALATED", too_large: "ESCALATED" },
+    },
     review: {
       kind: "review",
       role: "reviewer",

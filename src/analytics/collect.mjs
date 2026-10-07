@@ -13,6 +13,7 @@ import { RunStore } from "../core/runs.mjs";
  * usage: Record<string, Record<string, number>>,
  * checks: { id: string, status: string, duration_ms: number | null, attempt: number }[],
  * review_decisions: string[], review_events: { decision: string, findings: number }[],
+ * blocked?: { reports: number, confirmed: number, rejected: number },
  * review_findings: number, stage_ms: Record<string, number>,
  * tools: Record<string, ToolFacts>
  * }} RunFact
@@ -144,6 +145,11 @@ export function collectRunFacts(repositoryRoot, { since, until, workflow } = {})
         runtimes: state.runtimes ?? {},
         usage: state.usage ?? {},
         checks,
+        blocked: {
+          reports: events.filter((event) => event.type === "implementer.blocked").length,
+          confirmed: events.filter((event) => event.type === "blocked.confirmed").length,
+          rejected: events.filter((event) => event.type === "blocked.rejected").length,
+        },
         review_decisions: decisions,
         review_events: reviews,
         review_findings: findings,

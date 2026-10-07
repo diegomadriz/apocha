@@ -10,9 +10,10 @@ export default {
   version: 1,
   start: "implement",
   stages: {
-    implement: { kind: "agent", role: "implementer", on: { done: "verify", no_changes: "ESCALATED", blocked: "ESCALATED" } },
+    implement: { kind: "agent", role: "implementer", on: { done: "verify", no_changes: "ESCALATED", blocked: "blocked-review" } },
     verify: { kind: "checks", on: { pass: "review", fail: "repair", violation: "FAILED", infra_error: "ESCALATED" } },
     repair: { kind: "budget", counter: "repairs", on: { available: "implement", exhausted: "ESCALATED" } },
+    "blocked-review": { kind: "review", role: "reviewer", mode: "blocked-claim", on: { PASS: "repair", FIX: "repair", ESCALATE: "ESCALATED", too_large: "ESCALATED" } },
     review: { kind: "review", role: "reviewer", on: { PASS: "promote", FIX: "repair", ESCALATE: "ESCALATED", too_large: "ESCALATED" } },
     promote: { kind: "promote", on: { done: "PASSED" } },
   },
@@ -25,7 +26,7 @@ export default {
 |---|---|---|
 | `agent` | `done`, `no_changes`, `blocked` | Runs the implementer with the task bundle and any findings; snapshots completed candidates or records a blocked reason |
 | `checks` | `pass`, `fail`, `violation`, `infra_error` | Automatic fixers, then structural checks (scope, protected paths, test edits), then the task's catalog checks, then a re-snapshot. A failure becomes findings for the next attempt. |
-| `review` | `PASS`, `FIX`, `ESCALATE`, `too_large` | Runs the reviewer on the verified candidate with the full diff; validates the decision and its digest binding |
+| `review` | `PASS`, `FIX`, `ESCALATE`, `too_large` | Runs the reviewer on the verified candidate, or confirms a blocked claim with `mode: "blocked-claim"` without checks; validates the decision and its digest binding |
 | `budget` | `available`, `exhausted` | Spends one unit of a counter (`repairs` is bounded by the task) |
 | `human` | `approve`, `reject` | Pauses the run until `apocha resume <run> --decision approve\|reject` |
 | `promote` | `done` | Commits onto the batch ref and writes the receipt, under the lock |
@@ -43,10 +44,18 @@ checks and prevent new checks from starting. Per-check `duration_ms` and the
 checks stage's total wall time are recorded in verification evidence.
 Base test runs remain sequential and start only after all catalog checks pass.
 
-An implementer reporting `blocked` transitions immediately to `ESCALATED` in both built-in
-workflows, even if files changed. It runs no verification or review and spends no additional
-repair round. The run reason is `implementer reported blocked: <reason>` (at most 1000 characters);
-the full reason is stored in implementation state and the `implementer.blocked` event.
+An implementer reporting `blocked` transitions to `blocked-review` in both built-in workflows,
+even if files changed. No checks run for the claim. The independent reviewer sees the task,
+criteria, scope, blocked reason and summary, current diff (possibly empty), and latest
+verification results if any. `ESCALATE` confirms the conflict and ends the run with reason
+`implementer reported blocked; reviewer confirmed: <reviewer reason>`, spending no repair.
+`FIX` rejects the claim and sends findings through `repair`, consuming the usual budget.
+`PASS` is treated as `FIX` with a finding that the claim was not confirmed and the task must
+be completed. Exhausted budgets escalate as usual.
+
+The `implementer.blocked` event retains the full claim; `blocked.confirmed` and
+`blocked.rejected` retain the reviewer decision. State keeps `blocked_claims` even after a
+successful repair. Analytics count blocked runs and reports, confirmations, and rejections.
 
 ## Automatic fixers
 

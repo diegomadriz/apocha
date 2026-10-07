@@ -20,6 +20,7 @@ import { invokeAgent } from "./invoke.mjs";
  */
 export async function runReviewStage(_stage, ctx) {
   if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
+  if (_stage.mode === "blocked-claim") return runBlockedClaimReview(ctx);
   const verified = ctx.state.last_verification;
   if (verified?.status !== "pass")
     throw new HarnessError("integrity", "unverified", "review requires a passing verification");
@@ -124,4 +125,88 @@ export async function runReviewStage(_stage, ctx) {
   }
   if (result.decision === "ESCALATE") ctx.state.reason = `reviewer escalated: ${result.reason}`;
   return result.decision;
+}
+
+/**
+ * Review an impossibility claim without running checks on the candidate.
+ * @param {import("../core/context.mjs").RunContext} ctx
+ */
+async function runBlockedClaimReview(ctx) {
+  const snapshot = snapshotCandidate(ctx.candidate);
+  if (Buffer.byteLength(snapshot.diff) > ctx.config.limits.review_diff_bytes) {
+    ctx.state.reason = "blocked claim diff exceeds the review limit";
+    ctx.event("review.skipped", { reason: ctx.state.reason });
+    return "too_large";
+  }
+  const deletedPaths = snapshot.changed_files.filter(
+    (file) => !existsSync(path.join(ctx.candidate.root, file)),
+  );
+  const bundle = {
+    task: { task_id: ctx.task.task_id, description: ctx.task.description },
+    acceptance_criteria: ctx.task.acceptance_criteria,
+    allowed_paths: ctx.task.allowed_paths,
+    read_only_paths: ctx.task.read_only_paths,
+    protected_paths: effectiveProtectedPaths(ctx.task, ctx.config, ctx.governance.edits_allowed),
+    blocked_claim: {
+      blocked_reason: ctx.state.implementation?.blocked_reason,
+      summary: ctx.state.implementation?.summary,
+    },
+    candidate: {
+      base_commit: snapshot.base_commit,
+      candidate_digest: snapshot.candidate_digest,
+      changed_files: snapshot.changed_files,
+      deleted_files: deletedPaths,
+      implementer_summary: ctx.state.implementation?.summary ?? null,
+    },
+    diff: snapshot.diff,
+    verification: ctx.state.last_verification,
+    design_reference: designReference(ctx),
+    ...(ctx.integration ? { integration: ctx.integration } : {}),
+  };
+  const { result } = await invokeAgent(ctx, "reviewer", bundle, { deletedPaths });
+  if (snapshotCandidate(ctx.candidate).candidate_digest !== snapshot.candidate_digest)
+    throw new HarnessError("integrity", "candidate_changed_in_review", "candidate changed during review");
+  if (result.candidate_digest !== snapshot.candidate_digest)
+    throw new HarnessError("integrity", "invalid_review", "review names a different candidate digest");
+  if (result.decision === "ESCALATE" && !result.reason)
+    throw new HarnessError("integrity", "invalid_review", "ESCALATE without a reason");
+
+  const confirmed = result.decision === "ESCALATE";
+  const decision = confirmed ? "ESCALATE" : "FIX";
+  const findings =
+    result.decision === "PASS" || (!confirmed && !result.findings.length)
+      ? [
+          ...result.findings,
+          {
+            id: "blocked-claim-not-confirmed",
+            reason: "The blocked claim was not confirmed; complete the task within its rules.",
+          },
+        ]
+      : result.findings;
+  ctx.state.last_review = {
+    decision,
+    findings,
+    reason: result.reason,
+    candidate_digest: snapshot.candidate_digest,
+  };
+  ctx.event("review.finished", { decision, findings: findings.length, mode: "blocked-claim" });
+  ctx.event(confirmed ? "blocked.confirmed" : "blocked.rejected", {
+    decision: result.decision,
+    reason: result.reason ?? null,
+    findings,
+  });
+  ctx.state.blocked_claims ??= [];
+  ctx.state.blocked_claims.push({
+    ...bundle.blocked_claim,
+    decision: result.decision,
+    confirmed,
+    reviewer_reason: result.reason,
+  });
+  if (confirmed) {
+    ctx.state.reason = `implementer reported blocked; reviewer confirmed: ${result.reason}`;
+  } else {
+    ctx.state.reason = null;
+    ctx.state.findings = findings.map((finding) => ({ source: "review", ...finding }));
+  }
+  return decision;
 }

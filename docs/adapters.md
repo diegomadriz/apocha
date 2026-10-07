@@ -29,7 +29,13 @@ Implementer `submit_result` requires `summary` and accepts `unresolved_uncertain
 Optional `status` is `done` (the default when omitted) or `blocked`. A blocked result requires
 `blocked_reason`, a string of 1–2000 characters naming the conflicting test, check, or path
 and explaining the conflict. `blocked_reason` must be absent for `done` or omitted status.
-Schema validation enforces this pairing before recording the result.
+Schema validation enforces this pairing before recording the result. Every blocked report
+invokes the reviewer with `blocked_claim` containing the reason and summary, the current diff,
+task rules, and latest verification evidence. No checks run for this review. The reviewer
+remains read-only: `ESCALATE` confirms the conflict; `FIX` rejects it and supplies repair
+findings. `PASS` also rejects it and is converted to `FIX`. Rejections use the repair budget;
+failures in the implementer's own work, rejected edits, and unfinished work must be fixed,
+rather than reported as blocked.
 
 ## How tools reach each runtime
 
