@@ -17,7 +17,7 @@ import {
   seatbeltProfile,
 } from "../src/sandbox/index.mjs";
 import { runChecksStage } from "../src/stages/checks.mjs";
-import { makeRepo, testCandidate, testTempDir } from "./helpers.mjs";
+import { makeRepo, testCandidate, testSocketDir, testTempDir } from "./helpers.mjs";
 
 test("socket defaults and additions appear in both backend policies", () => {
   const defaults = [
@@ -76,7 +76,7 @@ test("a real sandbox blocks a listed Unix socket but allows the same socket othe
     : "no sandbox backend available; real Unix socket enforcement requires Seatbelt or bubblewrap",
 }, async () => {
   const backend = /** @type {"seatbelt" | "bwrap"} */ (detectBackend());
-  const dir = testTempDir("socket");
+  const dir = testSocketDir("daemon.sock");
   const socketPath = path.join(dir, "daemon.sock");
   const alias = path.join(dir, "alias.sock");
   const server = net.createServer((socket) => socket.end());
