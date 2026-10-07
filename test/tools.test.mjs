@@ -5,6 +5,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { normalizeProjectConfig } from "../src/config/project.mjs";
 
+import { toolDefinitions } from "../src/tools/definitions.mjs";
 import { createProjectTools, readSession, TOOL_LIMITS } from "../src/tools/project-tools.mjs";
 import { testCandidate as createCandidate, makeRepo, testTempDir } from "./helpers.mjs";
 
@@ -426,6 +427,36 @@ test("search_code skips forbidden paths and hardlinked files never escape scope"
     linkSync(path.join(s.root, "outside.txt"), path.join(s.root, "src", "hard.txt"));
     // Hardlinks can be read like any file, but the candidate snapshot rejects them (see candidate tests).
     assert.equal((await s.tools.call("stat_paths", { paths: ["src/hard.txt"] })).ok, true);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test("advertised result schema omits conditional keywords while full validation remains", async () => {
+  const schema = toolDefinitions("implementer").find((tool) => tool.name === "submit_result").inputSchema;
+  for (const keyword of ["if", "then", "else", "not", "allOf", "anyOf", "oneOf"])
+    assert.equal(Object.hasOwn(schema, keyword), false, keyword);
+  assert.ok(schema.properties.status);
+  assert.ok(schema.properties.blocked_reason);
+  assert.match(schema.properties.status.description, /requires blocked_reason/);
+  assert.match(schema.properties.blocked_reason.description, /Must be omitted otherwise/);
+  const s = setup();
+  try {
+    assert.equal((await s.tools.call("submit_result", { status: "blocked", summary: "blocked" })).ok, false);
+    assert.equal(
+      (await s.tools.call("submit_result", { status: "done", summary: "done", blocked_reason: "reason" })).ok,
+      false,
+    );
+    assert.equal(
+      (
+        await s.tools.call("submit_result", {
+          status: "blocked",
+          summary: "blocked",
+          blocked_reason: "required test change",
+        })
+      ).ok,
+      true,
+    );
   } finally {
     s.cleanup();
   }

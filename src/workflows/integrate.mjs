@@ -19,7 +19,11 @@ export default {
       on: { pass: "review", fail: "repair", violation: "FAILED", infra_error: "ESCALATED" },
     },
     repair: { kind: "budget", counter: "repairs", on: { available: "implement", exhausted: "ESCALATED" } },
-    implement: { kind: "agent", role: "implementer", on: { done: "verify", no_changes: "ESCALATED" } },
+    implement: {
+      kind: "agent",
+      role: "implementer",
+      on: { done: "verify", no_changes: "ESCALATED", blocked: "ESCALATED" },
+    },
     review: {
       kind: "review",
       role: "reviewer",

@@ -113,12 +113,12 @@ export async function startRun(options) {
         allowed_paths: [".apocha-integration-pending"],
         checks: [],
         max_repair_attempts: options.integration.maxRepairs ?? config.limits.default_repair_attempts,
-        ...(options.integration.testEdits !== undefined ? { test_edits: options.integration.testEdits } : {}),
+        test_edits: options.integration.testEdits ?? "additive",
       },
       config,
     );
   } else {
-    task = validateTask(options.task, config);
+    task = validateTask(options.task, config, baseCommit);
     if (!task.checks.length) {
       throw new HarnessError(
         "config",

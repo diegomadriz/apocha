@@ -98,6 +98,13 @@ export async function runImplementStage(stage, ctx) {
     unresolved_uncertainties: result.unresolved_uncertainties ?? [],
   };
   ctx.state.attempt += 1;
+  if (result.status === "blocked") {
+    ctx.state.implementation.status = "blocked";
+    ctx.state.implementation.blocked_reason = result.blocked_reason;
+    ctx.event("implementer.blocked", { reason: result.blocked_reason });
+    ctx.state.reason = `implementer reported blocked: ${result.blocked_reason}`.slice(0, 1000);
+    return "blocked";
+  }
   const snapshot = snapshotCandidate(ctx.candidate);
   ctx.event("candidate.snapshot", {
     candidate_digest: snapshot.candidate_digest,

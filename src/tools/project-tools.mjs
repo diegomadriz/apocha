@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { runCheck } from "../checks/runner.mjs";
-import { existingTestFiles } from "../git/test-edits.mjs";
+import { classifyTestFileChange, effectiveTestEditPolicy, existingTestFiles } from "../git/test-edits.mjs";
 import { failureFirst } from "../util/bounded.mjs";
 import { HarnessError, isObject } from "../util/errors.mjs";
 import {
@@ -91,7 +91,10 @@ function tracePaths(paths) {
 /** @param {SessionConfig} session */
 export function createProjectTools(session) {
   const root = session.root;
-  const testPolicy = session.test_edits ?? "additive";
+  const testPolicy = effectiveTestEditPolicy(
+    session.test_edits ?? "justified",
+    session.project,
+  ).effective_policy;
   const existingTests = new Set(session.existing_test_files ?? existingTestFiles(session, session.project));
   const readableScopes = [...session.allowed_paths, ...session.read_only_paths];
   const deleted = new Set(session.role === "reviewer" ? session.deleted_paths : []);
@@ -125,7 +128,7 @@ export function createProjectTools(session) {
     return relative;
   }
 
-  /** @param {unknown} value */
+  /** @template T @param {T} value */
   function bounded(value) {
     const text = JSON.stringify(value);
     if (Buffer.byteLength(text) > TOOL_LIMITS.maxOutputBytes) {
@@ -208,7 +211,8 @@ export function createProjectTools(session) {
     });
   }
 
-  function read_base_file({ path: value }) {
+  /** @param {{ path: unknown }} args @param {number} [maxBytes] */
+  function read_base_file({ path: value }, maxBytes = TOOL_LIMITS.maxFileBytes) {
     const relative = readablePath(value);
     const listed = git(root, ["ls-tree", "-l", "-z", session.base_commit, "--", relative]);
     const entry = String(listed.stdout).split("\0").find(Boolean);
@@ -216,8 +220,8 @@ export function createProjectTools(session) {
     const match = /^(\d+) (\w+) ([0-9a-f]+)\s+(\d+|-)\t/.exec(entry);
     if (match?.[2] !== "blob" || match[1] === "120000")
       throw toolError(`not a regular file at base: ${relative}`, "not_a_file");
-    if (Number(match[4]) > TOOL_LIMITS.maxFileBytes)
-      throw toolError(`${relative} at base exceeds ${TOOL_LIMITS.maxFileBytes} bytes`, "too_large");
+    if (Number(match[4]) > maxBytes)
+      throw toolError(`${relative} at base exceeds ${maxBytes} bytes`, "too_large");
     const buffer = gitBuffer(root, ["cat-file", "blob", match[3]]);
     if (looksBinary(buffer))
       return { path: relative, exists_at_base: true, binary: true, bytes: buffer.length, content: "" };
@@ -291,20 +295,6 @@ export function createProjectTools(session) {
     for (const [index, edit] of edits.entries()) {
       if (!isObject(edit) || typeof edit.path !== "string") throw toolError(`edit ${index} needs a path`);
       const relative = writablePath(edit.path);
-      if (
-        existingTests.has(relative) &&
-        testPolicy !== "allowed" &&
-        (testPolicy === "new-files" ||
-          edit.delete === true ||
-          (typeof edit.old_text === "string" &&
-            typeof edit.new_text === "string" &&
-            !edit.new_text.includes(edit.old_text)))
-      ) {
-        throw toolError(
-          `test_edits policy '${testPolicy}' refuses this edit to ${relative}; the task can set test_edits to 'allowed' to permit existing test changes`,
-          "test_edit_policy",
-        );
-      }
       if (!files.has(relative)) {
         const { absolute, exists } = resolveInside(root, relative, { allowMissing: true });
         let content = null;
@@ -361,6 +351,18 @@ export function createProjectTools(session) {
     for (const [relative, state] of files) {
       if (state.content !== null && Buffer.byteLength(state.content) > TOOL_LIMITS.maxPatchableFileBytes)
         throw toolError(`${relative} would exceed the file size limit`, "too_large");
+    }
+    for (const [relative, state] of files) {
+      if (!existingTests.has(relative) || testPolicy === "allowed" || testPolicy === "justified") continue;
+      const base = read_base_file({ path: relative }, TOOL_LIMITS.maxPatchableFileBytes);
+      const classification = classifyTestFileChange(base.content, state.content);
+      if (testPolicy === "new-files" || !classification.additive) {
+        const affected = classification.removed_lines.slice(0, 5).map((line) => line.trim().slice(0, 200));
+        throw toolError(
+          `test edit policy '${testPolicy}' refuses this edit to ${relative}; base lines removed or changed: ${JSON.stringify(affected)}. Only added lines and added import names are allowed under additive policy. If the task cannot be done without changing or removing existing test lines, call submit_result with status "blocked" and name the tests and why.`,
+          "test_edit_policy",
+        );
+      }
     }
     const changed = [];
     for (const [relative, state] of files) {

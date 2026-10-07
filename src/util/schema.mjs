@@ -6,7 +6,7 @@ import { HarnessError, isObject } from "./errors.mjs";
  * A small validator for the JSON Schema (2020-12) subset Apocha's schemas use:
  * type, properties, required, additionalProperties, items, enum, const,
  * pattern, minLength/maxLength, minItems/maxItems, uniqueItems,
- * minimum/maximum, propertyNames, and local `$ref` into `$defs`.
+ * minimum/maximum, propertyNames, if/then/else, not, and local `$ref` into `$defs`.
  *
  * The schema files in `schemas/` are the single source of truth for every
  * document shape; code adds only semantic checks the schema cannot express.
@@ -37,6 +37,10 @@ const SUPPORTED = new Set([
   "minimum",
   "maximum",
   "propertyNames",
+  "if",
+  "then",
+  "else",
+  "not",
 ]);
 
 /** @param {unknown} value */
@@ -62,6 +66,17 @@ function check(root, schema, value, at, errors) {
     const match = /^#\/\$defs\/([A-Za-z0-9_-]+)$/.exec(schema.$ref);
     if (!match || !root.$defs?.[match[1]]) throw new Error(`unresolvable $ref: ${schema.$ref}`);
     check(root, root.$defs[match[1]], value, at, errors);
+  }
+  if (schema.if) {
+    const conditionErrors = [];
+    check(root, schema.if, value, at, conditionErrors);
+    const branch = conditionErrors.length ? schema.else : schema.then;
+    if (branch) check(root, branch, value, at, errors);
+  }
+  if (schema.not) {
+    const negatedErrors = [];
+    check(root, schema.not, value, at, negatedErrors);
+    if (!negatedErrors.length) errors.push(`${at || "/"} must not match the forbidden schema`);
   }
   const actual = typeOf(value);
   if (schema.type !== undefined) {

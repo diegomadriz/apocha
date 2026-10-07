@@ -4,120 +4,482 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "schema", "generator", "workflow", "run_id", "task_id", "task_digest", "promoted_head", "tree", "parents",
-    "base_commit", "candidate_digest", "checks", "review", "repairs", "agent_invocations", "retries", "runtimes",
-    "config_digest", "runtime_config_digest", "policy_digest", "governance"
+    "schema",
+    "generator",
+    "workflow",
+    "run_id",
+    "task_id",
+    "task_digest",
+    "promoted_head",
+    "tree",
+    "parents",
+    "base_commit",
+    "candidate_digest",
+    "checks",
+    "review",
+    "repairs",
+    "agent_invocations",
+    "retries",
+    "runtimes",
+    "config_digest",
+    "runtime_config_digest",
+    "policy_digest",
+    "governance"
   ],
   "properties": {
-    "schema": { "enum": ["apocha.receipt.v3", "panagent.receipt.v3"] },
+    "schema": {
+      "enum": [
+        "apocha.receipt.v3",
+        "panagent.receipt.v3"
+      ]
+    },
     "signature": {
-      "type": "object", "additionalProperties": false,
-      "required": ["format", "namespace", "principal", "signature"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "namespace",
+        "principal",
+        "signature"
+      ],
       "properties": {
-        "format": { "const": "ssh" },
-        "namespace": { "const": "apocha-receipt" },
-        "principal": { "type": "string", "minLength": 1 },
-        "signature": { "type": "string", "minLength": 1 }
+        "format": {
+          "const": "ssh"
+        },
+        "namespace": {
+          "const": "apocha-receipt"
+        },
+        "principal": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "generator": {
-      "type": "object", "additionalProperties": false, "required": ["name", "version"],
-      "properties": { "name": { "type": "string", "minLength": 1 }, "version": { "type": "string", "minLength": 1 } }
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
     },
-    "workflow": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
-    "run_id": { "type": "string", "minLength": 1, "maxLength": 100 },
-    "task_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,63}$" },
-    "task_digest": { "$ref": "#/$defs/sha256" },
-    "promoted_head": { "$ref": "#/$defs/oid" },
-    "tree": { "$ref": "#/$defs/oid" },
-    "parents": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/oid" } },
-    "base_commit": { "$ref": "#/$defs/oid" },
-    "candidate_digest": { "$ref": "#/$defs/sha256" },
-    "checks": {
-      "type": "array", "minItems": 1,
+    "workflow": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{1,63}$"
+    },
+    "task_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "promoted_head": {
+      "$ref": "#/$defs/oid"
+    },
+    "tree": {
+      "$ref": "#/$defs/oid"
+    },
+    "parents": {
+      "type": "array",
+      "minItems": 1,
       "items": {
-        "type": "object", "additionalProperties": false, "required": ["id", "status", "definition_digest", "sandbox"],
+        "$ref": "#/$defs/oid"
+      }
+    },
+    "base_commit": {
+      "$ref": "#/$defs/oid"
+    },
+    "candidate_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "definition_digest",
+          "sandbox"
+        ],
         "properties": {
-          "id": { "type": "string", "minLength": 1 },
-          "status": { "const": "pass" },
-          "definition_digest": { "$ref": "#/$defs/sha256" },
-          "sandbox": { "enum": ["seatbelt", "bwrap", "none"] }
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "const": "pass"
+          },
+          "definition_digest": {
+            "$ref": "#/$defs/sha256"
+          },
+          "sandbox": {
+            "enum": [
+              "seatbelt",
+              "bwrap",
+              "none"
+            ]
+          }
         }
       }
     },
     "fixers": {
       "type": "array",
       "items": {
-        "type": "object", "additionalProperties": false, "required": ["id", "definition_digest", "status", "changed"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "definition_digest",
+          "status",
+          "changed"
+        ],
         "properties": {
-          "id": { "type": "string", "minLength": 1 },
-          "definition_digest": { "$ref": "#/$defs/sha256" },
-          "status": { "enum": ["pass", "fail", "infra_error", "skipped"] },
-          "changed": { "type": "array", "items": { "type": "string" } }
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "definition_digest": {
+            "$ref": "#/$defs/sha256"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "fail",
+              "infra_error",
+              "skipped"
+            ]
+          },
+          "changed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         }
       }
     },
     "tests": {
-      "type": "object", "additionalProperties": false, "required": ["policy", "added", "modified"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy",
+        "added",
+        "modified"
+      ],
       "properties": {
-        "policy": { "type": "string" },
-        "added": { "type": "array", "items": { "type": "string" } },
-        "modified": { "type": "array", "items": { "type": "string" } },
+        "policy": {
+          "type": "string"
+        },
+        "added": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "modified": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "test_changes": {
+          "type": "array",
+          "maxItems": 60,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "change",
+              "verdict"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "change": {
+                "enum": [
+                  "modified",
+                  "deleted"
+                ]
+              },
+              "old_on_candidate": {
+                "enum": [
+                  "old_fails_on_candidate",
+                  "old_passes_on_candidate",
+                  "error"
+                ]
+              },
+              "new_on_base": {
+                "enum": [
+                  "passes_on_base",
+                  "fails_on_base",
+                  "error",
+                  "not_run"
+                ]
+              },
+              "verdict": {
+                "enum": [
+                  "necessary",
+                  "unnecessary",
+                  "weakened",
+                  "error",
+                  "refactor",
+                  "declared_fixture"
+                ]
+              },
+              "declared": {
+                "type": "boolean"
+              },
+              "kind": {
+                "enum": [
+                  "behaviour",
+                  "refactor",
+                  "fixture"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            },
+            "if": {
+              "properties": {
+                "change": {
+                  "const": "modified"
+                }
+              }
+            },
+            "then": {
+              "if": {
+                "properties": {
+                  "verdict": {
+                    "not": {
+                      "const": "declared_fixture"
+                    }
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "old_on_candidate",
+                  "new_on_base"
+                ]
+              }
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "new_on_base"
+                ]
+              }
+            }
+          }
+        },
         "on_base": {
           "type": "array",
           "items": {
-            "type": "object", "additionalProperties": false, "required": ["path", "result"],
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "result"
+            ],
             "properties": {
-              "path": { "type": "string" },
-              "result": { "enum": ["passes_on_base", "fails_on_base", "error", "not_run"] }
+              "path": {
+                "type": "string"
+              },
+              "result": {
+                "enum": [
+                  "passes_on_base",
+                  "fails_on_base",
+                  "error",
+                  "not_run"
+                ]
+              }
             }
           }
         }
       }
     },
     "review": {
-      "type": "object", "additionalProperties": false, "required": ["decision", "findings"],
-      "properties": { "decision": { "const": "PASS" }, "findings": { "type": "integer", "minimum": 0 } }
-    },
-    "review_independence": {
-      "type": "object", "additionalProperties": false,
-      "required": ["implementer_provider", "reviewer_provider", "independent"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision",
+        "findings"
+      ],
       "properties": {
-        "implementer_provider": { "type": "string" },
-        "reviewer_provider": { "type": "string" },
-        "independent": { "type": "boolean" }
+        "decision": {
+          "const": "PASS"
+        },
+        "findings": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
-    "repairs": { "type": "integer", "minimum": 0, "maximum": 2 },
-    "agent_invocations": { "type": "integer", "minimum": 0 },
-    "retries": { "type": "integer", "minimum": 0 },
-    "runtimes": {
-      "type": "object", "additionalProperties": false, "required": ["implementer", "reviewer"],
-      "properties": { "implementer": { "$ref": "#/$defs/runtime" }, "reviewer": { "$ref": "#/$defs/runtime" } }
-    },
-    "config_digest": { "$ref": "#/$defs/sha256" },
-    "runtime_config_digest": { "$ref": "#/$defs/sha256" },
-    "runtime_config_digests": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/sha256" } },
-    "policy_digest": { "$ref": "#/$defs/sha256" },
-    "governance": {
-      "type": "object", "additionalProperties": false, "required": ["edits_allowed", "by", "reason"],
+    "review_independence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "implementer_provider",
+        "reviewer_provider",
+        "independent"
+      ],
       "properties": {
-        "edits_allowed": { "type": "boolean" },
-        "by": { "type": ["string", "null"], "maxLength": 300 },
-        "reason": { "type": ["string", "null"], "maxLength": 1000 }
+        "implementer_provider": {
+          "type": "string"
+        },
+        "reviewer_provider": {
+          "type": "string"
+        },
+        "independent": {
+          "type": "boolean"
+        }
+      }
+    },
+    "repairs": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2
+    },
+    "agent_invocations": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "retries": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "runtimes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "implementer",
+        "reviewer"
+      ],
+      "properties": {
+        "implementer": {
+          "$ref": "#/$defs/runtime"
+        },
+        "reviewer": {
+          "$ref": "#/$defs/runtime"
+        }
+      }
+    },
+    "config_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "runtime_config_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "runtime_config_digests": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "$ref": "#/$defs/sha256"
+      }
+    },
+    "policy_digest": {
+      "$ref": "#/$defs/sha256"
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "edits_allowed",
+        "by",
+        "reason"
+      ],
+      "properties": {
+        "edits_allowed": {
+          "type": "boolean"
+        },
+        "by": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 300
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000
+        }
       }
     }
   },
   "$defs": {
-    "oid": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
-    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "oid": {
+      "type": "string",
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
     "runtime": {
-      "type": ["object", "null"], "additionalProperties": false, "required": ["adapter", "adapter_version", "provider", "model"],
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "required": [
+        "adapter",
+        "adapter_version",
+        "provider",
+        "model"
+      ],
       "properties": {
-        "adapter": { "type": "string" },
-        "adapter_version": { "type": ["string", "null"] },
-        "provider": { "type": ["string", "null"] },
-        "model": { "type": ["string", "null"] }
+        "adapter": {
+          "type": "string"
+        },
+        "adapter_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       }
     }
   }

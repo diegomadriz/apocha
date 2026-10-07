@@ -5,6 +5,7 @@ import { effectiveProtectedPaths } from "../config/task.mjs";
 import { snapshotCandidate } from "../git/candidate.mjs";
 import { testEdits } from "../git/test-edits.mjs";
 import { HarnessError } from "../util/errors.mjs";
+import { git } from "../util/git.mjs";
 import { designReference } from "./agent.mjs";
 import { invokeAgent } from "./invoke.mjs";
 
@@ -35,7 +36,33 @@ export async function runReviewStage(_stage, ctx) {
     (file) => !existsSync(path.join(ctx.candidate.root, file)),
   );
   const tests = testEdits(ctx.candidate, ctx.config, snapshot.changed_files, ctx.task.test_edits);
+  const testChanges = (verified.test_changes ?? []).map((entry) => ({
+    ...entry,
+    diff: String(
+      git(ctx.candidate.root, [
+        "diff",
+        "--cached",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--no-color",
+        "--no-renames",
+        snapshot.base_commit,
+        "--",
+        entry.path,
+      ]).stdout,
+    ),
+  }));
+  if (testChanges.some((entry) => Buffer.byteLength(entry.diff) > ctx.config.limits.review_diff_bytes)) {
+    ctx.state.reason = "test change diff exceeds the review limit";
+    ctx.event("review.skipped", { reason: ctx.state.reason });
+    return "too_large";
+  }
   const bundle = {
+    test_changes: testChanges,
+    undeclared_test_changes: tests.modified.filter(
+      (file) => !(ctx.task.test_changes ?? []).some((entry) => entry.path === file),
+    ),
+    declared_test_changes: ctx.task.test_changes ?? [],
     tests_on_base: verified.tests_on_base ?? [],
     added_tests: tests.added,
     ...(tests.modified.length ? { modified_tests: tests.modified } : {}),

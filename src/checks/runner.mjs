@@ -1,7 +1,7 @@
 // @ts-check
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, realpathSync, rmSync } from "node:fs";
+import { mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   resolveBackend,
@@ -14,8 +14,8 @@ import {
 import { decodeCaptured } from "../util/bounded.mjs";
 import { digestJson, sha256 } from "../util/digest.mjs";
 import { describeError } from "../util/errors.mjs";
-import { git, gitCommonDir } from "../util/git.mjs";
-import { isInside } from "../util/paths.mjs";
+import { git, gitBuffer, gitCommonDir } from "../util/git.mjs";
+import { canonicalPath, inAnyScope, isInside } from "../util/paths.mjs";
 import { makeTempDir, removeTempDir } from "../util/temp.mjs";
 import { dependencyCacheFor, prepareNpmDependencies } from "./dependencies.mjs";
 
@@ -123,6 +123,7 @@ function materialize(candidateRoot, execRoot, forbidden) {
  *   dependencyOptions?: import("./dependencies.mjs").DependencyOptions,
  *   signal?: AbortSignal,
  *   baseOverlay?: string[],
+ *   baseFiles?: string[],
  *   files?: string[],
  *   maxOutputBytes?: number,
  *   onPrepared?: (root: string, excludedPaths: string[]) => void,
@@ -136,6 +137,7 @@ export async function runCheck({
   config,
   backend,
   baseOverlay,
+  baseFiles,
   signingKey,
   secretFileCache,
   dependencyOptions,
@@ -187,6 +189,16 @@ export async function runCheck({
           rmSync(path.join(execRoot, scope), { recursive: true, force: true });
       } else {
         materialize(candidate.root, execRoot, config.paths.forbidden);
+      }
+      for (const file of baseFiles ?? []) {
+        canonicalPath(file, "baseFiles");
+        if (inAnyScope(file, config.paths.forbidden)) throw new Error(`base file is forbidden: ${file}`);
+        const target = path.resolve(execRoot, file);
+        if (!isInside(target, execRoot)) throw new Error("base file escapes the tree");
+        const contents = gitBuffer(candidate.root, ["show", `${candidate.base_commit}:${file}`]);
+        mkdirSync(path.dirname(target), { recursive: true });
+        rmSync(target, { force: true });
+        writeFileSync(target, contents);
       }
       const cwd = check.cwd === "." ? execRoot : path.resolve(execRoot, check.cwd);
       if (!isInside(cwd, execRoot))

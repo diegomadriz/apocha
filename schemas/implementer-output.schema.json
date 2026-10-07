@@ -5,7 +5,12 @@
   "additionalProperties": false,
   "required": ["summary"],
   "properties": {
+    "status": { "type": "string", "enum": ["done", "blocked"], "default": "done" },
+    "blocked_reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
     "summary": { "type": "string", "minLength": 1, "maxLength": 4000 },
     "unresolved_uncertainties": { "type": "array", "maxItems": 20, "items": { "type": "string", "minLength": 1, "maxLength": 1000 } }
-  }
+  },
+  "if": { "properties": { "status": { "const": "blocked" } }, "required": ["status"] },
+  "then": { "required": ["blocked_reason"] },
+  "else": { "not": { "required": ["blocked_reason"] } }
 }

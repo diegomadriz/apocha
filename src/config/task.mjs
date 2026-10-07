@@ -1,9 +1,10 @@
 // @ts-check
 import { digestJson } from "../util/digest.mjs";
 import { HarnessError } from "../util/errors.mjs";
+import { git } from "../util/git.mjs";
 import { canonicalPath, hasGitComponent, inAnyScope, inScope, isForbidden } from "../util/paths.mjs";
 import { assertValid } from "../util/schema.mjs";
-import { selectChecks } from "./project.mjs";
+import { isTestPath, selectChecks } from "./project.mjs";
 
 /**
  * @typedef {{
@@ -17,7 +18,8 @@ import { selectChecks } from "./project.mjs";
  *   design_reference: string[],
  *   checks: string[],
  *   fixers: string[],
- *   test_edits: "additive" | "new-files" | "allowed",
+ *   test_changes: { path: string, kind: "behaviour" | "refactor" | "fixture", reason: string }[],
+ *   test_edits: "justified" | "additive" | "new-files" | "allowed",
  *   new_tests_must_fail_on_base: boolean,
  *   checks_selected_by_rule: boolean,
  *   fail_fast: boolean,
@@ -32,9 +34,10 @@ import { selectChecks } from "./project.mjs";
  *
  * @param {unknown} raw
  * @param {import("./project.mjs").ProjectConfig} config
+ * @param {string} [baseCommit]
  * @returns {Task}
  */
-export function validateTask(raw, config) {
+export function validateTask(raw, config, baseCommit = "HEAD") {
   assertValid("task.schema.json", raw, "task manifest");
   const input = /** @type {Record<string, any>} */ (raw);
   const forbidden = config.paths.forbidden;
@@ -56,6 +59,39 @@ export function validateTask(raw, config) {
   for (const entry of [...allowed, ...readOnly, ...initial, ...design]) {
     if (isForbidden(entry, forbidden))
       throw new HarnessError("config", "forbidden_path", `task names a forbidden path: ${entry}`);
+  }
+  for (const read of readOnly) {
+    for (const edit of allowed) {
+      if (inScope(read, edit) || inScope(edit, read))
+        throw new HarnessError(
+          "config",
+          "invalid_path",
+          `read_only_paths entry ${read} overlaps allowed_paths entry ${edit}`,
+        );
+    }
+  }
+  const testChanges = input.test_changes ?? [];
+  const seen = new Set();
+  const existing = testChanges.length
+    ? new Set(String(git(config.root, ["ls-tree", "-r", "--name-only", "-z", baseCommit]).stdout).split("\0"))
+    : new Set();
+  for (const entry of testChanges) {
+    canonicalPath(entry.path, "test_changes.path");
+    if (seen.has(entry.path))
+      throw new HarnessError("config", "invalid_path", `duplicate test_changes path: ${entry.path}`);
+    seen.add(entry.path);
+    if (!existing.has(entry.path) || !isTestPath(config, entry.path))
+      throw new HarnessError(
+        "config",
+        "invalid_path",
+        `test_changes path is not an existing test file at the base commit: ${entry.path}`,
+      );
+    if (!inAnyScope(entry.path, allowed))
+      throw new HarnessError(
+        "config",
+        "invalid_path",
+        `test_changes path is outside allowed_paths: ${entry.path}`,
+      );
   }
   for (const entry of initial) {
     if (!inAnyScope(entry, [...allowed, ...readOnly])) {
@@ -109,7 +145,8 @@ export function validateTask(raw, config) {
     design_reference: design,
     checks,
     fixers,
-    test_edits: input.test_edits ?? "additive",
+    test_changes: testChanges.map((entry) => ({ ...entry })),
+    test_edits: input.test_edits ?? "justified",
     new_tests_must_fail_on_base: input.new_tests_must_fail_on_base ?? false,
     checks_selected_by_rule: selectedByRule,
     fail_fast: input.fail_fast ?? false,

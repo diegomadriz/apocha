@@ -1,6 +1,16 @@
 // @ts-check
 
 /**
+ * @typedef {{
+ *   path: string, change: "modified" | "deleted",
+ *   declared: boolean, kind?: "behaviour" | "refactor" | "fixture", reason?: string,
+ *   old_on_candidate?: "old_fails_on_candidate" | "old_passes_on_candidate" | "error",
+ *   new_on_base?: "passes_on_base" | "fails_on_base" | "error" | "not_run",
+ *   verdict: "necessary" | "unnecessary" | "weakened" | "error" | "refactor" | "declared_fixture",
+ * }} TestChangeEvidence
+ */
+
+/**
  * The run context passed to every stage. `state` is the serializable part,
  * persisted to run.json after every transition so a paused run can resume.
  *
@@ -15,12 +25,14 @@
  *   verification_history: { attempt: number, failed_checks: string[], first_lines: Record<string, string[]> }[],
  *   last_verification: null | {
  *     status: string, candidate_digest: string, changed_files: string[], duration_ms?: number,
+ *     effective_policy?: import("../config/task.mjs").Task["test_edits"], reason?: string,
  *     fixers?: import("../checks/fixers.mjs").FixerResult[],
+ *     test_changes?: TestChangeEvidence[],
  *     tests_on_base?: { path: string, result: "passes_on_base" | "fails_on_base" | "error" | "not_run" }[],
  *     checks: { id: string, status: string, exit_code?: number | null, error?: string | null, definition_digest?: string, sandbox?: string, output_digest?: string, duration_ms?: number, files?: string[] }[],
  *   },
  *   last_review: null | { decision: string, findings: any[], reason?: string, candidate_digest: string },
- *   implementation: null | { summary: string, unresolved_uncertainties: string[] },
+ *   implementation: null | { summary: string, unresolved_uncertainties: string[], status?: "blocked", blocked_reason?: string },
  *   runtimes: { implementer?: any, reviewer?: any },
  *   usage: Record<string, Record<string, number>>,
  *   decisions: Record<string, "approve" | "reject">,

@@ -10,7 +10,7 @@ export default {
   version: 1,
   start: "implement",
   stages: {
-    implement: { kind: "agent", role: "implementer", on: { done: "verify", no_changes: "ESCALATED" } },
+    implement: { kind: "agent", role: "implementer", on: { done: "verify", no_changes: "ESCALATED", blocked: "ESCALATED" } },
     verify: { kind: "checks", on: { pass: "review", fail: "repair", violation: "FAILED", infra_error: "ESCALATED" } },
     repair: { kind: "budget", counter: "repairs", on: { available: "implement", exhausted: "ESCALATED" } },
     review: { kind: "review", role: "reviewer", on: { PASS: "promote", FIX: "repair", ESCALATE: "ESCALATED", too_large: "ESCALATED" } },
@@ -23,7 +23,7 @@ export default {
 
 | Kind | Outcomes | What it does |
 |---|---|---|
-| `agent` | `done`, `no_changes` | Runs the implementer with the task bundle and any findings; snapshots the candidate |
+| `agent` | `done`, `no_changes`, `blocked` | Runs the implementer with the task bundle and any findings; snapshots completed candidates or records a blocked reason |
 | `checks` | `pass`, `fail`, `violation`, `infra_error` | Automatic fixers, then structural checks (scope, protected paths, test edits), then the task's catalog checks, then a re-snapshot. A failure becomes findings for the next attempt. |
 | `review` | `PASS`, `FIX`, `ESCALATE`, `too_large` | Runs the reviewer on the verified candidate with the full diff; validates the decision and its digest binding |
 | `budget` | `available`, `exhausted` | Spends one unit of a counter (`repairs` is bounded by the task) |
@@ -42,6 +42,11 @@ failure are recorded as `skipped`; running checks finish. Aborts stop running
 checks and prevent new checks from starting. Per-check `duration_ms` and the
 checks stage's total wall time are recorded in verification evidence.
 Base test runs remain sequential and start only after all catalog checks pass.
+
+An implementer reporting `blocked` transitions immediately to `ESCALATED` in both built-in
+workflows, even if files changed. It runs no verification or review and spends no additional
+repair round. The run reason is `implementer reported blocked: <reason>` (at most 1000 characters);
+the full reason is stored in implementation state and the `implementer.blocked` event.
 
 ## Automatic fixers
 
