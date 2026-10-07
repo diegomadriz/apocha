@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-10-06)
 
 - Test edits are additive by default, enforced by the test-edits check.
 - tests_on_base records evidence that new tests fail on the base.
@@ -18,8 +18,12 @@
 - verify-range and a verify-only GitHub Action check receipts.
 - Dependencies are validated once per run and copied with copy-on-write where available.
   Checks run in parallel with fail_fast support.
+- Fixers such as a formatter run on the changed files before checks, configured with `fixers` and `default_fixers`. Their changes become part of the candidate and are recorded.
+- A check can skip the OS sandbox with `unsandboxed: true`, set only in the project config. Apocha uses this for a sandbox self-test, and makes the paths that trigger it governance paths.
+- On Linux, bubblewrap mounts only existing canonical paths (fixing setups where /var/run is a symlink), denied directories are read-only, and the desktop session bus, X11, the SSH agent, and common database sockets are hidden from checks. Sandbox setup failures count as infrastructure errors. On macOS, checks can no longer open other terminals.
+- A run that uses an unsandboxed check needs `--allow-governance-edits` with a reason, and agents cannot run such checks through `run_check`.
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-10-05)
 
 First release as a standalone package.
 

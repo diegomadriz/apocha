@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { adapterForRole } from "../adapters/index.mjs";
 import { warnCatalogUnsandboxedChecks } from "../checks/sandbox.mjs";
-import { loadProjectConfigAt } from "../config/project.mjs";
+import { loadProjectConfigAt, selectChecks } from "../config/project.mjs";
 import { loadRuntimeConfig, roleProvider } from "../config/runtime.mjs";
 import { taskDigest, validateTask } from "../config/task.mjs";
 import { attachCandidate, createCandidate } from "../git/candidate.mjs";
@@ -139,6 +139,24 @@ export async function startRun(options) {
       reason: options.governanceReason.trim().slice(0, 1000),
     };
   }
+  const selectedChecks = integration
+    ? (integration.checks ??
+      selectChecks(
+        config,
+        String(
+          git(repositoryRoot, ["diff", "--name-only", "-z", baseCommit, integration.topic_commit]).stdout,
+        )
+          .split("\0")
+          .filter(Boolean),
+      ))
+    : task.checks;
+  const unsandboxed = selectedChecks.filter((id) => config.checks[id].unsandboxed);
+  if (unsandboxed.length && !governance.edits_allowed)
+    throw new HarnessError(
+      "config",
+      "unsandboxed_approval",
+      `unsandboxed checks ${unsandboxed.join(", ")} require --allow-governance-edits with a non-empty --reason`,
+    );
   // Integration selects its checks after merging; runCheck enforces required mode then.
   const needsSandbox =
     !integration &&

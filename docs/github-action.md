@@ -12,7 +12,7 @@ jobs:
   receipts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: <owner>/apocha@v0.2.0
@@ -46,3 +46,7 @@ Locally, run `apocha verify-range <base>..<head> [--require-signed] [--json]`.
 It reports every commit and signature status, names the first failing commit
 (oldest first), and exits non-zero on failure. In Actions it writes the same
 results as a table to `GITHUB_STEP_SUMMARY` when set.
+
+## Limits
+
+Receipts travel as Git notes on `refs/notes/apocha`, so push them along with the branch. Pull requests from forks cannot push notes to this repository, so their commits show as missing receipts. Squash and rebase merges create new commits without receipts; use merge commits or `apocha land` instead. Without `--require-signed`, the Action checks that each receipt matches its commit, not who wrote it.

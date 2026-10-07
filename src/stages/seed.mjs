@@ -57,6 +57,13 @@ export async function runMergeSeedStage(_stage, ctx) {
       "no_checks",
       "no checks selected for this integration; pass --checks or add check_selection rules",
     );
+  const unsandboxed = checks.filter((id) => ctx.config.checks[id].unsandboxed);
+  if (unsandboxed.length && !ctx.governance.edits_allowed)
+    throw new HarnessError(
+      "config",
+      "unsandboxed_approval",
+      `unsandboxed checks ${unsandboxed.join(", ")} require --allow-governance-edits with a non-empty --reason`,
+    );
   ctx.task = validateTask(
     {
       task_id: ctx.task.task_id,

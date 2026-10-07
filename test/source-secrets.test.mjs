@@ -5,7 +5,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { sourceSecretFiles } from "../src/checks/runner.mjs";
 import { sourceSecretsProbe } from "../src/cli/probe.mjs";
-import { wrapCommand } from "../src/sandbox/index.mjs";
+import { bwrapArgs, wrapCommand } from "../src/sandbox/index.mjs";
 import { makeRepo } from "./helpers.mjs";
 
 test("source secret discovery includes ignored files and skips tracked and unrelated files", () => {
@@ -60,7 +60,7 @@ test("both sandbox wrappers deny an individual discovered source secret", () => 
     };
     const seatbelt = wrapCommand("seatbelt", policy, ["true"]);
     assert.ok(seatbelt.args[1].includes(`(deny file-read* (literal "${secret}"))`));
-    const bwrap = wrapCommand("bwrap", policy, ["true"]);
+    const bwrap = { args: bwrapArgs(policy, ["true"], []) };
     const index = bwrap.args.indexOf(secret);
     assert.deepEqual(bwrap.args.slice(index - 2, index + 1), ["--ro-bind", "/dev/null", secret]);
     assert.equal(bwrap.args.includes("--tmpfs"), false);

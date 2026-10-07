@@ -29,7 +29,7 @@ index (no `.git`, no untracked or ignored files, no forbidden paths), under an O
 | Backend | Platform | Policy |
 |---|---|---|
 | Seatbelt | macOS (`/usr/bin/sandbox-exec`) | Writes only in the check workspace (its tree, scratch `HOME`, and `TMPDIR`). Reads denied for credential stores, the candidate clone, the source `.git`, and forbidden paths. Deny by default, with explicit process and system-service allows. Broad toolchain reads remain intentional. DNS, host loopback and outside Unix sockets are denied unless network is allowed; `loopback: true` permits loopback only. Workspace Unix sockets work. Listed local daemon sockets stay denied. |
-| bubblewrap | Linux | Read-only view of the host root, writable workspace, tmpfs over denied directories, read-only `/dev/null` over denied files, `--unshare-net` unless the check allows network, `--unshare-pid`, `--die-with-parent` |
+| bubblewrap | Linux | Read-only view of the host root, writable workspace, read-only tmpfs (`--tmpfs` followed by `--remount-ro`) over denied directories, read-only `/dev/null` over denied files, `--unshare-net` unless the check allows network, `--unshare-pid`, `--die-with-parent` |
 | none | anywhere | Scratch `HOME` and `TMPDIR` and the env allowlist still apply. Recorded as `none` in the receipt. Set `sandbox.mode: "required"` to refuse running without a backend. |
 
 A catalog check can set `unsandboxed: true` to skip the OS sandbox even when
@@ -46,10 +46,14 @@ cannot nest Seatbelt profiles: without the opt-out, the real-sandbox tests see t
 outer sandbox markers and skip. Selection rules run it for sandbox and check-runner
 code or the real-sandbox test files, rather than as a default check.
 
-Every path those self-test selection rules select on is a governance path in Apocha's own
-config. Any change that would run agent code unsandboxed therefore requires human approval
-via `--allow-governance-edits` with a reason. Projects using `unsandboxed: true` should follow
-the same pattern: make every selection path for an unsandboxed check a governance path.
+Runs selecting any catalog check marked `unsandboxed: true` require explicit approval via
+`--allow-governance-edits` with a non-empty `--reason`, whether the task names the check
+or selection rules add it. Without approval, startup refuses and names the checks.
+The implementer's `run_check` tool never runs these checks and its available-check list
+excludes them. Only the controller runs them during verification, after structural checks pass.
+
+Every path those self-test selection rules select on is also a governance path in Apocha's
+own config. Projects using `unsandboxed: true` should follow the same pattern.
 
 The default deny list covers `~/.ssh`, `~/.aws`, `~/.azure`, `~/.config/gcloud`, `~/.config/gh`,
 `~/.codex`, `~/.claude`, `~/.pi`, `~/.gnupg`, `~/.netrc`, `~/.npmrc`, `~/.pypirc`, `~/.docker`,
@@ -61,6 +65,8 @@ files, whose basenames match `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, or
 from this discovery. `apocha doctor` reports the count and relative paths of the files found.
 Discovery is cached once per run per source root, including across repair attempts.
 This default applies to both Seatbelt and bubblewrap; without an OS sandbox it cannot block reads.
+The configured runtime receipt signing key and its `.pub` file, including canonical paths,
+are always added to sandboxed checks' read deny lists.
 
 Local daemon sockets are denied independently of the network setting. The defaults are
 `/var/run/docker.sock`, `/run/docker.sock`, `~/.docker/run/docker.sock`,
@@ -69,14 +75,25 @@ Local daemon sockets are denied independently of the network setting. The defaul
 `~/.local/share/containers/podman/machine/podman.sock`. Add paths with
 `sandbox.deny_sockets`; additions cannot remove the defaults. Home paths are expanded,
 and existing symlink targets are also denied. Seatbelt denies outbound connections to
-these paths; bubblewrap hides existing paths with read-only `/dev/null` bindings.
+these paths; bubblewrap hides existing canonical paths with read-only `/dev/null` bindings.
+Absent paths are omitted, and canonical mount targets avoid symlink mount-point failures
+on bubblewrap versions before 0.12.
+
+Bubblewrap also hides existing desktop and daemon socket directories with read-only tmpfs:
+`/run/user/<current uid>`, `/tmp/.X11-unix`, `/run/dbus`, `/var/run/postgresql`
+(canonical `/run/postgresql`), `/run/mysqld`, and the directory containing
+`$SSH_AUTH_SOCK` when set. It never hides `/`, the OS temporary directory itself,
+or a directory that is or contains a writable path. Filesystem Unix sockets outside
+these hidden directories and the configured deny lists stay reachable on bubblewrap,
+even with network disabled; network namespaces do not isolate filesystem Unix sockets.
 Without an OS sandbox these socket restrictions cannot be enforced.
 
 Seatbelt starts from `(deny default)` when network is denied. It explicitly permits process
 execution, self introspection, sysctl reads, and logging, notification and user/group lookup
 services. It grants no DNS or network-configuration service access. Reads remain broad for
 host toolchains, with the deny lists overriding them; metadata reads remain available everywhere.
-Writes stay confined to the workspace and standard device streams. Unix sockets inside the
+Writes stay confined to the workspace and `/dev/tty`, `/dev/null`, `/dev/zero`, and `/dev/fd/*`.
+Other terminals (`/dev/ttys*`) and pseudo-terminals (`/dev/pty*`, `/dev/ptmx`) are denied. Unix sockets inside the
 workspace support tool IPC. `checks.<id>.loopback: true` allows loopback binding, listening and
 connections, including access to host loopback services. Use it only for checks that need this.
 On bubblewrap the option is accepted as a no-op: loopback is inside its isolated network namespace.
@@ -100,11 +117,10 @@ restrictions still enforced.
 - **Repository-level runtime config requires explicit trust.** `.apocha/runtimes.json` chooses
   runtime commands and is ignored unless you pass `--trust-repo-runtimes`. It is a governance
   path, so agents cannot change it, but a person who can commit to the repository can.
-- **The bubblewrap backend has unit tests for its arguments but has not yet been exercised on a
-  Linux host in this project's own testing.** The CI workflow installs bubblewrap and enables
-  unprivileged user namespaces so the sandbox tests run there.
-- **Agents can still write weak tests.** Protected paths keep existing tests safe when you protect
-  them; the reviewer is instructed to flag weakened or special-cased tests. For high-stakes tasks,
+- **Agents can still write weak tests.** The `test_edits` policy governs existing tests:
+  `new-files` forbids changes to them, `additive` permits additions but rejects removed lines
+  and deletions, and `allowed` permits edits. The reviewer is instructed to flag weakened
+  or special-cased tests. For high-stakes tasks,
   protect the test directory and put new tests in a separate task.
 
 ## Prompt injection

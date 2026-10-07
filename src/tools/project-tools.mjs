@@ -68,6 +68,7 @@ export const TOOL_LIMITS = Object.freeze({
  *   max_tool_calls: number,
  *   max_run_check_calls: number,
  *   sandbox_backend: import("../sandbox/index.mjs").SandboxBackend,
+ *   signing_key?: string,
  *   project: import("../config/project.mjs").ProjectConfig,
  *   session_dir: string,
  * }} SessionConfig
@@ -382,6 +383,11 @@ export function createProjectTools(session) {
   async function run_check({ check_id }) {
     if (session.role !== "implementer")
       throw toolError("run_check is not available to the reviewer", "forbidden");
+    if (Object.hasOwn(session.project.checks, check_id) && session.project.checks[check_id].unsandboxed)
+      throw toolError(
+        `unsandboxed check '${check_id}' cannot run through run_check; only the controller runs it after structural checks pass`,
+        "unsandboxed_check",
+      );
     if (!session.run_checks.includes(check_id)) {
       throw toolError(
         `check '${check_id}' is not available; choose one of: ${session.run_checks.join(", ") || "(none)"}`,
@@ -396,6 +402,7 @@ export function createProjectTools(session) {
       candidate: { root, repository_root: session.repository_root, base_commit: session.base_commit },
       config: session.project,
       backend: session.sandbox_backend,
+      signingKey: session.signing_key,
     });
     const output = [
       result.stderr && `stderr:\n${result.stderr}`,

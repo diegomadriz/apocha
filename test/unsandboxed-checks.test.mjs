@@ -74,8 +74,11 @@ test("controller warns and receipts an unsandboxed check alongside a normal sand
   const fake = createFakeAdapter({
     handlers: {
       async implementer(context) {
-        const result = await context.call("run_check", { check_id: "selftest" });
-        assert.equal(result.status, "pass", result.output);
+        assert.equal(
+          context.bundle.checks.some((check) => check.id === "selftest"),
+          false,
+        );
+        await assert.rejects(context.call("run_check", { check_id: "selftest" }), /unsandboxed.*controller/);
         await writeValue(2)(context);
       },
       reviewer: passReviewer,
@@ -87,7 +90,9 @@ test("controller warns and receipts an unsandboxed check alongside a normal sand
       cwd: repo.root,
       base: "main",
       batch,
-      message: "Set value",
+      message: `Set value ${batch}`,
+      allowGovernanceEdits: true,
+      governanceReason: "Approve self-test",
       runtimes: fakeRuntimes(),
       task: valueTask({ checks: Object.keys(checks) }),
       adapters: { implementer: fake, reviewer: fake },
@@ -163,6 +168,9 @@ test("CLI warns in quiet mode and doctor lists explicitly unsandboxed checks wit
       runtimes,
       "--json",
       "--quiet",
+      "--allow-governance-edits",
+      "--reason",
+      "Approve self-test",
     ],
     { cwd: repo.root, encoding: "utf8", env },
   );

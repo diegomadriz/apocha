@@ -8,6 +8,7 @@ import {
   resolveDenyPaths,
   resolveSocketPaths,
   SANDBOX_MARKER,
+  signingDenyPaths,
   wrapCommand,
 } from "../sandbox/index.mjs";
 import { decodeCaptured } from "../util/bounded.mjs";
@@ -117,6 +118,7 @@ function materialize(candidateRoot, execRoot, forbidden) {
  *   candidate: { root: string, repository_root: string, base_commit: string },
  *   config: import("../config/project.mjs").ProjectConfig,
  *   backend: import("../sandbox/index.mjs").SandboxBackend,
+ *   signingKey?: string,
  *   secretFileCache?: SecretFileCache,
  *   dependencyOptions?: import("./dependencies.mjs").DependencyOptions,
  *   signal?: AbortSignal,
@@ -136,6 +138,7 @@ export async function runCheck({
   backend,
   baseOverlay,
   baseFiles,
+  signingKey,
   secretFileCache,
   dependencyOptions,
   signal,
@@ -246,7 +249,9 @@ export async function runCheck({
       // Older repository commits use the pre-rename marker to avoid nested sandboxes.
       if (env[SANDBOX_MARKER]) env.PANAGENT_SANDBOX = env[SANDBOX_MARKER];
       const argv = check.run.flatMap((part) =>
-        part === "{files}" && files ? files : [part.replaceAll("{source}", sourceRoot)],
+        part === "{files}" && files
+          ? files.map((file) => (path.isAbsolute(file) ? file : `./${file}`))
+          : [part.replaceAll("{source}", sourceRoot)],
       );
       const commonDir = realpathSync(gitCommonDir(sourceRoot));
       let secrets = secretFileCache?.files.get(sourceRoot);
@@ -262,6 +267,7 @@ export async function runCheck({
         path.join(sourceRoot, ".git"),
         ...config.paths.forbidden.map((scope) => path.join(sourceRoot, scope)),
       ]).filter((entry) => !isInside(workspace, entry));
+      denyRead.push(...signingDenyPaths(signingKey));
       const network = check.network || config.sandbox.network === "allow";
       const denySockets = (backend === "bwrap" ? resolveDenyPaths : resolveSocketPaths)(
         config.sandbox.deny_sockets,
@@ -292,6 +298,7 @@ export async function runCheck({
       const hashes = { stdout: createHash("sha256"), stderr: createHash("sha256") };
       let settled = false;
       let timedOut = false;
+      let sandboxInfo = "";
       /** @type {NodeJS.Timeout | undefined} */
       let timer;
       const finish = (
@@ -345,12 +352,16 @@ export async function runCheck({
         return;
       }
       try {
-        child = spawn(prepared.command, prepared.args, {
-          cwd: prepared.cwd,
-          env: prepared.env,
-          stdio: ["ignore", "pipe", "pipe"],
-          detached: true,
-        });
+        child = spawn(
+          prepared.command,
+          backend === "bwrap" ? ["--json-status-fd", "3", ...prepared.args] : prepared.args,
+          {
+            cwd: prepared.cwd,
+            env: prepared.env,
+            stdio: backend === "bwrap" ? ["ignore", "pipe", "pipe", "pipe"] : ["ignore", "pipe", "pipe"],
+            detached: true,
+          },
+        );
       } catch (error) {
         finish({
           status: "infra_error",
@@ -361,6 +372,12 @@ export async function runCheck({
       }
       signal?.addEventListener("abort", abort, { once: true });
       if (signal?.aborted) abort();
+      if (backend === "bwrap") {
+        const info = /** @type {import("node:stream").Readable} */ (child.stdio[3]);
+        info.on("data", (chunk) => {
+          if (sandboxInfo.length < 4096) sandboxInfo += chunk.toString();
+        });
+      }
       child.stdout.on("data", (chunk) => collect("stdout", chunk));
       child.stderr.on("data", (chunk) => collect("stderr", chunk));
       timer = setTimeout(() => {
@@ -381,7 +398,30 @@ export async function runCheck({
       child.on("close", (code, signal) => {
         if (timedOut) finish({ status: "infra_error", exit_code: code, error: "timeout" });
         else if (signal) finish({ status: "infra_error", exit_code: code, error: `signal ${signal}` });
-        else finish({ status: code === 0 ? "pass" : "fail", exit_code: code, error: null });
+        else {
+          let childStarted = backend !== "bwrap";
+          if (!childStarted) {
+            // Unlike --info-fd namespace metadata, this status is sent after
+            // sandbox setup. A second JSON line may report the child's exit.
+            childStarted = sandboxInfo.split("\n").some((line) => {
+              try {
+                const info = JSON.parse(line);
+                return Number.isInteger(info["child-pid"]) && info["child-pid"] > 0;
+              } catch {
+                return false;
+              }
+            });
+          }
+          finish(
+            childStarted
+              ? { status: code === 0 ? "pass" : "fail", exit_code: code, error: null }
+              : {
+                  status: "infra_error",
+                  exit_code: code,
+                  error: "bubblewrap setup failed before starting the check",
+                },
+          );
+        }
       });
     });
   } finally {
