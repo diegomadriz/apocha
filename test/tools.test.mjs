@@ -271,6 +271,102 @@ test("large files point the agent at read_file_range", async () => {
   }
 });
 
+test("apply_patch refuses escaped line breaks without writing any edits", async () => {
+  const s = setup({ allowed_paths: ["src/", "docs/"] });
+  try {
+    for (const target of ["src/a.txt", "docs/guide.md"]) {
+      const before = readFileSync(path.join(s.root, target), "utf8");
+      const result = await s.tools.call("apply_patch", {
+        edits: [
+          { path: "src/new.txt", old_text: "", new_text: "created\n" },
+          { path: target, old_text: before, new_text: "first\\nsecond\\n" },
+        ],
+      });
+      assert.equal(result.ok, false);
+      assert.equal(readSession(s.sessionDir).trace.at(-1).error_code, "escaped_newlines");
+      assert.match(result.error, /escaped.*\\n.*real line breaks/);
+      assert.match(result.error, /send real newlines/);
+      assert.equal(readFileSync(path.join(s.root, target), "utf8"), before);
+      assert.equal(existsSync(path.join(s.root, "src/new.txt")), false);
+    }
+  } finally {
+    s.cleanup();
+  }
+});
+
+test("apply_patch accepts existing literal escapes and mixed real and literal newlines", async () => {
+  const s = setup({}, { "src/literal.mjs": 'const value = "\\n";\nconst count = 1;\n' });
+  try {
+    for (const edit of [
+      { path: "src/literal.mjs", old_text: "const count = 1;", new_text: 'const count = "\\n";' },
+      { path: "src/a.txt", old_text: "alpha\n", new_text: 'const value = "\\n";\n' },
+    ]) {
+      const before = readFileSync(path.join(s.root, edit.path), "utf8");
+      const result = await s.tools.call("apply_patch", { edits: [edit] });
+      assert.equal(result.ok, true, result.error);
+      assert.equal(
+        readFileSync(path.join(s.root, edit.path), "utf8"),
+        before.replace(edit.old_text, edit.new_text),
+      );
+    }
+  } finally {
+    s.cleanup();
+  }
+});
+
+test("apply_patch ambiguous diagnostics list at most ten occurrence line numbers", async () => {
+  const s = setup({}, { "src/dup.txt": "header\n" + "same\n".repeat(12) });
+  try {
+    const result = await s.tools.call("apply_patch", {
+      edits: [{ path: "src/dup.txt", old_text: "same", new_text: "different" }],
+    });
+    assert.equal(result.ok, false);
+    assert.equal(readSession(s.sessionDir).trace.at(-1).error_code, "ambiguous");
+    assert.match(result.error, /lines: 2, 3, 4, 5, 6, 7, 8, 9, 10, 11;/);
+    assert.match(result.error, /surrounding lines.*unique/);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test("apply_patch no_match diagnostics show the closest line and whitespace-only differences", async () => {
+  const longLine = "prefix " + "x".repeat(220);
+  const s = setup(
+    {},
+    { "src/near.txt": "unrelated\nconst count = 123;\nconst count = 124;\n" + longLine + "\n" },
+  );
+  try {
+    for (const [old_text, expected] of [
+      ["\nconst count = 124!", /closest line 3: const count = 124;/],
+      [" const   count = 123; ", /closest line 2: const count = 123;/],
+      ["zzzz", /no similar line was found/i],
+      [longLine + "!", new RegExp("closest line 4: " + longLine.slice(0, 200) + "(?:;|$)")],
+    ]) {
+      const result = await s.tools.call("apply_patch", {
+        edits: [{ path: "src/near.txt", old_text, new_text: "changed" }],
+      });
+      assert.equal(result.ok, false);
+      assert.equal(readSession(s.sessionDir).trace.at(-1).error_code, "no_match");
+      assert.match(result.error, expected);
+      if (old_text.includes("   ")) assert.match(result.error, /only difference is whitespace/);
+    }
+    const multiline = await s.tools.call("apply_patch", {
+      edits: [
+        { path: "src/near.txt", old_text: "const  count = 123;\nconst count = 124;", new_text: "changed" },
+      ],
+    });
+    assert.match(multiline.error, /only difference is whitespace/);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test("apply_patch description explains exact matching and real newlines", () => {
+  const description = toolDefinitions("implementer").find((tool) => tool.name === "apply_patch").description;
+  assert.match(description, /old_text must match the file exactly once, including whitespace/);
+  assert.match(description, /line breaks must be real newlines/);
+});
+
 test("apply_patch composes several edits to one file in order", async () => {
   const s = setup();
   try {

@@ -52,7 +52,7 @@ const TOOLS = {
   },
   apply_patch: {
     description:
-      'Edit files inside allowed_paths. Each edit replaces exactly one occurrence of old_text with new_text in path. Use old_text "" to create a new file, or { path, delete: true } to delete one. Edits apply in order, so several edits to the same file are fine.',
+      'Edit files inside allowed_paths. Each edit replaces exactly one occurrence of old_text with new_text in path. old_text must match the file exactly once, including whitespace, and line breaks must be real newlines. Use old_text "" to create a new file, or { path, delete: true } to delete one. Edits apply in order, so several edits to the same file are fine.',
     inputSchema: object({
       edits: {
         type: "array",

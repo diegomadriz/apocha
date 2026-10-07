@@ -79,6 +79,60 @@ function toolError(message, code = "invalid_request") {
   return new HarnessError("agent", code, message);
 }
 
+/** Compare lines using the fraction of shared adjacent character pairs.
+ * @param {string} left @param {string} right
+ */
+function lineSimilarity(left, right) {
+  if (left === right) return 1;
+  if (left.length < 2 || right.length < 2) return 0;
+  const pairs = new Map();
+  for (let index = 0; index < left.length - 1; index += 1) {
+    const pair = left.slice(index, index + 2);
+    pairs.set(pair, (pairs.get(pair) ?? 0) + 1);
+  }
+  let shared = 0;
+  for (let index = 0; index < right.length - 1; index += 1) {
+    const pair = right.slice(index, index + 2);
+    const count = pairs.get(pair) ?? 0;
+    if (count > 0) {
+      shared += 1;
+      pairs.set(pair, count - 1);
+    }
+  }
+  return (2 * shared) / (left.length + right.length - 2);
+}
+
+/** @param {string} text */
+function collapseWhitespace(text) {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+/** @param {string} content @param {string} oldText */
+function noMatchHint(content, oldText) {
+  const target = collapseWhitespace(oldText.split("\n").find((line) => line.trim()) ?? "");
+  let bestScore = 0;
+  let bestLine = 0;
+  let bestText = "";
+  if (target) {
+    for (const [index, line] of content.split("\n").entries()) {
+      const score = lineSimilarity(target, collapseWhitespace(line));
+      if (score > bestScore) {
+        bestScore = score;
+        bestLine = index + 1;
+        bestText = line.slice(0, 200);
+      }
+    }
+  }
+  const closest =
+    bestScore >= 0.6 ? "closest line " + bestLine + ": " + bestText : "no similar line was found";
+  const normalized = collapseWhitespace(oldText);
+  const whitespace =
+    normalized && collapseWhitespace(content).includes(normalized)
+      ? "; the only difference is whitespace (after collapsing runs of whitespace)"
+      : "";
+  return closest + whitespace;
+}
+
 /** @param {unknown} paths */
 function tracePaths(paths) {
   if (!Array.isArray(paths)) return [];
@@ -337,13 +391,41 @@ export function createProjectTools(session) {
       }
       if (state.content === null)
         throw toolError(`edit ${index}: file does not exist: ${relative}`, "not_found");
-      const first = state.content.indexOf(edit.old_text);
-      if (first < 0) throw toolError(`edit ${index}: old_text not found in ${relative}`, "no_match");
-      if (state.content.indexOf(edit.old_text, first + 1) >= 0)
+      if (
+        edit.new_text.includes("\\n") &&
+        !edit.old_text.includes("\\n") &&
+        state.content.includes("\n") &&
+        !state.content.includes("\\n") &&
+        !edit.new_text.includes("\n")
+      ) {
         throw toolError(
-          `edit ${index}: old_text matches more than once in ${relative}; include more context`,
+          `edit ${index}: text in ${relative} appears to use escaped "\\n" instead of real line breaks; send real newlines`,
+          "escaped_newlines",
+        );
+      }
+      const first = state.content.indexOf(edit.old_text);
+      if (first < 0)
+        throw toolError(
+          `edit ${index}: old_text not found in ${relative}; ${noMatchHint(state.content, edit.old_text)}`,
+          "no_match",
+        );
+      if (state.content.indexOf(edit.old_text, first + 1) >= 0) {
+        const lines = [];
+        let occurrence = first;
+        let offset = 0;
+        let line = 1;
+        while (occurrence >= 0 && lines.length < 10) {
+          for (; offset < occurrence; offset += 1) {
+            if (state.content[offset] === "\n") line += 1;
+          }
+          lines.push(line);
+          occurrence = state.content.indexOf(edit.old_text, occurrence + 1);
+        }
+        throw toolError(
+          `edit ${index}: old_text matches more than once in ${relative}; lines: ${lines.join(", ")}; add surrounding lines to make it unique`,
           "ambiguous",
         );
+      }
       state.content =
         state.content.slice(0, first) + edit.new_text + state.content.slice(first + edit.old_text.length);
     }
