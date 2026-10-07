@@ -10,6 +10,7 @@ import { taskDigest } from "../src/config/task.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { RunStore } from "../src/core/runs.mjs";
 import { verifyReceipt } from "../src/git/receipts.mjs";
+import { loadSchema, validateAgainst } from "../src/util/schema.mjs";
 import { fakeRuntimes, makeRepo, passReviewer, valueTask } from "./helpers.mjs";
 
 const bin = fileURLToPath(new URL("../bin/apocha.mjs", import.meta.url));
@@ -181,6 +182,7 @@ for (const kind of ["refactor", "fixture"]) {
         const store = new RunStore(repo.root);
         const evidence = store.read(summary.run_id).state.last_verification.test_changes[0];
         assert.equal(evidence.declared, declared);
+        assert.equal(evidence.assertions_preserved, true);
         assert.equal(
           evidence.verdict,
           declared ? (kind === "fixture" ? "declared_fixture" : "refactor") : "unnecessary",
@@ -203,47 +205,114 @@ for (const kind of ["refactor", "fixture"]) {
   });
 }
 
-test("a declared refactor cannot weaken assertions", async () => {
-  const base = 'import assert from "node:assert/strict";\nassert.equal(1, 1);\n';
-  const repo = makeRepo({ config, files: { "test/value.test.mjs": base } });
-  try {
-    const fake = createFakeAdapter({
-      handlers: {
-        implementer: async ({ call }) => {
-          await call("apply_patch", {
-            edits: [
-              {
-                path: "test/value.test.mjs",
-                old_text: base,
-                new_text: 'import assert from "node:assert/strict";\nassert.ok(1);\n',
-              },
-            ],
-          });
-          await call("submit_result", { summary: "loosen assertion" });
+for (const scenario of ["rename", "behaviour", "weakening"]) {
+  test(`controller judges declared refactor ${scenario} by execution evidence`, async () => {
+    const file = "test/value.test.mjs";
+    const base =
+      'import assert from "node:assert/strict";\nimport { value } from "../src/value.mjs";\nconst actual = value;\nconst expected = 1;\nassert.equal(actual, expected);\n';
+    const next =
+      scenario === "rename"
+        ? base.replaceAll("actual", "result")
+        : scenario === "behaviour"
+          ? base.replace("const expected = 1;", "const expected = 2;")
+          : base.replace("assert.equal(actual, expected);", "assert.ok(actual);");
+    const verdict = scenario === "rename" ? "refactor" : scenario === "behaviour" ? "necessary" : "weakened";
+    const assertionsPreserved = scenario === "behaviour";
+    const repo = makeRepo({
+      config,
+      files: { [file]: base, "src/value.mjs": "export const value = 1;\n" },
+    });
+    try {
+      let reviewed = false;
+      const fake = createFakeAdapter({
+        handlers: {
+          implementer: async ({ call }) => {
+            await call("apply_patch", {
+              edits: [
+                { path: file, old_text: base, new_text: next },
+                ...(scenario === "rename"
+                  ? []
+                  : [
+                      {
+                        path: "src/value.mjs",
+                        old_text: "export const value = 1;\n",
+                        new_text: "export const value = 2;\n",
+                      },
+                    ]),
+              ],
+            });
+            await call("submit_result", { summary: scenario });
+          },
+          reviewer: async (context) => {
+            reviewed = true;
+            const entry = context.bundle.test_changes[0];
+            assert.equal(entry.verdict, verdict);
+            assert.equal(entry.assertions_preserved, assertionsPreserved);
+            if (scenario === "rename") {
+              assert.deepEqual(
+                context.bundle.refactors_to_check.map((item) => item.path),
+                [file],
+              );
+              assert.match(context.bundle.refactors_to_check[0].reason, /assertion.*heuristic/i);
+            } else {
+              assert.deepEqual(context.bundle.refactors_to_check, []);
+              assert.match(entry.note, /declaration.*did not match.*evidence/i);
+            }
+            await passReviewer(context);
+          },
         },
-        reviewer: passReviewer,
-      },
-    });
-    const summary = await startRun({
-      cwd: repo.root,
-      base: "main",
-      batch: "weakening",
-      message: "weakening",
-      runtimes: fakeRuntimes(),
-      task: valueTask({
-        allowed_paths: ["test/"],
-        checks: ["tests"],
-        max_repair_attempts: 0,
-        test_changes: [{ path: "test/value.test.mjs", kind: "refactor", reason: "Refactor" }],
-      }),
-      adapters: { implementer: fake, reviewer: fake },
-    });
-    assert.equal(summary.outcome, "ESCALATED");
-    assert.equal(
-      new RunStore(repo.root).read(summary.run_id).state.last_verification.test_changes[0].verdict,
-      "weakened",
-    );
-  } finally {
-    repo.cleanup();
-  }
-});
+      });
+      const summary = await startRun({
+        cwd: repo.root,
+        base: "main",
+        batch: scenario,
+        message: scenario,
+        runtimes: fakeRuntimes(),
+        task: valueTask({
+          allowed_paths: ["src/", "test/"],
+          checks: ["tests"],
+          max_repair_attempts: 0,
+          test_changes: [{ path: file, kind: "refactor", reason: "Refactor" }],
+        }),
+        adapters: { implementer: fake, reviewer: fake },
+      });
+      assert.equal(summary.outcome, scenario === "weakening" ? "ESCALATED" : "PASSED", summary.reason ?? "");
+      assert.equal(reviewed, scenario !== "weakening");
+      const verification = new RunStore(repo.root).read(summary.run_id).state.last_verification;
+      const entry = verification.test_changes[0];
+      assert.equal(entry.verdict, verdict);
+      assert.equal(entry.assertions_preserved, assertionsPreserved);
+      assert.equal(
+        entry.old_on_candidate,
+        scenario === "rename" ? "old_passes_on_candidate" : "old_fails_on_candidate",
+      );
+      assert.equal(entry.new_on_base, scenario === "behaviour" ? "fails_on_base" : "passes_on_base");
+      if (scenario !== "rename") {
+        assert.match(entry.note, /declaration.*did not match.*evidence/i);
+      }
+      const check = verification.checks.find((item) => item.id === "test-changes");
+      assert.equal(check.status, scenario === "weakening" ? "fail" : "pass");
+      if (scenario === "weakening") {
+        assert.equal(
+          check.error,
+          `${file} now passes on both the old and the new code, so it no longer distinguishes them`,
+        );
+      } else {
+        const receipt = verifyReceipt(repo.root, "refs/notes/apocha", summary.promoted_head);
+        assert.equal(receipt.valid, true, receipt.reason ?? "");
+        assert.equal(receipt.receipt.tests.test_changes[0].assertions_preserved, assertionsPreserved);
+        if (scenario === "behaviour") {
+          assert.equal(receipt.receipt.tests.test_changes[0].note, entry.note);
+        }
+        const oldReceipt = structuredClone(receipt.receipt);
+        for (const change of oldReceipt.tests.test_changes) {
+          delete change.assertions_preserved;
+          delete change.note;
+        }
+        assert.deepEqual(validateAgainst(loadSchema("receipt-v3.schema.json"), oldReceipt), []);
+      }
+    } finally {
+      repo.cleanup();
+    }
+  });
+}

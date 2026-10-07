@@ -262,7 +262,7 @@ Under `justified`, tools permit existing test edits and structural checks report
 without rejecting them. Pure additions need no necessity evidence. With
 `tests.run_files`, the controller runs each non-additively modified or deleted
 test's base version on the candidate (up to 10 files; exceeding the limit fails).
-An old test that still passes makes the edit unnecessary. If the old test fails
+An old test that still passes makes the edit unnecessary unless declared as a refactor. If the old test fails
 on the candidate but the new test passes on base, the edit is weakened. Both fail
 the repairable `test-changes` check; evidence errors are infrastructure errors.
 Necessary edits pass, subject to reviewer judgment of the intended behaviour change.
@@ -297,8 +297,17 @@ test paths, and fall inside `allowed_paths`. Duplicate paths are rejected.
 Declarations and reasons are covered by the task digest.
 
 Under `test_edits: "justified"`, `behaviour` keeps the existing necessity and
-weakening rules. A `refactor` may keep passing on the candidate with verdict
-`refactor`; assertions must be preserved and bypasses remain forbidden.
+weakening rules. A `refactor` waives the necessity check: when the old test
+passes on the candidate, the verdict is `refactor`. When the old test fails on
+the candidate, normal behaviour change rules apply (`necessary` if the new test
+fails on base, `weakened` if it passes on base), with a note that the declaration
+did not match the execution evidence.
+The assertion token heuristic is advisory only. Every modified file's
+`test_changes` entry records `assertions_preserved` in verification, review and
+receipts. A false result never fails `test-changes` by itself; declared refactors
+with a false result are listed in the review bundle's `refactors_to_check` with
+an explanation, so the reviewer can check coverage and possible bypasses.
+Renamed assertion locals and extracted helpers may legitimately fail the heuristic.
 Support files with no runnable tests must be declared as `fixture` to skip
 evidence runs (verdict `declared_fixture`). Undeclared support files are run
 like other changed tests. Evidence records declaration status, kind and reason;

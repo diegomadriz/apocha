@@ -251,6 +251,12 @@
                   "declared_fixture"
                 ]
               },
+              "assertions_preserved": {
+                "type": "boolean"
+              },
+              "note": {
+                "type": "string"
+              },
               "declared": {
                 "type": "boolean"
               },

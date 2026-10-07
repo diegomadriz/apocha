@@ -269,11 +269,23 @@ export async function runChecksStage(_stage, ctx) {
           declared: Boolean(declaration),
           ...(declaration ? { kind: declaration.kind, reason: declaration.reason } : {}),
         };
+        const baseSource = String(
+          git(ctx.candidate.root, ["show", `${ctx.candidate.base_commit}:${file}`]).stdout,
+        );
+        const assertionEvidence = modified
+          ? {
+              assertions_preserved: preservesAssertions(
+                baseSource,
+                String(git(ctx.candidate.root, ["show", `:${file}`]).stdout),
+              ),
+            }
+          : {};
         if (fixtureFiles.has(file)) {
           testChanges.push({
             path: file,
             change: modified ? "modified" : "deleted",
             ...declared,
+            ...assertionEvidence,
             verdict: "declared_fixture",
           });
           ctx.event("test-change.finished", { path: file, verdict: "declared_fixture" });
@@ -298,34 +310,29 @@ export async function runChecksStage(_stage, ctx) {
             : result.exit_code === 0
               ? "old_passes_on_candidate"
               : "old_fails_on_candidate";
-        const baseSource = String(
-          git(ctx.candidate.root, ["show", `${ctx.candidate.base_commit}:${file}`]).stdout,
-        );
-        const nextSource = git(ctx.candidate.root, ["show", `:${file}`], { allowFailure: true });
-        const safeRefactor =
-          declaration?.kind === "refactor" &&
-          modified &&
-          preservesAssertions(baseSource, String(nextSource.stdout));
+        const note =
+          declaration?.kind === "refactor" && oldOnCandidate === "old_fails_on_candidate"
+            ? "The refactor declaration did not match the execution evidence: the old test fails on the candidate; judged by the normal behaviour change rules."
+            : undefined;
         const verdict =
-          declaration?.kind === "fixture"
+          declaration?.kind === "fixture" ||
+          oldOnCandidate === "error" ||
+          (modified && (!newOnBase || newOnBase === "error" || newOnBase === "not_run"))
             ? "error"
-            : declaration?.kind === "refactor" && !safeRefactor
-              ? "weakened"
-              : oldOnCandidate === "error" ||
-                  (modified && (!newOnBase || newOnBase === "error" || newOnBase === "not_run"))
-                ? "error"
-                : oldOnCandidate === "old_passes_on_candidate"
-                  ? safeRefactor
-                    ? "refactor"
-                    : "unnecessary"
-                  : newOnBase === "passes_on_base"
-                    ? "weakened"
-                    : "necessary";
+            : oldOnCandidate === "old_passes_on_candidate"
+              ? declaration?.kind === "refactor"
+                ? "refactor"
+                : "unnecessary"
+              : newOnBase === "passes_on_base"
+                ? "weakened"
+                : "necessary";
         testChanges.push({
           path: file,
           ...declared,
           change: modified ? "modified" : "deleted",
           old_on_candidate: oldOnCandidate,
+          ...assertionEvidence,
+          ...(note ? { note } : {}),
           ...(modified ? { new_on_base: newOnBase ?? "error" } : {}),
           verdict,
         });

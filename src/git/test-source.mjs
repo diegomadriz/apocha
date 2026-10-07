@@ -21,7 +21,8 @@ export function hasRunnableTests(source) {
   );
 }
 
-/** Refactors must preserve assertions and may not introduce test bypasses.
+/** Advisory token heuristic for assertion preservation and potential test bypasses.
+ * Renamed locals or extracted helpers may fail this heuristic without changing outcomes.
  * @param {string} base @param {string} next
  */
 export function preservesAssertions(base, next) {

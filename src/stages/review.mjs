@@ -59,6 +59,13 @@ export async function runReviewStage(_stage, ctx) {
   }
   const bundle = {
     test_changes: testChanges,
+    refactors_to_check: testChanges
+      .filter((entry) => entry.kind === "refactor" && entry.assertions_preserved === false)
+      .map((entry) => ({
+        path: entry.path,
+        reason:
+          "The assertion preservation heuristic did not match; review the diff for preserved coverage and possible bypasses.",
+      })),
     undeclared_test_changes: tests.modified.filter(
       (file) => !(ctx.task.test_changes ?? []).some((entry) => entry.path === file),
     ),
