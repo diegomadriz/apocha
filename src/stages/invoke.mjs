@@ -73,6 +73,7 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
       max_tool_calls: ctx.runtimes.budgets.max_tool_calls,
       max_run_check_calls: ctx.config.limits.run_check_calls,
       sandbox_backend: ctx.sandboxBackend,
+      signing_key: ctx.runtimes.signing?.key,
       project: ctx.config,
       session_dir: sessionDir,
     };

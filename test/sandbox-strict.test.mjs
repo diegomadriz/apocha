@@ -180,8 +180,9 @@ dns.lookup("example.com", error => {
       try {
         const result = await probe(backend, connectScript(JSON.stringify(address)));
         passed(result);
-        // Network namespaces do not isolate filesystem-addressed AF_UNIX sockets.
-        // Preserve bubblewrap's existing policy; Seatbelt restricts these to scratch.
+        // Bubblewrap hides desktop and daemon socket directories by default.
+        // Other filesystem AF_UNIX sockets, like this OS-temp fixture, stay reachable.
+        // Seatbelt restricts outside sockets to checks with network access.
         assert.equal(result.stdout.trim(), backend === "seatbelt" ? "BLOCKED" : "CONNECTED");
       } finally {
         await close(server);
@@ -192,7 +193,7 @@ dns.lookup("example.com", error => {
       passed(result);
       assert.equal(result.stdout.trim(), "pong");
     });
-    await t.test("denied reads and outside writes stay denied", async () => {
+    await t.test("denied directory reads and writes stay denied on both backends", async () => {
       const dir = testTempDir("denied");
       const secret = path.join(dir, "secret");
       const outside = path.join(dir, "write");

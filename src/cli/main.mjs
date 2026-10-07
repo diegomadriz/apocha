@@ -1,4 +1,5 @@
 // @ts-check
+import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -575,6 +576,17 @@ async function doctor(cwd, options) {
     } catch (error) {
       record(PROJECT_CONFIG_FILE, false, describeError(error).message);
     }
+  }
+  if (process.platform === "linux") {
+    const version = spawnSync("bwrap", ["--version"], { encoding: "utf8" });
+    const reported = version.stdout?.trim() || "unavailable";
+    const match = /(?:^|\s)(\d+)\.(\d+)(?:\.|$)/.exec(reported);
+    const older = match && Number(match[1]) === 0 && Number(match[2]) < 12;
+    record(
+      "bubblewrap version",
+      true,
+      `${reported}${older ? "; warning: older than 0.12; mount points through symlinks are avoided by canonicalising paths" : ""}`,
+    );
   }
   const detected = detectBackend();
   record(

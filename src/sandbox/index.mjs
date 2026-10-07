@@ -1,9 +1,10 @@
 // @ts-check
 import { spawnSync } from "node:child_process";
 import { existsSync, realpathSync, statSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { HarnessError } from "../util/errors.mjs";
-import { expandHome } from "../util/paths.mjs";
+import { expandHome, isInside } from "../util/paths.mjs";
 
 /**
  * Sandboxing for the only place untrusted code runs: checks, which execute
@@ -91,6 +92,63 @@ export function resolveSocketPaths(entries) {
   return [...new Set([...absolute, ...resolveDenyPaths(entries)])].sort();
 }
 
+/**
+ * Only existing canonical mount targets work with older bubblewrap versions.
+ * @param {string[]} entries
+ */
+export function canonicalDenyPaths(entries) {
+  const out = new Set();
+  for (const entry of entries) {
+    try {
+      out.add(realpathSync(path.resolve(expandHome(entry))));
+    } catch {}
+  }
+  return [...out].sort();
+}
+
+/** @param {string | undefined} key */
+export function signingDenyPaths(key) {
+  return key ? resolveSocketPaths([key, `${key}.pub`]) : [];
+}
+
+/** @param {number} [uid] @param {string | undefined} [sshAuthSock] */
+export function defaultSocketDirectories(
+  uid = process.getuid?.() ?? 0,
+  sshAuthSock = process.env.SSH_AUTH_SOCK,
+) {
+  return [
+    `/run/user/${uid}`,
+    "/tmp/.X11-unix",
+    "/run/dbus",
+    "/var/run/postgresql",
+    "/run/mysqld",
+    ...(sshAuthSock ? [path.dirname(path.resolve(sshAuthSock))] : []),
+  ];
+}
+
+/**
+ * Never cover the workspace, root, or the OS temporary directory.
+ * @param {string[]} writable
+ * @param {string[]} [entries]
+ */
+export function hiddenSocketDirectories(writable, entries = defaultSocketDirectories()) {
+  const temp = realpathSync(os.tmpdir());
+  const writes = writable.map((entry) => {
+    try {
+      return realpathSync(entry);
+    } catch {
+      return path.resolve(entry);
+    }
+  });
+  return canonicalDenyPaths(entries).filter(
+    (entry) =>
+      entry !== "/" &&
+      entry !== temp &&
+      !writes.some((write) => isInside(write, entry)) &&
+      statSync(entry).isDirectory(),
+  );
+}
+
 /** SBPL string literal. @param {string} value */
 function sbplString(value) {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
@@ -150,14 +208,22 @@ export function seatbeltProfile(policy) {
       '(literal "/dev/zero")',
       '(literal "/dev/tty")',
       '(regex #"^/dev/fd/")',
-      '(regex #"^/dev/tty")',
     ].join(" ")})`,
   );
-  lines.push("; Terminal and descriptor controls used by command-line tools.");
+  lines.push("; Terminal and descriptor controls used by command-line tools.", "(deny file-ioctl)");
   lines.push(
     `(allow file-ioctl ${writable
-      .concat(['(literal "/dev/null")', '(literal "/dev/zero")', '(regex #"^/dev/(fd/|tty)")'])
+      .concat([
+        '(literal "/dev/null")',
+        '(literal "/dev/zero")',
+        '(literal "/dev/tty")',
+        '(regex #"^/dev/fd/")',
+      ])
       .join(" ")})`,
+  );
+  lines.push(
+    "; Other terminals and pseudo-terminals cannot be opened.",
+    '(deny file-read* file-write* (regex #"^/dev/(ttys|pty)") (literal "/dev/ptmx"))',
   );
   if (policy.denyRead.length) {
     const denied = policy.denyRead.map((entry) => {
@@ -195,16 +261,20 @@ export function bwrapArgs(policy, argv) {
     "--unshare-pid",
   ];
   if (!policy.network) args.push("--unshare-net");
-  for (const entry of policy.denyRead) {
-    let isDirectory = false;
-    try {
-      isDirectory = statSync(entry).isDirectory();
-    } catch {}
-    if (isDirectory) args.push("--tmpfs", entry);
+  const denied = canonicalDenyPaths([
+    ...policy.denyRead,
+    ...(policy.denySockets ?? []),
+    ...hiddenSocketDirectories(policy.writable),
+  ]);
+  // A hidden parent already covers its children; mounting them would require
+  // creating targets inside the parent's read-only tmpfs.
+  const directories = denied.filter((entry) => statSync(entry).isDirectory());
+  for (const entry of denied) {
+    if (directories.some((parent) => parent !== entry && isInside(entry, parent))) continue;
+    if (statSync(entry).isDirectory()) args.push("--tmpfs", entry, "--remount-ro", entry);
     else args.push("--ro-bind", "/dev/null", entry);
   }
   for (const entry of policy.writable) args.push("--bind", entry, entry);
-  for (const entry of policy.denySockets ?? []) args.push("--ro-bind", "/dev/null", entry);
   args.push("--chdir", policy.cwd, "--", ...argv);
   return args;
 }

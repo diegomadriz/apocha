@@ -82,6 +82,7 @@ export async function runFixers(ctx, changedFiles) {
         candidate: ctx.candidate,
         config: ctx.config,
         backend: ctx.sandboxBackend,
+        signingKey: ctx.runtimes?.signing?.key,
         secretFileCache: (ctx.secretFileCache ??= { files: new Map() }),
         dependencyOptions: { onValidation: (source) => ctx.event("dependencies.validation", { source }) },
         signal: ctx.signal,

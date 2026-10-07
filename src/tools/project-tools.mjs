@@ -68,6 +68,7 @@ export const TOOL_LIMITS = Object.freeze({
  *   max_tool_calls: number,
  *   max_run_check_calls: number,
  *   sandbox_backend: import("../sandbox/index.mjs").SandboxBackend,
+ *   signing_key?: string,
  *   project: import("../config/project.mjs").ProjectConfig,
  *   session_dir: string,
  * }} SessionConfig
@@ -394,6 +395,7 @@ export function createProjectTools(session) {
       candidate: { root, repository_root: session.repository_root, base_commit: session.base_commit },
       config: session.project,
       backend: session.sandbox_backend,
+      signingKey: session.signing_key,
     });
     const output = [
       result.stderr && `stderr:\n${result.stderr}`,

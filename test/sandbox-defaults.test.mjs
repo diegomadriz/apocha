@@ -10,6 +10,7 @@ import { normalizeProjectConfig } from "../src/config/project.mjs";
 import { initialState } from "../src/core/context.mjs";
 import {
   bwrapArgs,
+  canonicalDenyPaths,
   detectBackend,
   resolveDenyPaths,
   resolveSocketPaths,
@@ -60,8 +61,11 @@ test("socket defaults and additions appear in both backend policies", () => {
           workspaceAllows.every((allow) => orderingProfile.indexOf(deny) > allow.index),
           orderingProfile,
         );
-      const index = args.indexOf(entry);
-      assert.deepEqual(args.slice(index - 2, index + 1), ["--ro-bind", "/dev/null", entry]);
+      const canonical = canonicalDenyPaths([entry])[0];
+      if (canonical) {
+        const index = args.indexOf(canonical);
+        assert.deepEqual(args.slice(index - 2, index + 1), ["--ro-bind", "/dev/null", canonical]);
+      } else assert.ok(!args.includes(entry));
     }
   }
 });
