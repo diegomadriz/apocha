@@ -3,9 +3,10 @@
 /**
  * @typedef {{
  *   path: string, change: "modified" | "deleted",
- *   old_on_candidate: "old_fails_on_candidate" | "old_passes_on_candidate" | "error",
+ *   declared: boolean, kind?: "behaviour" | "refactor" | "fixture", reason?: string,
+ *   old_on_candidate?: "old_fails_on_candidate" | "old_passes_on_candidate" | "error",
  *   new_on_base?: "passes_on_base" | "fails_on_base" | "error" | "not_run",
- *   verdict: "necessary" | "unnecessary" | "weakened" | "error",
+ *   verdict: "necessary" | "unnecessary" | "weakened" | "error" | "refactor" | "declared_fixture",
  * }} TestChangeEvidence
  */
 

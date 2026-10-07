@@ -18,6 +18,7 @@ import { formatStatusText, repositoryStatus } from "../core/status.mjs";
 import { landBranch } from "../git/land.mjs";
 import { verifyReceipt } from "../git/receipts.mjs";
 import { allowedSignersAt, signingKeyAllowed } from "../git/signatures.mjs";
+import { testImpact } from "../git/test-impact.mjs";
 import { formatRangeMarkdown, verifyRange } from "../git/verify-range.mjs";
 import { detectBackend, resolveBackend } from "../sandbox/index.mjs";
 import { describeError, HarnessError } from "../util/errors.mjs";
@@ -35,7 +36,7 @@ Usage: apocha <command> [options]
 Commands:
   init                          Write a starter apocha.config.json for this repository
   doctor [--live]               Check git, config, runtimes, and the sandbox (--live probes each runtime's lock-down)
-  validate <task.json>          Validate a task manifest against the schema and project config
+  validate [--impact] <task.json> [--base <ref>] [--json]   Validate a task; list tests at risk
   run <task.json>               Run the code-delivery workflow
       --base <ref> --batch <name> (--message <text|@file> | --message-file <path>)
       [--runtimes <file>] [--allow-governance-edits --reason <text>] [--json] [--quiet]
@@ -218,15 +219,36 @@ export async function main(argv) {
       });
     }
     case "validate": {
-      const { positionals } = parse({});
+      const { values, positionals } = parse({
+        impact: { type: "boolean" },
+        base: { type: "string" },
+      });
       if (positionals.length !== 1)
         throw new HarnessError("config", "usage", "validate needs exactly one task manifest");
       const root = repositoryRoot(cwd);
+      const baseCommit = resolveCommit(root, values.base ?? "HEAD");
+      if (!baseCommit)
+        throw new HarnessError("config", "unknown_base", "validate base does not resolve to a commit");
+      const config = loadProjectConfigAt(root, baseCommit);
       const task = validateTask(
         JSON.parse(readFileSync(path.resolve(positionals[0]), "utf8")),
-        loadProjectConfig(root),
+        config,
+        baseCommit,
       );
-      print(task);
+      if (values.impact) {
+        const impact = testImpact(root, baseCommit, config, task);
+        print(
+          values.json
+            ? { task, base_commit: baseCommit, impact }
+            : [
+                "Task valid. Tests at risk:",
+                ...impact.map(
+                  (entry) =>
+                    `  ${entry.path} (${entry.declared ? "declared" : "undeclared"}): ${entry.chain.join(" -> ")}`,
+                ),
+              ].join("\n"),
+        );
+      } else print(task);
       return EXIT.ok;
     }
     case "run": {

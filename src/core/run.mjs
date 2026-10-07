@@ -116,7 +116,7 @@ export async function startRun(options) {
       config,
     );
   } else {
-    task = validateTask(options.task, config);
+    task = validateTask(options.task, config, baseCommit);
     if (!task.checks.length) {
       throw new HarnessError(
         "config",

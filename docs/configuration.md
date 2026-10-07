@@ -287,3 +287,23 @@ lines, for example `operator@example.com ssh-ed25519 AAAA...`.
 from the target branch tip; adding a key only on the source does not authorize landing.
 `doctor` reports whether a signing key is configured, whether its public key is authorized
 for its principal in HEAD's allowed signers, and whether signatures are required.
+
+## Declared test changes
+
+A task may include `test_changes`, an array of at most 50 entries:
+`{ "path": "test/value.test.mjs", "kind": "behaviour", "reason": "Expected output changes" }`.
+Each path must be an existing test file at the base commit, match the project's
+test paths, and fall inside `allowed_paths`. Duplicate paths are rejected.
+Declarations and reasons are covered by the task digest.
+
+Under `test_edits: "justified"`, `behaviour` keeps the existing necessity and
+weakening rules. A `refactor` may keep passing on the candidate with verdict
+`refactor`; assertions must be preserved and bypasses remain forbidden.
+Support files with no runnable tests must be declared as `fixture` to skip
+evidence runs (verdict `declared_fixture`). Undeclared support files are run
+like other changed tests. Evidence records declaration status, kind and reason;
+the review bundle separately lists undeclared changed test files.
+
+`read_only_paths` and `allowed_paths` must not overlap: neither may equal,
+contain, or sit inside an entry of the other. For example, read-only
+`schemas/` conflicts with editable `schemas/task.schema.json`.

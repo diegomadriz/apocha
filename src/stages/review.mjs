@@ -59,6 +59,10 @@ export async function runReviewStage(_stage, ctx) {
   }
   const bundle = {
     test_changes: testChanges,
+    undeclared_test_changes: tests.modified.filter(
+      (file) => !(ctx.task.test_changes ?? []).some((entry) => entry.path === file),
+    ),
+    declared_test_changes: ctx.task.test_changes ?? [],
     tests_on_base: verified.tests_on_base ?? [],
     added_tests: tests.added,
     ...(tests.modified.length ? { modified_tests: tests.modified } : {}),

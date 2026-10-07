@@ -254,3 +254,18 @@ appear as `n/a` in text and Markdown.
 | `ESCALATED` with `policy_violation` | The runtime used a capability outside the harness | Run `apocha doctor --live`; update the adapter's disable list |
 | `land` refuses with "no valid receipt" | A commit between target and source was not promoted by a run | Integrate it through `apocha integrate`, or land up to the last receipted commit |
 | `repository is locked by pid ...` | Another Apocha process holds the lock | Wait; a dead owner's lock is recovered automatically |
+
+## Test impact before assigning a task
+
+Run `apocha validate --impact task.json` to validate and list existing test
+files whose static imports reach an editable non-test file. Each result shows
+the import chain to the first file in scope and whether the test is declared
+in `test_changes`. `--json` returns `{ task, base_commit, impact }`, where
+each impact entry has `path`, `chain`, and `declared`.
+
+The base defaults to HEAD; use `--base <ref>` to select another commit.
+Configuration, files and import resolution come from that commit's Git tree,
+so uncommitted changes do not affect the result. Relative import/export-from,
+literal dynamic import and literal require calls are followed transitively,
+including common extension and directory-index resolution. Computed imports
+and runtime filesystem access are outside this static listing.

@@ -7,9 +7,11 @@ import { checkDefinitionDigest, runCheck } from "../checks/runner.mjs";
 import { effectiveProtectedPaths } from "../config/task.mjs";
 import { snapshotCandidate } from "../git/candidate.mjs";
 import { testEdits } from "../git/test-edits.mjs";
+import { hasRunnableTests, preservesAssertions } from "../git/test-source.mjs";
 import { failureFirst, failureSignalLines, utf8Prefix } from "../util/bounded.mjs";
 import { HarnessError } from "../util/errors.mjs";
 import { writeJsonAtomic } from "../util/fs-safe.mjs";
+import { git } from "../util/git.mjs";
 import { inAnyScope } from "../util/paths.mjs";
 
 const FINDING_EVIDENCE_BYTES = 2000;
@@ -208,10 +210,19 @@ export async function runChecksStage(_stage, ctx) {
   const testsOnBase = [];
   /** @type {import("../core/context.mjs").TestChangeEvidence[]} */
   const testChanges = [];
+  const declarations = new Map((ctx.task.test_changes ?? []).map((entry) => [entry.path, entry]));
+  const fixtureFiles = new Set(
+    tests.modified.filter((file) => {
+      if (declarations.get(file)?.kind !== "fixture") return false;
+      const base = String(git(ctx.candidate.root, ["show", `${ctx.candidate.base_commit}:${file}`]).stdout);
+      const next = git(ctx.candidate.root, ["show", `:${file}`], { allowFailure: true });
+      return !hasRunnableTests(base) && (next.status !== 0 || !hasRunnableTests(String(next.stdout)));
+    }),
+  );
   const runFiles = ctx.config.tests.run_files;
   if (runFiles && results.every((result) => result.status === "pass")) {
     const files = [...tests.added, ...tests.modified]
-      .filter((file) => existsSync(path.join(ctx.candidate.root, file)))
+      .filter((file) => !fixtureFiles.has(file) && existsSync(path.join(ctx.candidate.root, file)))
       .sort(
         (a, b) => Number(tests.changed.includes(b)) - Number(tests.changed.includes(a)) || a.localeCompare(b),
       );
@@ -243,13 +254,29 @@ export async function runChecksStage(_stage, ctx) {
       testsOnBase.push({ path: file, result: classification });
       ctx.event("test-on-base.finished", { path: file, result: classification });
     }
-    if (tests.effective_policy === "justified" && tests.changed.length) {
+    const evidenceNeeded = tests.changed.filter((file) => !fixtureFiles.has(file));
+    if (tests.effective_policy === "justified" && (evidenceNeeded.length || fixtureFiles.size)) {
       const reasons = [];
-      if (tests.changed.length > 10)
-        reasons.push(`${tests.changed.length} changed existing test files exceeds the limit of 10`);
-      for (const file of tests.changed.slice(0, 10).sort()) {
+      if (evidenceNeeded.length > 10)
+        reasons.push(`${evidenceNeeded.length} changed existing test files exceeds the limit of 10`);
+      for (const file of [...evidenceNeeded.slice(0, 10), ...fixtureFiles].sort()) {
         if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
         const modified = existsSync(path.join(ctx.candidate.root, file));
+        const declaration = declarations.get(file);
+        const declared = {
+          declared: Boolean(declaration),
+          ...(declaration ? { kind: declaration.kind, reason: declaration.reason } : {}),
+        };
+        if (fixtureFiles.has(file)) {
+          testChanges.push({
+            path: file,
+            change: modified ? "modified" : "deleted",
+            ...declared,
+            verdict: "declared_fixture",
+          });
+          ctx.event("test-change.finished", { path: file, verdict: "declared_fixture" });
+          continue;
+        }
         const newOnBase = modified ? testsOnBase.find((entry) => entry.path === file)?.result : undefined;
         const result = await runCheck({
           check: runFiles,
@@ -269,17 +296,32 @@ export async function runChecksStage(_stage, ctx) {
             : result.exit_code === 0
               ? "old_passes_on_candidate"
               : "old_fails_on_candidate";
+        const baseSource = String(
+          git(ctx.candidate.root, ["show", `${ctx.candidate.base_commit}:${file}`]).stdout,
+        );
+        const nextSource = git(ctx.candidate.root, ["show", `:${file}`], { allowFailure: true });
+        const safeRefactor =
+          declaration?.kind === "refactor" &&
+          modified &&
+          preservesAssertions(baseSource, String(nextSource.stdout));
         const verdict =
-          oldOnCandidate === "error" ||
-          (modified && (!newOnBase || newOnBase === "error" || newOnBase === "not_run"))
+          declaration?.kind === "fixture"
             ? "error"
-            : oldOnCandidate === "old_passes_on_candidate"
-              ? "unnecessary"
-              : newOnBase === "passes_on_base"
-                ? "weakened"
-                : "necessary";
+            : declaration?.kind === "refactor" && !safeRefactor
+              ? "weakened"
+              : oldOnCandidate === "error" ||
+                  (modified && (!newOnBase || newOnBase === "error" || newOnBase === "not_run"))
+                ? "error"
+                : oldOnCandidate === "old_passes_on_candidate"
+                  ? safeRefactor
+                    ? "refactor"
+                    : "unnecessary"
+                  : newOnBase === "passes_on_base"
+                    ? "weakened"
+                    : "necessary";
         testChanges.push({
           path: file,
+          ...declared,
           change: modified ? "modified" : "deleted",
           old_on_candidate: oldOnCandidate,
           ...(modified ? { new_on_base: newOnBase ?? "error" } : {}),
