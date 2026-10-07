@@ -246,8 +246,9 @@ export function seatbeltProfile(policy) {
 /**
  * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, loopback?: boolean, cwd: string }} policy
  * @param {string[]} argv
+ * @param {string[]} [socketDirectories]
  */
-export function bwrapArgs(policy, argv) {
+export function bwrapArgs(policy, argv, socketDirectories = hiddenSocketDirectories(policy.writable)) {
   const args = [
     "--ro-bind",
     "/",
@@ -264,7 +265,7 @@ export function bwrapArgs(policy, argv) {
   const denied = canonicalDenyPaths([
     ...policy.denyRead,
     ...(policy.denySockets ?? []),
-    ...hiddenSocketDirectories(policy.writable),
+    ...socketDirectories,
   ]);
   // A hidden parent already covers its children; mounting them would require
   // creating targets inside the parent's read-only tmpfs.

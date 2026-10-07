@@ -381,6 +381,11 @@ export function createProjectTools(session) {
   async function run_check({ check_id }) {
     if (session.role !== "implementer")
       throw toolError("run_check is not available to the reviewer", "forbidden");
+    if (Object.hasOwn(session.project.checks, check_id) && session.project.checks[check_id].unsandboxed)
+      throw toolError(
+        `unsandboxed check '${check_id}' cannot run through run_check; only the controller runs it after structural checks pass`,
+        "unsandboxed_check",
+      );
     if (!session.run_checks.includes(check_id)) {
       throw toolError(
         `check '${check_id}' is not available; choose one of: ${session.run_checks.join(", ") || "(none)"}`,

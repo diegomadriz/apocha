@@ -216,7 +216,7 @@ test("root action uses block YAML and runs only receipt verification", () => {
   assert.match(action, /^ {8}git fetch origin "\+refs\/notes\/\*:refs\/notes\/\*"$/m);
   assert.match(action, /^ {10}git fetch --unshallow origin$/m);
   assert.match(action, /^ {6}working-directory: \$\{\{ github.action_path \}\}$/m);
-  assert.match(action, /^ {8}npm ci --omit=dev$/m);
+  assert.match(action, /^ {8}npm ci --omit=dev --ignore-scripts$/m);
   assert.match(action, /^ {4}- name: Verify receipts\n {6}shell: bash$/m);
   assert.match(
     action,

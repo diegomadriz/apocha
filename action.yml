@@ -34,7 +34,7 @@ runs:
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
-        npm ci --omit=dev
+        npm ci --omit=dev --ignore-scripts
     - name: Verify receipts
       shell: bash
       env:

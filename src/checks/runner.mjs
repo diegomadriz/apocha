@@ -237,7 +237,9 @@ export async function runCheck({
       // Older repository commits use the pre-rename marker to avoid nested sandboxes.
       if (env[SANDBOX_MARKER]) env.PANAGENT_SANDBOX = env[SANDBOX_MARKER];
       const argv = check.run.flatMap((part) =>
-        part === "{files}" && files ? files : [part.replaceAll("{source}", sourceRoot)],
+        part === "{files}" && files
+          ? files.map((file) => (path.isAbsolute(file) ? file : `./${file}`))
+          : [part.replaceAll("{source}", sourceRoot)],
       );
       const commonDir = realpathSync(gitCommonDir(sourceRoot));
       let secrets = secretFileCache?.files.get(sourceRoot);

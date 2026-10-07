@@ -46,10 +46,14 @@ cannot nest Seatbelt profiles: without the opt-out, the real-sandbox tests see t
 outer sandbox markers and skip. Selection rules run it for sandbox and check-runner
 code or the real-sandbox test files, rather than as a default check.
 
-Every path those self-test selection rules select on is a governance path in Apocha's own
-config. Any change that would run agent code unsandboxed therefore requires human approval
-via `--allow-governance-edits` with a reason. Projects using `unsandboxed: true` should follow
-the same pattern: make every selection path for an unsandboxed check a governance path.
+Runs selecting any catalog check marked `unsandboxed: true` require explicit approval via
+`--allow-governance-edits` with a non-empty `--reason`, whether the task names the check
+or selection rules add it. Without approval, startup refuses and names the checks.
+The implementer's `run_check` tool never runs these checks and its available-check list
+excludes them. Only the controller runs them during verification, after structural checks pass.
+
+Every path those self-test selection rules select on is also a governance path in Apocha's
+own config. Projects using `unsandboxed: true` should follow the same pattern.
 
 The default deny list covers `~/.ssh`, `~/.aws`, `~/.azure`, `~/.config/gcloud`, `~/.config/gh`,
 `~/.codex`, `~/.claude`, `~/.pi`, `~/.gnupg`, `~/.netrc`, `~/.npmrc`, `~/.pypirc`, `~/.docker`,

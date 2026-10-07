@@ -55,10 +55,12 @@ export function designReference(ctx) {
 
 /** @param {import("../core/context.mjs").RunContext} ctx */
 export function implementerBundle(ctx) {
-  const checks = ctx.task.checks.map((id) => ({
-    id,
-    description: ctx.config.checks[id].description ?? null,
-  }));
+  const checks = ctx.task.checks
+    .filter((id) => !ctx.config.checks[id].unsandboxed)
+    .map((id) => ({
+      id,
+      description: ctx.config.checks[id].description ?? null,
+    }));
   return {
     task: { task_id: ctx.task.task_id, description: ctx.task.description },
     acceptance_criteria: ctx.task.acceptance_criteria,
