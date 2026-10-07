@@ -45,8 +45,7 @@ Changes go through Apocha itself. `apocha.config.json` defines the catalog (`lin
 `typecheck`, `test`) and the protected and governance paths. Run tasks with
 `apocha run`, integrate with `apocha integrate`, and land with `apocha land`. Never push.
 
-Governance paths (`AGENTS.md`, `src/prompts/`, `schemas/`, `apocha.config.json`) change only
-with `--allow-governance-edits --reason "<why>"`, and a person reviews the result.
+Governance paths (`AGENTS.md`, `src/prompts/`, `schemas/`, `apocha.config.json`, `src/sandbox/`, `src/checks/`, and the real-sandbox test files) change only with `--allow-governance-edits --reason "<why>"`, and a person reviews the result.
 
 Start with `apocha status` to see open batches and runs. After landing, `land` retires the batch branch. Finish with `apocha gc`, and run `apocha gc --apply` only when the plan lists nothing you still need. Do not leave worktrees, branches, or temp files of your own. Remove what you created before you finish.
 
