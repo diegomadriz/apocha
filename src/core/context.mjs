@@ -60,7 +60,7 @@
  *   message: string,
  *   additionalParents: string[],
  *   governance: { edits_allowed: boolean, by: string | null, reason: string | null },
- *   integration: null | { topic: string, topic_commit: string, onto: string, onto_commit: string, checks: string[] | null },
+ *   integration: null | { topic: string, topic_commit: string, onto: string, onto_commit: string, checks: string[] | null, testEdits?: import("../config/task.mjs").Task["test_edits"] },
  *   policyDigest: string,
  *   signal?: AbortSignal,
  *   state: RunState,

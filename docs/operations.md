@@ -118,6 +118,25 @@ apocha run task.json --base main --batch example --message-file message.txt
 apocha integrate topic --onto main --batch integration --message "@@literal"
 ```
 
+## Integrate
+
+`apocha integrate <topic> --onto <ref> --batch <name>` merges the topic,
+verifies the combined tree, reviews it, and promotes it with both parents.
+Use `--checks a,b` to select checks and `--max-repairs 0|1|2` to set the repair budget.
+
+`--test-edits <policy>` sets the integration task\'s test edit policy: `additive`
+(the default) permits additions to existing tests, `new-files` permits only new
+test files, and `allowed` permits changes to existing test lines. Invalid policies
+are usage errors (exit code 2). Topic runs that allowed test edits do not change
+the integration default; pass `--test-edits allowed` when integrating those edits.
+The reviewer then sees every changed existing test in the review bundle and full
+diff. The resolved policy is part of the task digest and recorded in the run task
+and `merge.finished` event.
+
+```bash
+apocha integrate topic --onto main --batch integration --test-edits allowed
+```
+
 ## Runs
 
 Every `run` and `integrate` creates a run record under `<git-common-dir>/apocha/runs/<run-id>/`,

@@ -7,6 +7,7 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { DEFINITIONS } from "../src/analytics/compute.mjs";
+import { taskDigest } from "../src/config/task.mjs";
 import { RunStore } from "../src/core/runs.mjs";
 import { git, resolveCommit } from "../src/util/git.mjs";
 import { makeRepo, testTempDir } from "./helpers.mjs";
@@ -410,6 +411,113 @@ for (const command of ["run", "integrate"]) {
     });
   }
 }
+
+test("integrate requires allowed for existing test rewrites and exposes them to review", () => {
+  const original = 'import { test } from "node:test";\ntest("existing", () => {});\n';
+  const repo = makeRepo({ files: { "test/existing.test.mjs": original } });
+  const fixtures = testTempDir("cli-integration-tests");
+  try {
+    git(repo.root, ["checkout", "-qb", "topic"]);
+    writeFileSync(
+      path.join(repo.root, "test/existing.test.mjs"),
+      original.replace('"existing"', '"modified"'),
+    );
+    git(repo.root, ["commit", "-qam", "Modify existing test"]);
+    git(repo.root, ["checkout", "-q", "main"]);
+    const bundleFile = path.join(fixtures, "review.json");
+    const script = path.join(fixtures, "fake.mjs");
+    writeFileSync(
+      script,
+      `import { writeFileSync } from "node:fs";
+export default {
+  async reviewer({ bundle, call }) {
+    writeFileSync(${JSON.stringify(bundleFile)}, JSON.stringify(bundle));
+    await call("submit_result", { decision: "PASS", findings: [], candidate_digest: bundle.candidate.candidate_digest });
+  },
+};
+`,
+    );
+    const runtimes = path.join(fixtures, "runtimes.json");
+    writeFileSync(
+      runtimes,
+      JSON.stringify({
+        version: 1,
+        roles: { implementer: { adapter: "fake" }, reviewer: { adapter: "fake" } },
+        adapters: { fake: { script } },
+      }),
+    );
+    const args = [
+      "integrate",
+      "topic",
+      "--onto",
+      "main",
+      "--batch",
+      "test-policy",
+      "--checks",
+      "ok",
+      "--max-repairs",
+      "0",
+      "--runtimes",
+      runtimes,
+      "--json",
+      "--quiet",
+    ];
+    const denied = cli(repo.root, args);
+    assert.equal(denied.code, 20, denied.stderr + denied.stdout);
+    const failed = JSON.parse(denied.stdout);
+    assert.equal(failed.outcome, "FAILED");
+    assert.ok(failed.checks.some((check) => check.id === "test-edits" && check.status === "fail"));
+    const store = new RunStore(repo.root);
+    const deniedRecord = store.read(failed.run_id);
+    assert.equal(deniedRecord.task.test_edits, "additive");
+    assert.deepEqual(
+      deniedRecord.state.last_verification.checks.find((check) => check.id === "test-edits").files,
+      ["test/existing.test.mjs"],
+    );
+    const allowed = cli(repo.root, [...args, "--test-edits", "allowed"]);
+    assert.equal(allowed.code, 0, allowed.stderr + allowed.stdout);
+    const passed = JSON.parse(allowed.stdout);
+    assert.equal(passed.outcome, "PASSED");
+    assert.ok(passed.checks.some((check) => check.id === "test-edits" && check.status === "pass"));
+    const bundle = JSON.parse(readFileSync(bundleFile, "utf8"));
+    assert.deepEqual(bundle.modified_tests, ["test/existing.test.mjs"]);
+    assert.match(bundle.diff, /\+test\("modified"/);
+    const record = store.read(passed.run_id);
+    assert.equal(record.task.test_edits, "allowed");
+    assert.equal(record.task_digest, taskDigest(record.task));
+    assert.notEqual(record.task_digest, taskDigest({ ...record.task, test_edits: "additive" }));
+    assert.equal(
+      store.events(passed.run_id).find((event) => event.type === "merge.finished")?.test_edits,
+      "allowed",
+    );
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test("integrate rejects invalid test edit policies as usage errors", () => {
+  for (const policy of ["invalid", "Allowed", ""]) {
+    const result = cli(os.tmpdir(), [
+      "integrate",
+      "topic",
+      "--onto",
+      "main",
+      "--batch",
+      "invalid-policy",
+      "--test-edits",
+      policy,
+    ]);
+    assert.equal(result.code, 2, result.stderr);
+    assert.match(result.stderr, /--test-edits must be one of additive, new-files, allowed/);
+  }
+});
+
+test("help documents integration test edit policy and review visibility", () => {
+  const result = cli(os.tmpdir(), ["help"]);
+  assert.match(result.stdout, /--test-edits <policy>/);
+  assert.match(result.stdout, /additive.*new-files.*allowed/);
+  assert.match(result.stdout, /reviewer sees every changed existing test/);
+});
 
 test("help documents message files and literal leading at signs", () => {
   const result = cli(os.tmpdir(), ["help"]);

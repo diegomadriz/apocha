@@ -75,6 +75,7 @@ export async function runMergeSeedStage(_stage, ctx) {
       allowed_paths: snapshot.changed_files,
       checks,
       max_repair_attempts: ctx.task.max_repair_attempts,
+      test_edits: integration.testEdits ?? ctx.task.test_edits,
     },
     ctx.config,
   );
@@ -85,6 +86,10 @@ export async function runMergeSeedStage(_stage, ctx) {
     summary: `Integration of ${integration.topic} into ${integration.onto}`,
     unresolved_uncertainties: [],
   };
-  ctx.event("merge.finished", { changed_files: snapshot.changed_files.length, checks });
+  ctx.event("merge.finished", {
+    changed_files: snapshot.changed_files.length,
+    checks,
+    test_edits: ctx.task.test_edits,
+  });
   return "done";
 }

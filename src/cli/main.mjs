@@ -24,6 +24,7 @@ import { formatRangeMarkdown, verifyRange } from "../git/verify-range.mjs";
 import { detectBackend, resolveBackend } from "../sandbox/index.mjs";
 import { describeError, HarnessError } from "../util/errors.mjs";
 import { repositoryRoot, resolveCommit } from "../util/git.mjs";
+import { loadSchema } from "../util/schema.mjs";
 import { GENERATOR } from "../version.mjs";
 import { initProject } from "./init.mjs";
 import { liveProbe, sourceSecretsProbe } from "./probe.mjs";
@@ -43,6 +44,7 @@ Commands:
       [--runtimes <file>] [--allow-governance-edits --reason <text>] [--json] [--quiet]
   integrate <topic>             Merge a topic onto a base, verify, review, and promote
       --onto <ref> --batch <name> [--message <text|@file> | --message-file <path>] [--checks a,b] [--max-repairs 0|1|2]
+      [--test-edits <policy>]       additive (default), new-files, allowed; reviewer sees every changed existing test
   land <source> --target <branch> [--keep-batch] [--require-signed]   Fast-forward a branch whose commits all carry valid receipts (never pushes)
   gc [--apply] [--keep-days N] [--abandon-paused-days N] [--target <branch>] [--json]
                                 Plan cleanup (dry-run by default)
@@ -298,6 +300,7 @@ export async function main(argv) {
         "message-file": { type: "string" },
         checks: { type: "string" },
         "max-repairs": { type: "string" },
+        "test-edits": { type: "string" },
         runtimes: { type: "string" },
         "trust-repo-runtimes": { type: "boolean" },
         "allow-governance-edits": { type: "boolean" },
@@ -309,6 +312,14 @@ export async function main(argv) {
       const maxRepairs = values["max-repairs"] === undefined ? undefined : Number(values["max-repairs"]);
       if (maxRepairs !== undefined && ![0, 1, 2].includes(maxRepairs))
         throw new HarnessError("config", "usage", "--max-repairs must be 0, 1, or 2");
+      const testEdits = values["test-edits"];
+      const testEditPolicies = loadSchema("task.schema.json").properties.test_edits.enum;
+      if (testEdits !== undefined && !testEditPolicies.includes(testEdits))
+        throw new HarnessError(
+          "config",
+          "usage",
+          `--test-edits must be one of ${testEditPolicies.join(", ")}`,
+        );
       return withRunSignals(async (signal) => {
         const summary = await startRun({
           cwd,
@@ -324,6 +335,7 @@ export async function main(argv) {
             topic: positionals[0],
             checks: values.checks ? values.checks.split(",").filter(Boolean) : null,
             maxRepairs,
+            testEdits,
           },
           signal,
           onEvent: progress(Boolean(values.quiet || values.json)),
