@@ -44,7 +44,7 @@ import { newRunId, RunStore, stateDir } from "./runs.mjs";
  *   adapters?: { implementer: import("../adapters/contract.mjs").Adapter, reviewer: import("../adapters/contract.mjs").Adapter },
  *   allowGovernanceEdits?: boolean,
  *   governanceReason?: string,
- *   integration?: { topic: string, checks?: string[] | null, maxRepairs?: number },
+ *   integration?: { topic: string, checks?: string[] | null, maxRepairs?: number, testEdits?: import("../config/task.mjs").Task["test_edits"] },
  *   signal?: AbortSignal,
  *   onEvent?: (event: Record<string, unknown>) => void,
  * }} StartOptions
@@ -92,6 +92,7 @@ export async function startRun(options) {
       onto: options.base,
       onto_commit: baseCommit,
       checks: options.integration.checks ?? null,
+      testEdits: options.integration.testEdits,
     };
     additionalParents.push(topicCommit);
     const subjects = String(
@@ -112,6 +113,7 @@ export async function startRun(options) {
         allowed_paths: [".apocha-integration-pending"],
         checks: [],
         max_repair_attempts: options.integration.maxRepairs ?? config.limits.default_repair_attempts,
+        ...(options.integration.testEdits !== undefined ? { test_edits: options.integration.testEdits } : {}),
       },
       config,
     );
