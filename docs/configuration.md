@@ -108,14 +108,13 @@ The argv must contain exactly one whole element `{files}`; it expands to test pa
 one per argument, relative to `cwd`. Working directory, timeout, and literal `env`
 follow catalog check rules; `dependencies` may be `npm` or omitted.
 The normalized definition is included in the config digest. Omit it to disable base runs.
-Without `tests.run_files`, the default `justified` test-edit policy enforces
-`additive`: existing test lines may only be extended, and existing test files
-cannot be deleted. Both `apply_patch` and the structural check enforce this.
+Without `tests.run_files`, `justified` falls back to `additive`.
+Both `apply_patch` and the structural check enforce it; see [Test edit policy](#test-edit-policy).
 Verification records `effective_policy` and the reason
 "justified needs tests.run_files to gather evidence; enforcing additive".
-With `run_files` configured, `justified` uses the existing test-change evidence
-path. `apocha doctor` warns when it is missing; `apocha init` includes it for
-projects whose test script uses `node --test`.
+With `tests.run_files`, `justified` gathers evidence for existing test changes.
+`apocha doctor` warns if the command is missing. `apocha init` includes it when
+the project's test script uses `node --test`.
 
 After catalog checks pass, up to 10 added or modified test files run individually
 against the base tree with the candidate test and added test-support files overlaid.
@@ -247,28 +246,41 @@ Schema: `schemas/task.schema.json`.
 | `fail_fast` | | Boolean, default false. After a failing check, skip checks not yet started; running checks finish. |
 | `max_repair_attempts` | | 0 to 2, at most the project limit |
 | `new_tests_must_fail_on_base` | | Boolean, default false. With `tests.run_files` enabled, any `passes_on_base` result fails `tests-fail-before` and goes to repair. Errors do not count as evidence. |
-| `test_edits` | | `justified` (default): existing test changes are permitted, with necessity and weakening evidence checked after task checks pass when `tests.run_files` is configured. `additive`: existing test files may gain lines anywhere and named specifiers on single-line ES imports; all base lines must remain in order except for these import extensions. `new-files`: existing tests may not be modified or deleted. `allowed`: any test change, including deletion. |
+| `test_edits` | | Policy for existing tests. Default: `justified`. See [Test edit policy](#test-edit-policy). |
 
-The test policy applies to files matching `tests.paths` that exist at the base commit.
-New test files are always permitted within `allowed_paths`. Tools reject disallowed
-edits with `test_edit_policy`. Under `additive`, the tool judges the resulting file
-after all edits against the base commit, cumulatively across calls. The structural
-check uses the same line-level classifier. A single-line `import { a, b as c } from "module";`
-may gain named specifiers while preserving every old specifier, the module, and any
-default binding. Other changed or removed base lines, including file deletion, are
-refused. If this prevents completing the task, submit status `"blocked"` with the
-tests and reason in `blocked_reason`.
-Under `justified`, tools permit existing test edits and structural checks report them
-without rejecting them. Pure additions need no necessity evidence. With
-`tests.run_files`, the controller runs each non-additively modified or deleted
-test's base version on the candidate (up to 10 files; exceeding the limit fails).
-An old test that still passes makes the edit unnecessary unless declared as a refactor. If the old test fails
-on the candidate but the new test passes on base, the edit is weakened. Both fail
-the repairable `test-changes` check; evidence errors are infrastructure errors.
-Necessary edits pass, subject to reviewer judgment of the intended behaviour change.
-Without `tests.run_files`, necessity evidence is unavailable.
-Review bundles include `test_changes` evidence with each file's base-to-candidate
-diff, bounded by the main review limit, and list `added_tests` and `modified_tests`.
+### Test edit policy
+
+Choose what the implementer may change in existing files matching `tests.paths` at
+the base commit. Every policy permits new test files within `allowed_paths`.
+
+| Policy | Existing tests |
+|---|---|
+| `justified` (default) | Changes need necessity and weakening evidence after task checks pass. Without `tests.run_files`, falls back to `additive`. |
+| `additive` | Add lines anywhere or named specifiers to single-line ES imports. Keep all other base lines in order. No deletion. |
+| `new-files` | No changes or deletions. |
+| `allowed` | Any change, including deletion. |
+
+Tools reject disallowed edits with `test_edit_policy`.
+Under `additive`, tools and the structural check compare the whole result with
+the base, including earlier calls. For example, `import { a, b as c } from "module";`
+may gain names if it keeps all old specifiers, the module, and any default binding.
+Other changes or removals are refused. If the policy prevents completing the task,
+submit `status: "blocked"` and name the tests and conflict in `blocked_reason`.
+
+Under `justified`, tools allow edits and structural checks report them.
+Pure additions need no necessity evidence. With `tests.run_files`, the controller
+runs the old version of each changed or deleted test on the new code after task
+checks pass. This covers edits beyond additions, up to 10 files; more fails.
+
+- Old test passes on new code: `unnecessary`, unless declared as a `refactor`.
+- Old test fails on new code, but new test passes on base: `weakened`.
+- Necessary edits pass, subject to the reviewer's judgment of the intended behaviour change.
+
+`unnecessary` and `weakened` fail the repairable `test-changes` check.
+Evidence errors are infrastructure errors. Without `tests.run_files`, necessity
+evidence is unavailable.
+Review bundles include `test_changes` evidence and each file's diff, bounded by
+the main review limit. They also list `added_tests` and `modified_tests`.
 
 A task cannot contain commands, and unknown fields are rejected.
 
@@ -290,28 +302,32 @@ for its principal in HEAD's allowed signers, and whether signatures are required
 
 ## Declared test changes
 
-A task may include `test_changes`, an array of at most 50 entries:
-`{ "path": "test/value.test.mjs", "kind": "behaviour", "reason": "Expected output changes" }`.
-Each path must be an existing test file at the base commit, match the project's
-test paths, and fall inside `allowed_paths`. Duplicate paths are rejected.
-Declarations and reasons are covered by the task digest.
+Use `test_changes` to tell the reviewer which existing tests you expect to change.
+It accepts up to 50 entries:
 
-Under `test_edits: "justified"`, `behaviour` keeps the existing necessity and
-weakening rules. A `refactor` waives the necessity check: when the old test
-passes on the candidate, the verdict is `refactor`. When the old test fails on
-the candidate, normal behaviour change rules apply (`necessary` if the new test
-fails on base, `weakened` if it passes on base), with a note that the declaration
-did not match the execution evidence.
-The assertion token heuristic is advisory only. Every modified file's
-`test_changes` entry records `assertions_preserved` in verification, review and
-receipts. A false result never fails `test-changes` by itself; declared refactors
-with a false result are listed in the review bundle's `refactors_to_check` with
-an explanation, so the reviewer can check coverage and possible bypasses.
-Renamed assertion locals and extracted helpers may legitimately fail the heuristic.
-Support files with no runnable tests must be declared as `fixture` to skip
-evidence runs (verdict `declared_fixture`). Undeclared support files are run
-like other changed tests. Evidence records declaration status, kind and reason;
-the review bundle separately lists undeclared changed test files.
+`{ "path": "test/value.test.mjs", "kind": "behaviour", "reason": "Expected output changes" }`
+
+Each path must exist at the base, match the project's test paths, and be inside
+`allowed_paths`. Duplicate paths are rejected. The task digest covers declarations
+and reasons.
+
+Under `test_edits: "justified"`:
+
+- `behaviour` uses the normal necessity and weakening rules.
+- `refactor` waives necessity when the old test passes on new code (verdict `refactor`).
+  If the old test fails, normal rules apply: `necessary` when the new test fails on
+  base, `weakened` when it passes. Evidence notes the mismatch with the declaration.
+- `fixture` skips evidence runs for support files with no runnable tests
+  (verdict `declared_fixture`). Undeclared support files run like other changed tests.
+
+`assertions_preserved` records an advisory assertion-token check for each modified
+file in `test_changes` evidence, review, and receipts. A false result alone never
+fails `test-changes`. Declared refactors with a false result appear in
+`refactors_to_check`, with an explanation for the reviewer to check coverage and
+bypasses. Renamed assertion locals or extracted helpers can cause false results.
+
+Evidence records whether a change was declared, its kind, and reason.
+The review bundle also lists undeclared changed test files.
 
 `read_only_paths` and `allowed_paths` must not overlap: neither may equal,
 contain, or sit inside an entry of the other. For example, read-only

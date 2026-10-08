@@ -25,24 +25,32 @@ reads them from there. Every runtime calls the same `submit_result` tool, so the
 format and no runtime-specific output parsing. Adapters parse their runtime's stream only for exit
 status, usage, model identity, error classification, and policy checks.
 
-Implementer `submit_result` requires `summary` and accepts `unresolved_uncertainties`.
-Done results require `criteria_evidence`: exactly one `{ criterion, evidence }` entry for each
-1-based acceptance criterion. Each evidence array has 1–10 items: `{ kind: "test", path, name }`,
-`{ kind: "check", check_id }`, or `{ kind: "inspection", note }` (1–500 characters).
-Test paths must exist in the candidate and match project test paths; names must occur literally
-in the file. Check IDs must belong to the task. Invalid claims return all problems without
-recording a result, allowing correction and resubmission. Inspection is for criteria that cannot
-reasonably be tested and must explain why. Blocked results may omit evidence.
-Optional `status` is `done` (the default when omitted) or `blocked`. A blocked result requires
-`blocked_reason`, a string of 1–2000 characters naming the conflicting test, check, or path
-and explaining the conflict. `blocked_reason` must be absent for `done` or omitted status.
-Schema validation enforces this pairing before recording the result. Every blocked report
-invokes the reviewer with `blocked_claim` containing the reason and summary, the current diff,
-task rules, and latest verification evidence. No checks run for this review. The reviewer
-remains read-only: `ESCALATE` confirms the conflict; `FIX` rejects it and supplies repair
-findings. `PASS` also rejects it and is converted to `FIX`. Rejections use the repair budget;
-failures in the implementer's own work, rejected edits, and unfinished work must be fixed,
-rather than reported as blocked.
+Implementers use `submit_result` to explain the result and show how each criterion was met.
+It requires `summary` and accepts `unresolved_uncertainties`.
+`status` is `done` by default, or `blocked`.
+
+For `done`, provide `criteria_evidence`: one `{ criterion, evidence }` entry per
+acceptance criterion, numbered from 1. Each evidence array needs 1–10 items:
+
+- `{ kind: "test", path, name }`: an existing project test path and a name found literally in it.
+- `{ kind: "check", check_id }`: a check named by the task.
+- `{ kind: "inspection", note }`: 1–500 characters explaining why the criterion cannot reasonably be tested.
+
+Invalid evidence returns all problems without saving the result. Correct it and resubmit.
+Blocked results may omit evidence. They require `blocked_reason`: 1–2000 characters
+naming the conflicting test, check, or path and explaining the conflict.
+Omit `blocked_reason` for `done`. Invalid pairings are rejected before saving.
+
+Every blocked report goes to the read-only reviewer without checks.
+The reviewer sees `blocked_claim` (reason and summary), the current diff, task rules,
+and latest verification evidence:
+
+- `ESCALATE` confirms the conflict.
+- `FIX` rejects it and gives repair findings.
+- `PASS` also rejects it and becomes `FIX`.
+
+Rejections spend the repair budget. Fix failed work, rejected edits, and unfinished
+work instead of reporting them as blocked.
 
 ## How tools reach each runtime
 
