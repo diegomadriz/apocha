@@ -1,6 +1,6 @@
 // @ts-check
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { HarnessError } from "../util/errors.mjs";
 import { appendJsonLine, writeJsonAtomic } from "../util/fs-safe.mjs";
@@ -98,6 +98,18 @@ export class RunStore {
   /** @param {string} runId @param {unknown} report */
   writeReport(runId, report) {
     writeJsonAtomic(path.join(this.dir(runId), "report.json"), report);
+  }
+
+  /** @param {string} runId @param {Buffer} diff */
+  writeCandidatePatch(runId, diff) {
+    const file = path.join(this.dir(runId), "candidate.patch");
+    const temporary = `${file}.tmp-${process.pid}-${randomBytes(4).toString("hex")}`;
+    try {
+      writeFileSync(temporary, diff, { mode: 0o600, flag: "wx" });
+      renameSync(temporary, file);
+    } finally {
+      rmSync(temporary, { force: true });
+    }
   }
 
   /** @param {string} runId @param {number} index */

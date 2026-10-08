@@ -9,7 +9,7 @@ flowchart TD
     checks --> review["Independent review"]
     review --> outcome{"Outcome"}
     outcome --> passed["PASSED: promote to batch ref with receipt note"]
-    outcome --> stopped["ESCALATED / FAILED / ERROR: keep only run record"]
+    outcome --> stopped["ESCALATED / FAILED / ERROR: keep run record and candidate patch"]
     outcome --> paused["PAUSED: keep candidate and batch reservation"]
     paused --> resume["Resume"]
     resume --> run
@@ -21,6 +21,11 @@ flowchart TD
     stopped --> gc
     abandon --> gc
 ```
+
+Every finished run except PAUSED keeps its final candidate changes, when present,
+in `<git-common-dir>/apocha/runs/<run-id>/candidate.patch`. From a clean checkout
+of the run's base commit, apply it with `git apply --binary <path-to-candidate.patch>`.
+It may contain anything the agent wrote; treat it like the run's other local files.
 
 Every run retains its record and verification evidence, including unsuccessful runs.
 Temporary workspaces are normally removed by their controller when the operation

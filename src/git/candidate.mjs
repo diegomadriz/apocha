@@ -1,5 +1,6 @@
 // @ts-check
-import { existsSync, lstatSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { sha256 } from "../util/digest.mjs";
 import { HarnessError } from "../util/errors.mjs";
@@ -178,8 +179,9 @@ function identityFromIndex(root, baseCommit, inspect = () => {}) {
  * Keep repository attributes, but never execute their diff or textconv drivers.
  * @param {string} root
  * @param {string[]} args
+ * @param {{ env?: Record<string, string>, encoding?: "utf8" | "buffer" }} [options]
  */
-function digestDiff(root, args) {
+function digestDiff(root, args, options = {}) {
   const defaults = [
     "diff.noprefix=false",
     "diff.mnemonicPrefix=false",
@@ -218,7 +220,9 @@ function digestDiff(root, args) {
       "--",
     ],
     {
+      encoding: options.encoding,
       env: {
+        ...options.env,
         GIT_CONFIG_NOSYSTEM: "1",
         GIT_CONFIG_GLOBAL: "/dev/null",
         GIT_CONFIG_COUNT: "0",
@@ -227,6 +231,36 @@ function digestDiff(root, args) {
       },
     },
   );
+}
+
+/**
+ * Capture the final working tree without changing either repository's index or refs.
+ * Unlike verification, this also preserves candidates that failed integrity checks.
+ * @param {Candidate} candidate
+ */
+export function finalCandidatePatch(candidate) {
+  const temporary = mkdtempSync(path.join(os.tmpdir(), "apocha-patch-"));
+  const env = { GIT_INDEX_FILE: path.join(temporary, "index") };
+  try {
+    git(candidate.root, ["read-tree", candidate.base_commit], { env });
+    git(candidate.root, ["add", "-A"], { env });
+    const names = String(
+      digestDiff(candidate.root, ["--cached", "--name-only", "-z", candidate.base_commit], { env }).stdout,
+    )
+      .split("\0")
+      .filter(Boolean);
+    const diff = /** @type {Buffer} */ (
+      /** @type {unknown} */ (
+        digestDiff(candidate.root, ["--cached", candidate.base_commit, "--binary", "--full-index"], {
+          env,
+          encoding: "buffer",
+        }).stdout
+      )
+    );
+    return { diff, files: names.length };
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
 }
 
 /** @param {string} root @param {string[]} prefix */
