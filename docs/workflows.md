@@ -44,20 +44,26 @@ checks and prevent new checks from starting. Per-check `duration_ms` and the
 checks stage's total wall time are recorded in verification evidence.
 Base test runs remain sequential and start only after all catalog checks pass.
 
-An implementer that makes tool calls and finishes without submitting, without a runtime failure, gets one continuation in the same candidate with a fresh invocation tool budget and a prompt to finish and submit; `implementer.continued` records its invocation and previous tool-call count without spending a retry, repair, or new attempt. A second missing result escalates with `agent/no_result`; no-tool invocations keep the existing retry policy, and reviewers are unchanged.
+An implementer that makes tool calls but stops without submitting, and without a
+runtime failure, gets one continuation in the same candidate. The new invocation has
+its own tool budget and a prompt to finish and submit. The `implementer.continued`
+event records it; it spends no retry, repair, or attempt. A second missing result
+escalates with `agent/no_result`. Invocations with no tool calls keep the normal retry
+policy, and reviewers are unchanged.
 
-An implementer reporting `blocked` transitions to `blocked-review` in both built-in workflows,
-even if files changed. No checks run for the claim. The independent reviewer sees the task,
-criteria, scope, blocked reason and summary, current diff (possibly empty), and latest
-verification results if any. `ESCALATE` confirms the conflict and ends the run with reason
-`implementer reported blocked; reviewer confirmed: <reviewer reason>`, spending no repair.
-`FIX` rejects the claim and sends findings through `repair`, consuming the usual budget.
-`PASS` is treated as `FIX` with a finding that the claim was not confirmed and the task must
-be completed. Exhausted budgets escalate as usual.
+Both built-in workflows send `blocked` reports to `blocked-review`, even after edits.
+No checks run. The independent reviewer sees the task, criteria, scope, reason,
+summary, current diff (which may be empty), and any latest verification results.
 
-The `implementer.blocked` event retains the full claim; `blocked.confirmed` and
-`blocked.rejected` retain the reviewer decision. State keeps `blocked_claims` even after a
-successful repair. Analytics count blocked runs and reports, confirmations, and rejections.
+- `ESCALATE` confirms the conflict without spending a repair. The run ends with
+  `implementer reported blocked; reviewer confirmed: <reviewer reason>`.
+- `FIX` rejects the claim and sends findings to `repair`, spending the usual budget.
+- `PASS` becomes `FIX`, with a finding to complete the task.
+
+An exhausted repair budget escalates. The event log keeps the claim in
+`implementer.blocked` and the reviewer decision in `blocked.confirmed` or
+`blocked.rejected`. State retains `blocked_claims` after successful repairs.
+Analytics count blocked runs, reports, confirmations, and rejections.
 
 ## Automatic fixers
 

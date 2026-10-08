@@ -129,14 +129,16 @@ apocha integrate topic --onto main --batch integration --message "@@literal"
 verifies the combined tree, reviews it, and promotes it with both parents.
 Use `--checks a,b` to select checks and `--max-repairs 0|1|2` to set the repair budget.
 
-`--test-edits <policy>` sets the integration task\'s test edit policy: `additive`
-(the default) permits additions to existing tests, `new-files` permits only new
-test files, and `allowed` permits changes to existing test lines. Invalid policies
-are usage errors (exit code 2). Topic runs that allowed test edits do not change
-the integration default; pass `--test-edits allowed` when integrating those edits.
-The reviewer then sees every changed existing test in the review bundle and full
-diff. The resolved policy is part of the task digest and recorded in the run task
-and `merge.finished` event.
+Use `--test-edits <policy>` to set the integration task's policy:
+
+- `additive` (default): additions to existing tests.
+- `new-files`: new test files only.
+- `allowed`: changes to existing test lines, including deletion.
+
+Other values are usage errors (exit code 2). Topic runs do not change this default.
+Pass `--test-edits allowed` to integrate edits that need it.
+The reviewer sees every changed existing test in the bundle and full diff.
+The task digest, run task, and `merge.finished` event record the resolved policy.
 
 ```bash
 apocha integrate topic --onto main --batch integration --test-edits allowed
@@ -281,15 +283,17 @@ appear as `n/a` in text and Markdown.
 
 ## Test impact before assigning a task
 
-Run `apocha validate --impact task.json` to validate and list existing test
-files whose static imports reach an editable non-test file. Each result shows
-the import chain to the first file in scope and whether the test is declared
-in `test_changes`. `--json` returns `{ task, base_commit, impact }`, where
-each impact entry has `path`, `chain`, and `declared`.
+Run `apocha validate --impact task.json` to validate a task and list existing tests
+it may affect. The list follows static imports to editable non-test files.
+Each result shows the chain to the first file in scope and whether the test appears
+in `test_changes`. `--json` returns `{ task, base_commit, impact }`;
+each `impact` entry has `path`, `chain`, and `declared`.
 
-The base defaults to HEAD; use `--base <ref>` to select another commit.
-Configuration, files and import resolution come from that commit's Git tree,
-so uncommitted changes do not affect the result. Relative import/export-from,
-literal dynamic import and literal require calls are followed transitively,
-including common extension and directory-index resolution. Computed imports
-and runtime filesystem access are outside this static listing.
+The base defaults to HEAD. Use `--base <ref>` to choose another commit.
+The command reads config and files from that commit's Git tree, so uncommitted
+changes do not affect the result.
+
+It follows relative imports, exports with `from`, literal dynamic imports, and
+literal `require` calls through the whole chain. It resolves common extensions
+and directory indexes. Computed imports and runtime filesystem access are outside
+this list.

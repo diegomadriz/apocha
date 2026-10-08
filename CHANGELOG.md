@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Test edits now default to `justified`: old tests must fail on new code; edits that pass on both are rejected.
+  Without `tests.run_files`, only additions are allowed.
+- Tasks can declare test changes (`behaviour`, `refactor`, `fixture`).
+  `apocha validate --impact` lists existing tests a task may affect.
+- Implementers can report tasks as `blocked`; the reviewer confirms or rejects the claim before escalation.
+- Implementers list a test or check for each acceptance criterion; the reviewer verifies the evidence.
+- `apply_patch` errors show matching line numbers and the closest line, and catch escaped newlines.
+  Additions to existing tests are judged line by line.
+- `apocha integrate` accepts `--test-edits`.
+- The real-sandbox self-test runs inside Apocha, with short socket paths on macOS.
+
 ## 0.2.0 (2026-10-06)
 
 - Test edits are additive by default, enforced by the test-edits check.
