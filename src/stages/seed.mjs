@@ -84,6 +84,16 @@ export async function runMergeSeedStage(_stage, ctx) {
   ctx.state.seed = { changed_files: snapshot.changed_files.length, checks };
   ctx.state.implementation = {
     summary: `Integration of ${integration.topic} into ${integration.onto}`,
+    criteria_evidence: [
+      ...checks.map((id, index) => ({
+        criterion: index + 1,
+        evidence: [{ kind: /** @type {const} */ ("check"), check_id: id }],
+      })),
+      {
+        criterion: checks.length + 1,
+        evidence: [{ kind: "inspection", note: "Judged by the reviewer from the merged diff." }],
+      },
+    ],
     unresolved_uncertainties: [],
   };
   ctx.event("merge.finished", {

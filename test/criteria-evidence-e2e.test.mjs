@@ -1,5 +1,6 @@
 // @ts-check
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
 import { test } from "node:test";
 import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { startRun } from "../src/core/run.mjs";
@@ -124,6 +125,95 @@ test("criteria evidence rejects invalid submissions, resubmits, pairs review cla
     repo.cleanup();
   }
 });
+
+for (const repair of [false, true]) {
+  test(`integration review receives seeded evidence${repair ? " and repair replaces it" : " and passes"}`, async () => {
+    const repo = makeRepo();
+    const checks = ["test", "ok"];
+    const criteria = [
+      ...checks.map((id) => `The merged tree passes ${id}.`),
+      "The combined change is coherent with the base.",
+    ];
+    const seeded = [
+      ...checks.map((id, index) => ({
+        criterion: index + 1,
+        evidence: [{ kind: "check", check_id: id }],
+      })),
+      {
+        criterion: checks.length + 1,
+        evidence: [{ kind: "inspection", note: "Judged by the reviewer from the merged diff." }],
+      },
+    ];
+    const repaired = [
+      { criterion: 3, evidence: [{ kind: "inspection", note: "Reviewed the repaired merged diff." }] },
+      { criterion: 2, evidence: [{ kind: "check", check_id: "ok" }] },
+      { criterion: 1, evidence: [{ kind: "check", check_id: "test" }] },
+    ];
+    let reviews = 0;
+    let implementations = 0;
+    const fake = createFakeAdapter({
+      handlers: {
+        implementer: async ({ call }) => {
+          implementations += 1;
+          assert.equal(repair, true, "implementer must not run for a clean integration");
+          await call("apply_patch", {
+            edits: [{ path: "src/value.txt", old_text: "2\n", new_text: "2\n\n" }],
+          });
+          await call("submit_result", { summary: "Repair merged value", criteria_evidence: repaired });
+        },
+        reviewer: async (context) => {
+          const expected = reviews === 0 ? seeded : repaired;
+          reviews += 1;
+          assert.deepEqual(context.bundle.acceptance_criteria, criteria);
+          assert.deepEqual(
+            context.bundle.criteria_evidence,
+            criteria.map((text, index) => ({
+              criterion: index + 1,
+              acceptance_criterion: text,
+              evidence: expected.find((entry) => entry.criterion === index + 1).evidence,
+            })),
+          );
+          if (repair && reviews === 1) {
+            await context.call("submit_result", {
+              decision: "FIX",
+              findings: [
+                { id: "value-spacing", path: "src/value.txt", reason: "Add a trailing blank line." },
+              ],
+              candidate_digest: context.bundle.candidate.candidate_digest,
+            });
+          } else {
+            await passReviewer(context);
+          }
+        },
+      },
+    });
+    try {
+      git(repo.root, ["checkout", "-qb", "topic"]);
+      writeFileSync(`${repo.root}/src/value.txt`, "2\n");
+      git(repo.root, ["commit", "-qam", "set value"]);
+      git(repo.root, ["checkout", "-q", "main"]);
+      const summary = await startRun({
+        cwd: repo.root,
+        workflow: "integrate",
+        base: "main",
+        batch: "integrate-evidence",
+        message: "Integrate topic",
+        runtimes: fakeRuntimes(),
+        integration: { topic: "topic", checks },
+        adapters: { implementer: fake, reviewer: fake },
+      });
+      assert.equal(summary.outcome, "PASSED", summary.reason ?? "");
+      assert.equal(reviews, repair ? 2 : 1);
+      assert.equal(implementations, repair ? 1 : 0);
+      assert.deepEqual(
+        new RunStore(repo.root).read(summary.run_id).state.implementation.criteria_evidence,
+        repair ? repaired : seeded,
+      );
+    } finally {
+      repo.cleanup();
+    }
+  });
+}
 
 test("blocked submissions through the controller need no criterion evidence", async () => {
   const repo = makeRepo();
