@@ -48,7 +48,7 @@ Commands:
   land <source> --target <branch> [--keep-batch] [--require-signed]   Fast-forward a branch whose commits all carry valid receipts (never pushes)
   gc [--apply] [--keep-days N] [--abandon-paused-days N] [--target <branch>] [--json]
                                 Plan cleanup (dry-run by default)
-  status [--target <branch>] [--json]   Show repository state and next actions
+  status [run-id] [--target <branch>] [--json]   Show repository or run state
   verify-range <base>..<head> [--require-signed] [--json]   Verify PR receipts using base configuration
   receipt <commit>              Verify and print a receipt
   runs [--json]                 List runs, newest first
@@ -425,7 +425,18 @@ export async function main(argv) {
       return EXIT.ok;
     }
     case "status": {
-      const { values } = parse({ target: { type: "string" } }, false);
+      const { values, positionals } = parse({ target: { type: "string" } });
+      if (positionals.length > 1) throw new HarnessError("config", "usage", "status accepts one run ID");
+      if (positionals.length) {
+        const store = new RunStore(repositoryRoot(cwd));
+        const run = store.read(positionals[0]);
+        print(
+          values.json
+            ? { ...run, candidate_patch: run.candidate_patch ?? null }
+            : `${run.outcome} ${run.run_id}${run.reason ? `\nreason: ${run.reason}` : ""}${run.candidate_patch ? `\ncandidate patch: ${path.join(store.dir(run.run_id), run.candidate_patch.path)}` : ""}`,
+        );
+        return EXIT.ok;
+      }
       const status = repositoryStatus(repositoryRoot(cwd), { target: values.target });
       print(values.json ? status : formatStatusText(status));
       return EXIT.ok;

@@ -272,9 +272,13 @@ Pure additions need no necessity evidence. With `tests.run_files`, the controlle
 runs the old version of each changed or deleted test on the new code after task
 checks pass. This covers edits beyond additions, up to 10 files; more fails.
 
-- Old test passes on new code: `unnecessary`, unless declared as a `refactor`.
+- Old test passes on new code: `strengthened` when the new version keeps every existing
+  assertion and fails on base, `refactor` when declared as one, otherwise `unnecessary`.
+  To fix `unnecessary`, restore the file, only add to it, or keep every existing assertion
+  and make the file fail on the old code.
 - Old test fails on new code, but new test passes on base: `weakened`.
-- Necessary edits pass, subject to the reviewer's judgment of the intended behaviour change.
+- `necessary` and `strengthened` edits pass, subject to the reviewer's judgment of the
+  intended behaviour change.
 
 `unnecessary` and `weakened` fail the repairable `test-changes` check.
 Evidence errors are infrastructure errors. Without `tests.run_files`, necessity
@@ -320,9 +324,9 @@ Under `test_edits: "justified"`:
 - `fixture` skips evidence runs for support files with no runnable tests
   (verdict `declared_fixture`). Undeclared support files run like other changed tests.
 
-`assertions_preserved` records an advisory assertion-token check for each modified
-file in `test_changes` evidence, review, and receipts. A false result alone never
-fails `test-changes`. Declared refactors with a false result appear in
+`assertions_preserved` records an assertion-token check for each modified file in
+`test_changes` evidence, review, and receipts. The `strengthened` verdict requires it;
+otherwise it is advisory, and a false result alone never fails `test-changes`. Declared refactors with a false result appear in
 `refactors_to_check`, with an explanation for the reviewer to check coverage and
 bypasses. Renamed assertion locals or extracted helpers can cause false results.
 

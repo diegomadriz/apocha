@@ -24,7 +24,7 @@
  *
  * @typedef {{ adapter: string, adapter_version: string | null, provider: string | null, model: string | null }} RuntimeIdentity
  *
- * @typedef {{ runtime: RuntimeIdentity, usage: Record<string, number | null> | null }} AgentRun
+ * @typedef {{ runtime: RuntimeIdentity, usage: Record<string, number | null> | null, final_message?: string }} AgentRun
  *
  * @typedef {{ adapter: string, command?: string, version: string | null, ok: boolean, problems: string[] }} Probe
  *

@@ -124,7 +124,7 @@ export function codexArgs(invocation, command) {
 /**
  * Inspect one `codex exec --json` event. Returns usage/error info, or throws on a policy violation.
  * @param {any} event
- * @param {{ usage: any, errors: string[] }} state
+ * @param {{ usage: any, errors: string[], final_message?: string }} state
  */
 export function inspectCodexEvent(event, state) {
   if (event.type === "turn.completed" && event.usage) state.usage = event.usage;
@@ -132,6 +132,8 @@ export function inspectCodexEvent(event, state) {
   if (event.type === "error") state.errors.push(String(event.message ?? "error"));
   const item = event.item;
   if (!item || (event.type !== "item.started" && event.type !== "item.completed")) return;
+  if (event.type === "item.completed" && item.type === "agent_message" && typeof item.text === "string")
+    state.final_message = item.text.slice(0, 2000);
   if (FORBIDDEN_ITEMS.has(item.type)) {
     throw new HarnessError(
       "policy_violation",
@@ -176,6 +178,7 @@ export function createCodexAdapter(settings = {}) {
     async run(invocation) {
       const version = cliVersion(command);
       if (!version) throw new HarnessError("infra", "runtime_missing", `${command} is not available`);
+      /** @type {{ usage: any, errors: string[], final_message?: string }} */
       const state = { usage: null, errors: [] };
       const exit = await runJsonlProcess({
         command,
@@ -205,7 +208,11 @@ export function createCodexAdapter(settings = {}) {
         }
         throw new HarnessError("infra", "codex_exit", message.slice(0, 500), { details: { runtime } });
       }
-      return { runtime, usage: normalizeCodexUsage(state.usage) };
+      return {
+        runtime,
+        usage: normalizeCodexUsage(state.usage),
+        ...(state.final_message !== undefined ? { final_message: state.final_message } : {}),
+      };
     },
   };
 }

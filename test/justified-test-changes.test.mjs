@@ -124,8 +124,102 @@ for (const scenario of [
           state.findings[0].reason,
           scenario.verdict === "weakened"
             ? /now passes on both the old and the new code, so it no longer distinguishes them/
-            : /the old version of test\/value.test.mjs still passes on the new code, so the change was not needed; restore it or only add to it/,
+            : /the old version of test\/value.test.mjs still passes on the new code, so the change was not needed; restore it, only add to it, or keep every existing assertion and make the file fail on the old code/,
         );
+      }
+    } finally {
+      repo.cleanup();
+    }
+  });
+}
+
+const strengtheningBase = testSource("assert.ok(value);\nvalue.toUpperCase();");
+for (const scenario of [
+  { name: "preserves assertions and fails on base", failsOnBase: true, preserved: true },
+  { name: "preserves assertions but passes on base", failsOnBase: false, preserved: true },
+  { name: "removes an assertion and fails on base", failsOnBase: true, preserved: false },
+  { name: "declared refactor keeps its verdict", failsOnBase: true, preserved: true, refactor: true },
+]) {
+  test(`justified strengthening: ${scenario.name}`, async () => {
+    const next = testSource(
+      `${scenario.preserved ? "assert.ok(value);\n" : ""}const result = value.toUpperCase();\n` +
+        (scenario.failsOnBase ? 'assert.equal(result, "WORLD");' : "assert.equal(result.length, 5);"),
+    );
+    const expected = scenario.refactor
+      ? "refactor"
+      : scenario.failsOnBase && scenario.preserved
+        ? "strengthened"
+        : "unnecessary";
+    const accepted = expected !== "unnecessary";
+    const repo = makeRepo({
+      config,
+      files: { [testPath]: strengtheningBase, "src/value.txt": "hello\n" },
+    });
+    try {
+      let reviewed = false;
+      const fake = createFakeAdapter({
+        handlers: {
+          implementer: async ({ call }) => {
+            await call("apply_patch", {
+              edits: [
+                { path: "src/value.txt", old_text: "hello\n", new_text: "world\n" },
+                { path: testPath, old_text: strengtheningBase, new_text: next },
+              ],
+            });
+            await call("submit_result", { summary: scenario.name });
+          },
+          reviewer: async (context) => {
+            reviewed = true;
+            assert.equal(context.bundle.test_changes[0].verdict, expected);
+            assert.equal(context.bundle.test_changes[0].assertions_preserved, scenario.preserved);
+            assert.match(context.bundle.test_changes[0].diff, /\+const result = value.toUpperCase\(\);/);
+            await passReviewer(context);
+          },
+        },
+      });
+      const summary = await startRun({
+        cwd: repo.root,
+        base: "main",
+        batch: "strengthening",
+        message: scenario.name,
+        runtimes: fakeRuntimes(),
+        task: valueTask({
+          allowed_paths: ["src/", "test/"],
+          checks: ["tests"],
+          max_repair_attempts: 0,
+          ...(scenario.refactor
+            ? { test_changes: [{ path: testPath, kind: "refactor", reason: "Capture the call result" }] }
+            : {}),
+        }),
+        adapters: { implementer: fake, reviewer: fake },
+      });
+      assert.equal(summary.outcome, accepted ? "PASSED" : "ESCALATED", summary.reason ?? "");
+      assert.equal(reviewed, accepted);
+      const store = new RunStore(repo.root);
+      const verification = store.read(summary.run_id).state.last_verification;
+      const evidence = verification.test_changes;
+      assert.equal(evidence[0].verdict, expected);
+      assert.equal(evidence[0].change, "modified");
+      assert.equal(evidence[0].old_on_candidate, "old_passes_on_candidate");
+      assert.equal(evidence[0].new_on_base, scenario.failsOnBase ? "fails_on_base" : "passes_on_base");
+      assert.equal(evidence[0].assertions_preserved, scenario.preserved);
+      const check = verification.checks.find((entry) => entry.id === "test-changes");
+      assert.equal(check.status, accepted ? "pass" : "fail");
+      if (!accepted)
+        assert.equal(
+          check.error,
+          `the old version of ${testPath} still passes on the new code, so the change was not needed; restore it, only add to it, or keep every existing assertion and make the file fail on the old code`,
+        );
+      const saved = JSON.parse(
+        readFileSync(path.join(store.dir(summary.run_id), "verification-01.json"), "utf8"),
+      );
+      assert.deepEqual(saved.test_changes, evidence);
+      const event = store.events(summary.run_id).find((entry) => entry.type === "test-change.finished");
+      assert.equal(event.verdict, expected);
+      if (accepted) {
+        const receipt = verifyReceipt(repo.root, "refs/notes/apocha", summary.promoted_head);
+        assert.equal(receipt.valid, true, receipt.reason ?? "");
+        assert.deepEqual(receipt.receipt.tests.test_changes, evidence);
       }
     } finally {
       repo.cleanup();

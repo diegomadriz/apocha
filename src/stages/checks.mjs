@@ -322,7 +322,9 @@ export async function runChecksStage(_stage, ctx) {
             : oldOnCandidate === "old_passes_on_candidate"
               ? declaration?.kind === "refactor"
                 ? "refactor"
-                : "unnecessary"
+                : modified && newOnBase === "fails_on_base" && assertionEvidence.assertions_preserved === true
+                  ? "strengthened"
+                  : "unnecessary"
               : newOnBase === "passes_on_base"
                 ? "weakened"
                 : "necessary";
@@ -338,7 +340,7 @@ export async function runChecksStage(_stage, ctx) {
         });
         if (verdict === "unnecessary")
           reasons.push(
-            `the old version of ${file} still passes on the new code, so the change was not needed; restore it or only add to it`,
+            `the old version of ${file} still passes on the new code, so the change was not needed; restore it, only add to it, or keep every existing assertion and make the file fail on the old code`,
           );
         else if (verdict === "weakened")
           reasons.push(

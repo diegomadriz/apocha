@@ -6,10 +6,11 @@ import { warnCatalogUnsandboxedChecks } from "../checks/sandbox.mjs";
 import { loadProjectConfigAt, selectChecks } from "../config/project.mjs";
 import { loadRuntimeConfig, roleProvider } from "../config/runtime.mjs";
 import { taskDigest, validateTask } from "../config/task.mjs";
-import { attachCandidate, createCandidate } from "../git/candidate.mjs";
+import { attachCandidate, createCandidate, finalCandidatePatch } from "../git/candidate.mjs";
 import { assertBatchRef, reserveBatchRef } from "../git/promotion.mjs";
 import { resolveBackend } from "../sandbox/index.mjs";
 import { policyDigest } from "../stages/invoke.mjs";
+import { sha256 } from "../util/digest.mjs";
 import { describeError, HarnessError } from "../util/errors.mjs";
 import {
   configuredIdentity,
@@ -257,7 +258,16 @@ export async function startRun(options) {
   } catch (error) {
     const detail = describeError(error);
     if (created) {
+      const patch = preserveCandidatePatch(store, runId, candidate);
+      store.writeReport(runId, {
+        ...store.read(runId),
+        ...patch,
+        outcome: "ERROR",
+        reason: detail.message,
+        ...detail,
+      });
       store.update(runId, {
+        ...patch,
         outcome: "ERROR",
         reason: detail.message,
         error_class: detail.error_class,
@@ -359,7 +369,16 @@ export async function resumeRun(options) {
     return summary;
   } catch (error) {
     const detail = describeError(error);
+    const patch = preserveCandidatePatch(store, options.runId, ctx.candidate);
+    store.writeReport(options.runId, {
+      ...store.read(options.runId),
+      ...patch,
+      outcome: "ERROR",
+      reason: detail.message,
+      ...detail,
+    });
     store.update(options.runId, {
+      ...patch,
       outcome: "ERROR",
       reason: detail.message,
       error_class: detail.error_class,
@@ -370,6 +389,27 @@ export async function resumeRun(options) {
     throw error;
   } finally {
     if (!paused) ctx.candidate.cleanup();
+  }
+}
+
+/**
+ * Patch failures are evidence, never a change to the workflow outcome.
+ * @param {RunStore} store
+ * @param {string} runId
+ * @param {import("../git/candidate.mjs").Candidate | undefined} candidate
+ * @returns {{ candidate_patch: null | { path: string, bytes: number, files: number, sha256: string }, candidate_patch_error?: string }}
+ */
+function preserveCandidatePatch(store, runId, candidate) {
+  try {
+    if (!candidate || !existsSync(path.join(candidate.root, ".git"))) return { candidate_patch: null };
+    const { diff, files } = finalCandidatePatch(candidate);
+    if (!files) return { candidate_patch: null };
+    store.writeCandidatePatch(runId, diff);
+    return {
+      candidate_patch: { path: "candidate.patch", bytes: diff.length, files, sha256: sha256(diff) },
+    };
+  } catch (error) {
+    return { candidate_patch: null, candidate_patch_error: describeError(error).message };
   }
 }
 
@@ -452,7 +492,11 @@ function finish(ctx, result) {
   const paused = result.outcome === "PAUSED";
   if (!paused && result.outcome !== "PASSED")
     deleteRef(ctx.repositoryRoot, ctx.batchRef, ctx.candidate.base_commit);
+  const patch = paused
+    ? { candidate_patch: null }
+    : preserveCandidatePatch(ctx.store, ctx.runId, ctx.candidate);
   const summary = {
+    ...patch,
     run_id: ctx.runId,
     workflow: ctx.workflow.id,
     task_id: ctx.task.task_id,
@@ -477,6 +521,7 @@ function finish(ctx, result) {
   };
   ctx.store.writeReport(ctx.runId, { ...summary, state: ctx.state });
   ctx.store.update(ctx.runId, {
+    ...patch,
     outcome: result.outcome,
     reason: result.reason,
     error_class: summary.error_class,
