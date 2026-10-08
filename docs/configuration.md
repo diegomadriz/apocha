@@ -247,7 +247,7 @@ Schema: `schemas/task.schema.json`.
 | `fail_fast` | | Boolean, default false. After a failing check, skip checks not yet started; running checks finish. |
 | `max_repair_attempts` | | 0 to 2, at most the project limit |
 | `new_tests_must_fail_on_base` | | Boolean, default false. With `tests.run_files` enabled, any `passes_on_base` result fails `tests-fail-before` and goes to repair. Errors do not count as evidence. |
-| `test_edits` | | `justified` (default): existing test changes are permitted, with necessity and weakening evidence checked after task checks pass when `tests.run_files` is configured. `additive`: existing test files may gain lines anywhere and named specifiers on single-line ES imports; all base lines must remain in order except for these import extensions. `new-files`: existing tests may not be modified or deleted. `allowed`: any test change, including deletion. |
+| `test_edits` | | `justified` (default): existing test changes are permitted, with necessity, strengthening and weakening evidence checked after task checks pass when `tests.run_files` is configured. `additive`: existing test files may gain lines anywhere and named specifiers on single-line ES imports; all base lines must remain in order except for these import extensions. `new-files`: existing tests may not be modified or deleted. `allowed`: any test change, including deletion. |
 
 The test policy applies to files matching `tests.paths` that exist at the base commit.
 New test files are always permitted within `allowed_paths`. Tools reject disallowed
@@ -262,10 +262,14 @@ Under `justified`, tools permit existing test edits and structural checks report
 without rejecting them. Pure additions need no necessity evidence. With
 `tests.run_files`, the controller runs each non-additively modified or deleted
 test's base version on the candidate (up to 10 files; exceeding the limit fails).
-An old test that still passes makes the edit unnecessary unless declared as a refactor. If the old test fails
-on the candidate but the new test passes on base, the edit is weakened. Both fail
-the repairable `test-changes` check; evidence errors are infrastructure errors.
-Necessary edits pass, subject to reviewer judgment of the intended behaviour change.
+An old test that still passes makes the edit `unnecessary` unless declared as a refactor
+or the modified file preserves every existing assertion and fails on base. The latter
+gets verdict `strengthened` and passes. Otherwise restore the file, only add to it, or
+keep every existing assertion and make the file fail on the old code. If the old test fails
+on the candidate but the new test passes on base, the edit is `weakened`. Both
+`unnecessary` and `weakened` fail the repairable `test-changes` check; evidence errors
+are infrastructure errors. `necessary` and `strengthened` edits pass, subject to
+reviewer judgment of the intended behaviour change.
 Without `tests.run_files`, necessity evidence is unavailable.
 Review bundles include `test_changes` evidence with each file's base-to-candidate
 diff, bounded by the main review limit, and list `added_tests` and `modified_tests`.
@@ -302,7 +306,8 @@ passes on the candidate, the verdict is `refactor`. When the old test fails on
 the candidate, normal behaviour change rules apply (`necessary` if the new test
 fails on base, `weakened` if it passes on base), with a note that the declaration
 did not match the execution evidence.
-The assertion token heuristic is advisory only. Every modified file's
+The assertion token heuristic is required for the `strengthened` verdict and
+otherwise advisory. Every modified file's
 `test_changes` entry records `assertions_preserved` in verification, review and
 receipts. A false result never fails `test-changes` by itself; declared refactors
 with a false result are listed in the review bundle's `refactors_to_check` with

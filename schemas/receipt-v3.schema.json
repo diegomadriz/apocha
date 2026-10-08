@@ -244,6 +244,7 @@
               "verdict": {
                 "enum": [
                   "necessary",
+                  "strengthened",
                   "unnecessary",
                   "weakened",
                   "error",

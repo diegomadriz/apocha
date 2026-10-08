@@ -89,6 +89,23 @@ The `allowed` policy passes this check. New test files are permitted by every
 policy, subject to the normal scope and protected-path checks. Violations list
 the offending files and end the run as `FAILED` before catalog checks or review.
 
+Under `justified`, after catalog checks pass, `tests.run_files` supplies evidence
+for each non-additively modified or deleted existing test (up to 10 files):
+
+| Verdict | Evidence | Outcome |
+|---|---|---|
+| `strengthened` | Modified file, old version passes on candidate, new version fails on base, every existing assertion preserved | Pass |
+| `unnecessary` | Old version passes on candidate without a declared refactor or qualifying strengthening | Fail; restore it, only add to it, or preserve every assertion and make it fail on base |
+| `necessary` | Old version fails on candidate and new version fails on base, or file deleted | Pass |
+| `weakened` | Old version fails on candidate but new version passes on base | Fail |
+| `refactor` | Declared refactor whose old version passes on candidate | Pass; assertion preservation remains advisory |
+| `declared_fixture` | Declared support file with no runnable tests | Pass without evidence runs |
+| `error` | Execution evidence cannot be established | Infrastructure error |
+
+A refactor whose old version fails follows the normal behaviour change rules.
+Verification `test_changes`, `test-change.finished` events, review bundles and
+receipts retain these verdicts.
+
 ## Tests against the base code
 
 When `tests.run_files` is configured, successful catalog checks are followed by
