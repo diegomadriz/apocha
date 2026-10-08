@@ -23,7 +23,7 @@ An adapter does **not** return the agent's result. The harness tool server write
 to `session/tools.jsonl` and the submitted result to `session/result.json`, and the controller
 reads them from there. Every runtime calls the same `submit_result` tool, so there is one result
 format and no runtime-specific output parsing. Adapters parse their runtime's stream only for exit
-status, usage, model identity, error classification, and policy checks.
+status, usage, model identity, final assistant text, error classification, and policy checks.
 
 Implementer `submit_result` requires `summary` and accepts `unresolved_uncertainties`.
 Done results require `criteria_evidence`: exactly one `{ criterion, evidence }` entry for each
@@ -117,6 +117,8 @@ to create a file and read `/etc/hosts` by any means other than the harness tools
 file appears outside the harness tools, and the harness tools still work. Run it after every
 runtime upgrade: a new default-on feature in a runtime is the most likely way for the lock-down to
 weaken.
+
+When available, `agent.finished.final_message` records the invocation’s last assistant text, truncated to 2000 characters: Codex uses the last completed `agent_message`, Claude Code uses its parsed result text, and fake handlers may return `{ final_message }`. Adapters without that text omit the field.
 
 ## Errors and retries
 

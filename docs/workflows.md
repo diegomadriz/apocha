@@ -44,6 +44,8 @@ checks and prevent new checks from starting. Per-check `duration_ms` and the
 checks stage's total wall time are recorded in verification evidence.
 Base test runs remain sequential and start only after all catalog checks pass.
 
+An implementer that makes tool calls and finishes without submitting, without a runtime failure, gets one continuation in the same candidate with a fresh invocation tool budget and a prompt to finish and submit; `implementer.continued` records its invocation and previous tool-call count without spending a retry, repair, or new attempt. A second missing result escalates with `agent/no_result`; no-tool invocations keep the existing retry policy, and reviewers are unchanged.
+
 An implementer reporting `blocked` transitions to `blocked-review` in both built-in workflows,
 even if files changed. No checks run for the claim. The independent reviewer sees the task,
 criteria, scope, blocked reason and summary, current diff (possibly empty), and latest

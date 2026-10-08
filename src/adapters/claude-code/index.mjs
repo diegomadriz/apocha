@@ -181,7 +181,11 @@ export function createClaudeCodeAdapter(settings = {}) {
         });
       }
       const usage = claudeUsage(result);
-      return { runtime, usage };
+      return {
+        runtime,
+        usage,
+        ...(typeof result.result === "string" ? { final_message: result.result.slice(0, 2000) } : {}),
+      };
     },
   };
 }

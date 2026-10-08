@@ -10,7 +10,7 @@ import { createProjectTools } from "../../tools/project-tools.mjs";
  * so a fake run exercises the same scopes, traces, and result validation as a
  * live one.
  *
- * @typedef {(context: { role: string, bundle: Record<string, any>, attempt: number, root: string, call: (name: string, args: unknown) => Promise<any> }) => unknown | Promise<unknown>} FakeHandler
+ * @typedef {(context: { role: string, taskPrompt: string, bundle: Record<string, any>, attempt: number, root: string, call: (name: string, args: unknown) => Promise<any> }) => unknown | Promise<unknown>} FakeHandler
  */
 
 /**
@@ -40,8 +40,9 @@ export function createFakeAdapter(options = {}) {
         if (!outcome.ok) throw new Error(outcome.error);
         return outcome.value;
       };
-      await handler({
+      const output = await handler({
         role: invocation.role,
+        taskPrompt: invocation.taskPrompt,
         bundle: invocation.bundle,
         attempt: Number(invocation.bundle.attempt ?? 0),
         root: session.root,
@@ -55,6 +56,12 @@ export function createFakeAdapter(options = {}) {
           model: invocation.model ?? "scripted",
         },
         usage: null,
+        ...(output &&
+        typeof output === "object" &&
+        "final_message" in output &&
+        typeof output.final_message === "string"
+          ? { final_message: output.final_message }
+          : {}),
       };
     },
   };

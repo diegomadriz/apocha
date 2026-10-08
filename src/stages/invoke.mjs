@@ -35,6 +35,9 @@ export function policyDigest(workflow) {
 
 /** Error classes worth one more attempt: transient by nature. */
 const RETRYABLE = new Set(["infra", "tool_protocol", "provider"]);
+const MAX_IMPLEMENTER_CONTINUATIONS = 1;
+const CONTINUATION_PROMPT =
+  "Your previous session in this attempt ended without calling submit_result. The candidate keeps every change you made. Continue from the current state: finish the task, run the checks you need, and call submit_result (status done with criteria_evidence, or blocked with a blocked_reason).";
 
 /**
  * Run one agent role through its adapter, with the harness retry policy.
@@ -49,7 +52,9 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
   const adapter = ctx.adapters[role];
   const roleConfig = ctx.runtimes.roles[role];
   const maxAttempts = 1 + ctx.runtimes.retry.infra;
-  for (let attempt = 1; ; attempt += 1) {
+  let attempt = 1;
+  let continuations = 0;
+  for (;;) {
     if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
     ctx.state.invocations += 1;
     const index = ctx.state.invocations;
@@ -104,7 +109,7 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
         provider: roleConfig.provider,
         effort: roleConfig.effort,
         systemPrompt: rolePrompt(role),
-        taskPrompt: renderBundle(role, bundle),
+        taskPrompt: renderBundle(role, bundle) + (continuations ? `\n${CONTINUATION_PROMPT}\n` : ""),
         bundle,
         sessionDir,
         sessionFile,
@@ -129,6 +134,7 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
       tool_calls: trace.length,
       tool_errors: trace.filter((entry) => !entry.ok).length,
       submitted: result !== null,
+      ...(typeof run?.final_message === "string" ? { final_message: run.final_message.slice(0, 2000) } : {}),
       ...(failure ? { error: describeError(failure) } : {}),
     };
     ctx.event("agent.finished", summary);
@@ -142,19 +148,29 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
       if (RETRYABLE.has(errorClass) && attempt < maxAttempts) {
         ctx.state.retries += 1;
         ctx.event("agent.retry", { role, invocation: index, reason: describeError(failure) });
+        attempt += 1;
         continue;
       }
       throw failure;
     }
     if (!result) {
+      if (role === "implementer" && trace.length > 0 && continuations < MAX_IMPLEMENTER_CONTINUATIONS) {
+        continuations += 1;
+        ctx.event("implementer.continued", {
+          invocation: index + 1,
+          previous_tool_calls: trace.length,
+        });
+        continue;
+      }
       // No tool calls and no result usually means the runtime failed before the agent started. Retry once.
-      if (trace.length === 0 && attempt < maxAttempts) {
+      if (trace.length === 0 && continuations === 0 && attempt < maxAttempts) {
         ctx.state.retries += 1;
         ctx.event("agent.retry", {
           role,
           invocation: index,
           reason: { error_class: "agent", code: "no_result_no_tools" },
         });
+        attempt += 1;
         continue;
       }
       throw new HarnessError(
