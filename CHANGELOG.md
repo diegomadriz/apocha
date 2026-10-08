@@ -2,8 +2,7 @@
 
 ## Unreleased
 
-- Test edits now default to `justified`: old tests must fail on new code; edits that pass on both are rejected.
-  Without `tests.run_files`, only additions are allowed.
+- Test edits now default to `justified`: an existing test may change only when its old version fails on the new code, or when the edit keeps every existing assertion and makes the test fail on the old code (verdict `strengthened`). Edits that make a test pass on both old and new code are rejected. Without `tests.run_files`, only additions are allowed.
 - Tasks can declare test changes (`behaviour`, `refactor`, `fixture`).
   `apocha validate --impact` lists existing tests a task may affect.
 - Implementers can report tasks as `blocked`; the reviewer confirms or rejects the claim before escalation.
@@ -12,6 +11,8 @@
   Additions to existing tests are judged line by line.
 - `apocha integrate` accepts `--test-edits`.
 - The real-sandbox self-test runs inside Apocha, with short socket paths on macOS.
+- Every finished run keeps its final code as `candidate.patch` in the run directory, including runs that did not pass. `apocha status <run-id>` shows it, and `git apply --binary` restores it on the base commit.
+- An implementer that stops without calling `submit_result` gets one continuation to finish. Each agent's final message is recorded in the event log.
 
 ## 0.2.0 (2026-10-06)
 
