@@ -2,13 +2,12 @@
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import test from "node:test";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { main } from "../src/cli/main.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { RunStore } from "../src/core/runs.mjs";
 import { HarnessError } from "../src/util/errors.mjs";
 import { git } from "../src/util/git.mjs";
-import { fakeRuntimes, makeRepo, valueTask } from "./helpers.mjs";
+import { createFakeAdapter, fakeRuntimes, makeRepo, valueTask } from "./helpers.mjs";
 
 for (const command of ["run", "integrate", "resume"]) {
   for (const signal of /** @type {const} */ (["SIGINT", "SIGTERM"])) {

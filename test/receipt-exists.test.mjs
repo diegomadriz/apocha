@@ -1,12 +1,18 @@
 // @ts-check
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { loadProjectConfig } from "../src/config/project.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { verifyReceipt, writeReceipt } from "../src/git/receipts.mjs";
 import { describeError, HarnessError } from "../src/util/errors.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, valueTask, writeValue } from "./helpers.mjs";
+import {
+  createFakeAdapter,
+  fakeRuntimes,
+  makeRepo,
+  passReviewer,
+  valueTask,
+  writeValue,
+} from "./helpers.mjs";
 
 test("duplicate receipt on a controller-promoted commit explains identical runs", async () => {
   const repo = makeRepo();

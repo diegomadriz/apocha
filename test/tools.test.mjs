@@ -489,10 +489,10 @@ test("submit_result validates against the role schema and accepts one result", a
   const s = setup();
   try {
     assert.match((await s.tools.call("submit_result", { nope: true })).error, /result is invalid/);
-    assert.equal((await s.tools.call("submit_result", { summary: "done" })).ok, true);
+    assert.equal((await s.tools.call("submit_result", { summary: "done", criteria_evidence: [] })).ok, true);
     assert.match((await s.tools.call("submit_result", { summary: "again" })).error, /already submitted/);
     const { trace, result } = readSession(s.sessionDir);
-    assert.deepEqual(result, { summary: "done" });
+    assert.deepEqual(result, { summary: "done", criteria_evidence: [] });
     assert.equal(trace.length, 3);
   } finally {
     s.cleanup();
@@ -505,7 +505,7 @@ test("the tool-call budget leaves room for submit_result", async () => {
     await s.tools.call("stat_paths", { paths: ["src/a.txt"] });
     await s.tools.call("stat_paths", { paths: ["src/a.txt"] });
     assert.match((await s.tools.call("stat_paths", { paths: ["src/a.txt"] })).error, /budget exhausted/);
-    assert.equal((await s.tools.call("submit_result", { summary: "done" })).ok, true);
+    assert.equal((await s.tools.call("submit_result", { summary: "done", criteria_evidence: [] })).ok, true);
   } finally {
     s.cleanup();
   }

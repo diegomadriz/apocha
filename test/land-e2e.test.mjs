@@ -3,11 +3,17 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { landBranch } from "../src/git/land.mjs";
 import { gitText, resolveCommit } from "../src/util/git.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, valueTask, writeValue } from "./helpers.mjs";
+import {
+  createFakeAdapter,
+  fakeRuntimes,
+  makeRepo,
+  passReviewer,
+  valueTask,
+  writeValue,
+} from "./helpers.mjs";
 
 /** @param {string} root @param {string} batch @param {string} [base] @param {number} [value] */
 async function passingBatch(root, batch, base = "main", value = 2) {

@@ -95,6 +95,7 @@ export async function runImplementStage(stage, ctx) {
   const { result } = await invokeAgent(ctx, "implementer", bundle);
   ctx.state.implementation = {
     summary: result.summary,
+    criteria_evidence: result.criteria_evidence ?? [],
     unresolved_uncertainties: result.unresolved_uncertainties ?? [],
   };
   ctx.state.attempt += 1;

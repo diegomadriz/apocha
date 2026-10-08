@@ -5,11 +5,10 @@ import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { initProject } from "../src/cli/init.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { RunStore } from "../src/core/runs.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, valueTask } from "./helpers.mjs";
+import { createFakeAdapter, fakeRuntimes, makeRepo, passReviewer, valueTask } from "./helpers.mjs";
 
 const testPath = "test/value.test.mjs";
 const original = 'import assert from "node:assert/strict";\nassert.equal(2, 2);\n';

@@ -19,6 +19,7 @@ Schema: `schemas/receipt-v3.schema.json`.
 | `tests` | Test edit policy, added test paths, and modified existing test paths (including deletions). Optional in older v3 receipts. |
 | `tests.on_base` | Added and modified test files run against base code, when `tests.run_files` is configured. |
 | `tests.test_changes` | Optional evidence under `justified`: path, modified/deleted change, `old_on_candidate`, `new_on_base` for modified files, and necessary/unnecessary/weakened/error verdict. Also stored in verification evidence and run state, and sent to review with each file diff. Older receipts without it still verify. |
+| `criteria_evidence` | Full implementer evidence array, indexed by 1-based acceptance criterion; stored independently of verification in run state and run records and paired with criterion text for review. Optional so old receipts still verify. |
 | `review` | `PASS` and the number of findings across the run |
 | `review_independence` | Configured `implementer_provider`, `reviewer_provider`, and boolean `independent` (providers differ). Written on every new receipt; optional so older receipts still verify. |
 | `repairs`, `agent_invocations`, `retries` | How much work it took |

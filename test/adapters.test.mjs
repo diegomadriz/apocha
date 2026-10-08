@@ -356,7 +356,7 @@ test("the MCP tool server lists role tools and serves calls over stdio", async (
       jsonrpc: "2.0",
       id: 5,
       method: "tools/call",
-      params: { name: "submit_result", arguments: { summary: "via mcp" } },
+      params: { name: "submit_result", arguments: { summary: "via mcp", criteria_evidence: [] } },
     });
     assert.match((await response(5)).result.content[0].text, /accepted/);
   } finally {

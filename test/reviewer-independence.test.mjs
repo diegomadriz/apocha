@@ -5,7 +5,6 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { collectRunFacts } from "../src/analytics/collect.mjs";
 import { computeAnalytics, DEFINITIONS } from "../src/analytics/compute.mjs";
 import { formatAnalyticsMarkdown, formatAnalyticsText } from "../src/analytics/report.mjs";
@@ -16,7 +15,14 @@ import { RunStore } from "../src/core/runs.mjs";
 import { verifyReceipt } from "../src/git/receipts.mjs";
 import { HarnessError } from "../src/util/errors.mjs";
 import { git, resolveCommit } from "../src/util/git.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, valueTask, writeValue } from "./helpers.mjs";
+import {
+  createFakeAdapter,
+  fakeRuntimes,
+  makeRepo,
+  passReviewer,
+  valueTask,
+  writeValue,
+} from "./helpers.mjs";
 
 const requiredConfig = {
   version: 1,

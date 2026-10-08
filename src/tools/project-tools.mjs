@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { runCheck } from "../checks/runner.mjs";
+import { isTestPath } from "../config/project.mjs";
 import { classifyTestFileChange, effectiveTestEditPolicy, existingTestFiles } from "../git/test-edits.mjs";
 import { failureFirst } from "../util/bounded.mjs";
 import { HarnessError, isObject } from "../util/errors.mjs";
@@ -64,6 +65,8 @@ export const TOOL_LIMITS = Object.freeze({
  *   deleted_paths: string[],
  *   test_edits?: import("../config/task.mjs").Task["test_edits"],
  *   existing_test_files?: string[],
+ *   acceptance_criteria?: string[],
+ *   task_checks?: string[],
  *   run_checks: string[],
  *   max_tool_calls: number,
  *   max_run_check_calls: number,
@@ -510,8 +513,44 @@ export function createProjectTools(session) {
       session.role === "implementer" ? "implementer-output.schema.json" : "reviewer-output.schema.json",
     );
     const errors = validateAgainst(schema, output);
-    if (errors.length)
-      throw toolError(`result is invalid: ${errors.slice(0, 5).join("; ")}`, "invalid_result");
+    if (!errors.length && session.role === "implementer" && output.status !== "blocked") {
+      const count = session.acceptance_criteria?.length ?? 0;
+      const seen = new Set();
+      for (const entry of output.criteria_evidence) {
+        if (entry.criterion > count) errors.push(`criterion ${entry.criterion} is outside 1-${count}`);
+        if (seen.has(entry.criterion)) errors.push(`duplicate criterion ${entry.criterion}`);
+        seen.add(entry.criterion);
+        for (const evidence of entry.evidence) {
+          if (evidence.kind === "check") {
+            if (!(session.task_checks ?? session.run_checks).includes(evidence.check_id))
+              errors.push(`criterion ${entry.criterion}: unknown check id ${evidence.check_id}`);
+          } else if (evidence.kind === "test") {
+            const label = `criterion ${entry.criterion}: test ${evidence.path}`;
+            try {
+              const relative = canonicalPath(evidence.path, "test path");
+              if (isForbidden(relative, session.forbidden_paths)) throw new Error("path is forbidden");
+              if (!isTestPath(session.project, relative)) errors.push(`${label} is not a project test path`);
+              const { absolute, exists } = resolveInside(root, relative, { allowMissing: true });
+              if (!exists) errors.push(`${label} does not exist in candidate`);
+              else if (
+                !readRegularFile(absolute, TOOL_LIMITS.maxRangeFileBytes)
+                  .toString("utf8")
+                  .includes(evidence.name)
+              )
+                errors.push(
+                  `${label}: name ${JSON.stringify(evidence.name)} does not occur literally in file`,
+                );
+            } catch (error) {
+              errors.push(`${label}: ${error.message}`);
+            }
+          }
+        }
+      }
+      for (let criterion = 1; criterion <= count; criterion += 1) {
+        if (!seen.has(criterion)) errors.push(`missing criterion ${criterion}`);
+      }
+    }
+    if (errors.length) throw toolError(`result is invalid: ${errors.join("; ")}`, "invalid_result");
     writeJsonAtomic(resultFile, output);
     return { accepted: true, note: "Result recorded. Stop now." };
   }

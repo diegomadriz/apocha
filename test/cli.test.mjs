@@ -207,9 +207,9 @@ test("run with a scripted fake runtime warns when auto has no sandbox and passes
     writeFileSync(
       script,
       `export default {
-  async implementer({ call }) {
+  async implementer({ bundle, call }) {
     await call("apply_patch", { edits: [{ path: "src/value.txt", old_text: "1\\n", new_text: "2\\n" }] });
-    await call("submit_result", { summary: "set to 2" });
+    await call("submit_result", { summary: "set to 2", criteria_evidence: bundle.acceptance_criteria.map((_, index) => ({ criterion: index + 1, evidence: [{ kind: "check", check_id: bundle.checks[0].id }] })) });
   },
   async reviewer({ bundle, call }) {
     await call("submit_result", { decision: "PASS", findings: [], candidate_digest: bundle.candidate.candidate_digest });
@@ -345,9 +345,9 @@ for (const command of ["run", "integrate"]) {
         writeFileSync(
           script,
           `export default {
-  async implementer({ call }) {
+  async implementer({ bundle, call }) {
     await call("apply_patch", { edits: [{ path: "src/value.txt", old_text: "1\\n", new_text: "2\\n" }] });
-    await call("submit_result", { summary: "set to 2" });
+    await call("submit_result", { summary: "set to 2", criteria_evidence: bundle.acceptance_criteria.map((_, index) => ({ criterion: index + 1, evidence: [{ kind: "check", check_id: bundle.checks[0].id }] })) });
   },
   async reviewer({ bundle, call }) {
     await call("submit_result", { decision: "PASS", findings: [], candidate_digest: bundle.candidate.candidate_digest });

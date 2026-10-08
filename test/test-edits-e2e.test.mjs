@@ -3,14 +3,13 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { isTestPath, normalizeProjectConfig } from "../src/config/project.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { RunStore } from "../src/core/runs.mjs";
 import { verifyReceipt } from "../src/git/receipts.mjs";
 import { classifyTestFileChange } from "../src/git/test-edits.mjs";
 import { git } from "../src/util/git.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, valueTask } from "./helpers.mjs";
+import { createFakeAdapter, fakeRuntimes, makeRepo, passReviewer, valueTask } from "./helpers.mjs";
 
 const original =
   'import assert from "node:assert/strict";\nimport { test } from "node:test";\ntest("original", () => assert.equal(2, 2));\n';

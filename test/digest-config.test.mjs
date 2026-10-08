@@ -3,12 +3,19 @@ import assert from "node:assert/strict";
 import { rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { digestBetweenCommits, identityDigest, snapshotCandidate } from "../src/git/candidate.mjs";
 import { verifyReceipt } from "../src/git/receipts.mjs";
 import { git, gitText } from "../src/util/git.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, testCandidate, valueTask, writeValue } from "./helpers.mjs";
+import {
+  createFakeAdapter,
+  fakeRuntimes,
+  makeRepo,
+  passReviewer,
+  testCandidate,
+  valueTask,
+  writeValue,
+} from "./helpers.mjs";
 
 /** @param {import("node:test").TestContext} t */
 function cleanConfig(t) {

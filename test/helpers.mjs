@@ -3,9 +3,47 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "nod
 import os from "node:os";
 import path from "node:path";
 import { after } from "node:test";
+import { createFakeAdapter as rawFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { normalizeRuntimeConfig } from "../src/config/runtime.mjs";
 import { createCandidate } from "../src/git/candidate.mjs";
 import { git } from "../src/util/git.mjs";
+
+/** @param {Record<string, any>} bundle */
+export function criteriaEvidence(bundle) {
+  return (bundle.acceptance_criteria ?? []).map((_, index) => ({
+    criterion: index + 1,
+    evidence: bundle.checks.length
+      ? [{ kind: "check", check_id: bundle.checks[0].id }]
+      : [{ kind: "inspection", note: "Fixture has no runnable checks." }],
+  }));
+}
+
+/** Scripted fixtures supply evidence unless explicitly provided.
+ * @param {Parameters<typeof rawFakeAdapter>[0]} options
+ */
+export function createFakeAdapter(options = {}) {
+  const implementer = options.handlers?.implementer;
+  if (!implementer) return rawFakeAdapter(options);
+  return rawFakeAdapter({
+    ...options,
+    handlers: {
+      ...options.handlers,
+      implementer: (context) =>
+        implementer({
+          ...context,
+          call: (name, args) => {
+            const output = /** @type {Record<string, any>} */ (args);
+            return context.call(
+              name,
+              name === "submit_result" && output.status !== "blocked"
+                ? { criteria_evidence: criteriaEvidence(context.bundle), ...output }
+                : args,
+            );
+          },
+        }),
+    },
+  });
+}
 
 /** Create a fixture directory and register cleanup even if setup fails. @param {string} kind */
 export function testTempDir(kind) {
@@ -119,10 +157,13 @@ export const passReviewer = async ({ bundle, call }) => {
 /** Implementer handler that writes `value` into src/value.txt. */
 export const writeValue =
   (value) =>
-  async ({ call }) => {
+  async ({ bundle, call }) => {
     const current = await call("read_files", { paths: ["src/value.txt"] });
     await call("apply_patch", {
       edits: [{ path: "src/value.txt", old_text: current.files[0].content, new_text: `${value}\n` }],
     });
-    await call("submit_result", { summary: `set value to ${value}` });
+    await call("submit_result", {
+      summary: `set value to ${value}`,
+      criteria_evidence: criteriaEvidence(bundle),
+    });
   };

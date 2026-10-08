@@ -3,13 +3,20 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { runCheck } from "../src/checks/runner.mjs";
 import { normalizeProjectConfig } from "../src/config/project.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { RunStore } from "../src/core/runs.mjs";
 import { verifyReceipt } from "../src/git/receipts.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, testCandidate, valueTask, writeValue } from "./helpers.mjs";
+import {
+  createFakeAdapter,
+  fakeRuntimes,
+  makeRepo,
+  passReviewer,
+  testCandidate,
+  valueTask,
+  writeValue,
+} from "./helpers.mjs";
 
 const manifest = { name: "fixture", dependencies: { tiny: "1.0.0" } };
 const lock = {

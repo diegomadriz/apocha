@@ -4,11 +4,17 @@ import fs, { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import path from "node:path";
 import { test } from "node:test";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { RunStore } from "../src/core/runs.mjs";
 import { git } from "../src/util/git.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, valueTask, writeValue } from "./helpers.mjs";
+import {
+  createFakeAdapter,
+  fakeRuntimes,
+  makeRepo,
+  passReviewer,
+  valueTask,
+  writeValue,
+} from "./helpers.mjs";
 
 /** @param {string} cwd @param {boolean} writes */
 function fixture(cwd, writes) {

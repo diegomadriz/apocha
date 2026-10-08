@@ -433,7 +433,12 @@ function buildContext(input) {
       input.onEvent?.({ type, ...data });
     },
     persist() {
-      input.store.update(input.runId, { state: ctx.state, task: ctx.task, task_digest: ctx.taskDigest });
+      input.store.update(input.runId, {
+        state: ctx.state,
+        criteria_evidence: ctx.state.implementation?.criteria_evidence ?? [],
+        task: ctx.task,
+        task_digest: ctx.taskDigest,
+      });
     },
   };
   return ctx;
@@ -462,6 +467,7 @@ function finish(ctx, result) {
     repairs: ctx.state.counters.repairs ?? 0,
     agent_invocations: ctx.state.invocations,
     retries: ctx.state.retries,
+    criteria_evidence: ctx.state.implementation?.criteria_evidence ?? [],
     checks: ctx.state.last_verification?.checks.map(({ id, status }) => ({ id, status })) ?? [],
     review: ctx.state.last_review
       ? { decision: ctx.state.last_review.decision, findings: ctx.state.last_review.findings }

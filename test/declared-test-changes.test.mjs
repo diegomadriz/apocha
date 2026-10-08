@@ -5,13 +5,12 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { taskDigest } from "../src/config/task.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { RunStore } from "../src/core/runs.mjs";
 import { verifyReceipt } from "../src/git/receipts.mjs";
 import { loadSchema, validateAgainst } from "../src/util/schema.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, valueTask } from "./helpers.mjs";
+import { createFakeAdapter, fakeRuntimes, makeRepo, passReviewer, valueTask } from "./helpers.mjs";
 
 const bin = fileURLToPath(new URL("../bin/apocha.mjs", import.meta.url));
 const config = {

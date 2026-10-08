@@ -1,12 +1,18 @@
 // @ts-check
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { loadProjectConfig, loadProjectConfigAt } from "../src/config/project.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { verifyReceipt } from "../src/git/receipts.mjs";
 import { git, gitText } from "../src/util/git.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, valueTask, writeValue } from "./helpers.mjs";
+import {
+  createFakeAdapter,
+  fakeRuntimes,
+  makeRepo,
+  passReviewer,
+  valueTask,
+  writeValue,
+} from "./helpers.mjs";
 
 const NOTES = "refs/notes/apocha";
 

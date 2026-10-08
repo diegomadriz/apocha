@@ -1,12 +1,11 @@
 // @ts-check
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { normalizeProjectConfig } from "../src/config/project.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { RunStore } from "../src/core/runs.mjs";
 import { verifyReceipt } from "../src/git/receipts.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, valueTask } from "./helpers.mjs";
+import { createFakeAdapter, fakeRuntimes, makeRepo, passReviewer, valueTask } from "./helpers.mjs";
 
 const runFiles = { run: ["node", "--test", "{files}"], cwd: ".", timeout_ms: 1000 };
 const testPath = "test/value.test.mjs";

@@ -2,14 +2,20 @@
 import assert from "node:assert/strict";
 import { readdirSync } from "node:fs";
 import { test } from "node:test";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { collectRunFacts } from "../src/analytics/collect.mjs";
 import { computeAnalytics } from "../src/analytics/compute.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { RunStore } from "../src/core/runs.mjs";
 import { validateWorkflow } from "../src/core/workflow.mjs";
 import integrate from "../src/workflows/integrate.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, valueTask, writeValue } from "./helpers.mjs";
+import {
+  createFakeAdapter,
+  fakeRuntimes,
+  makeRepo,
+  passReviewer,
+  valueTask,
+  writeValue,
+} from "./helpers.mjs";
 
 /** @param {string} root @param {import("../src/adapters/fake/index.mjs").FakeHandler} implementer @param {import("../src/adapters/fake/index.mjs").FakeHandler} reviewer */
 function run(root, implementer, reviewer) {

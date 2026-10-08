@@ -5,14 +5,21 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { checkDefinitionDigest, runCheck } from "../src/checks/runner.mjs";
 import { loadProjectConfig, normalizeProjectConfig, selectChecks } from "../src/config/project.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { RunStore } from "../src/core/runs.mjs";
 import { verifyReceipt } from "../src/git/receipts.mjs";
 import { detectBackend } from "../src/sandbox/index.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, testCandidate, valueTask, writeValue } from "./helpers.mjs";
+import {
+  createFakeAdapter,
+  fakeRuntimes,
+  makeRepo,
+  passReviewer,
+  testCandidate,
+  valueTask,
+  writeValue,
+} from "./helpers.mjs";
 
 const BIN = fileURLToPath(new URL("../bin/apocha.mjs", import.meta.url));
 const markerProbe =
@@ -131,9 +138,9 @@ test("CLI warns in quiet mode and doctor lists explicitly unsandboxed checks wit
   writeFileSync(
     script,
     `export default {
-    async implementer({ call }) {
+    async implementer({ bundle, call }) {
       await call("apply_patch", { edits: [{ path: "src/value.txt", old_text: "1\\n", new_text: "2\\n" }] });
-      await call("submit_result", { summary: "set value" });
+      await call("submit_result", { summary: "set value", criteria_evidence: bundle.acceptance_criteria.map((_, index) => ({ criterion: index + 1, evidence: [{ kind: "check", check_id: "selftest" }] })) });
     },
     async reviewer({ bundle, call }) {
       await call("submit_result", { decision: "PASS", findings: [], candidate_digest: bundle.candidate.candidate_digest });

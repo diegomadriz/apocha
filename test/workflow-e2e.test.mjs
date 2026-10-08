@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { computeMetrics } from "../src/core/metrics.mjs";
 import { resumeRun, startRun } from "../src/core/run.mjs";
 import { RunStore } from "../src/core/runs.mjs";
@@ -11,7 +10,14 @@ import { landBranch } from "../src/git/land.mjs";
 import { verifyReceipt } from "../src/git/receipts.mjs";
 import { HarnessError } from "../src/util/errors.mjs";
 import { git, gitText, resolveCommit } from "../src/util/git.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, valueTask, writeValue } from "./helpers.mjs";
+import {
+  createFakeAdapter,
+  fakeRuntimes,
+  makeRepo,
+  passReviewer,
+  valueTask,
+  writeValue,
+} from "./helpers.mjs";
 
 /** @param {import("../src/adapters/fake/index.mjs").FakeHandler} implementer @param {import("../src/adapters/fake/index.mjs").FakeHandler} [reviewer] */
 function adapters(implementer, reviewer = passReviewer) {

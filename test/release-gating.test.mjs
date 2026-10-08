@@ -5,10 +5,9 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { RunStore } from "../src/core/runs.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, valueTask } from "./helpers.mjs";
+import { createFakeAdapter, fakeRuntimes, makeRepo, passReviewer, valueTask } from "./helpers.mjs";
 
 const BIN = fileURLToPath(new URL("../bin/apocha.mjs", import.meta.url));
 
@@ -36,7 +35,7 @@ for (const selection of ["named", "rule"]) {
             if (!/unsandboxed.*controller/.test(error.message)) throw error;
           }
           await call("apply_patch", { edits: [{ path: "src/value.txt", old_text: "1\\n", new_text: "2\\n" }] });
-          await call("submit_result", { summary: "Set value" });
+          await call("submit_result", { summary: "Set value", criteria_evidence: bundle.acceptance_criteria.map((_, index) => ({ criterion: index + 1, evidence: [{ kind: "check", check_id: "host" }] })) });
         },
         async reviewer({ call, bundle }) {
           await call("submit_result", { decision: "PASS", findings: [], candidate_digest: bundle.candidate.candidate_digest });

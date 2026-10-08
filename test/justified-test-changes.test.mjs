@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { normalizeProjectConfig } from "../src/config/project.mjs";
 import { validateTask } from "../src/config/task.mjs";
 import { startRun } from "../src/core/run.mjs";
@@ -11,7 +10,7 @@ import { RunStore } from "../src/core/runs.mjs";
 import { verifyReceipt } from "../src/git/receipts.mjs";
 import { classifyTestFileChange } from "../src/git/test-edits.mjs";
 import { git } from "../src/util/git.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, valueTask } from "./helpers.mjs";
+import { createFakeAdapter, fakeRuntimes, makeRepo, passReviewer, valueTask } from "./helpers.mjs";
 
 const testPath = "test/value.test.mjs";
 const testSource = (assertion) => `import assert from "node:assert/strict";

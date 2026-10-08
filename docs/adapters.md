@@ -26,6 +26,13 @@ format and no runtime-specific output parsing. Adapters parse their runtime's st
 status, usage, model identity, error classification, and policy checks.
 
 Implementer `submit_result` requires `summary` and accepts `unresolved_uncertainties`.
+Done results require `criteria_evidence`: exactly one `{ criterion, evidence }` entry for each
+1-based acceptance criterion. Each evidence array has 1–10 items: `{ kind: "test", path, name }`,
+`{ kind: "check", check_id }`, or `{ kind: "inspection", note }` (1–500 characters).
+Test paths must exist in the candidate and match project test paths; names must occur literally
+in the file. Check IDs must belong to the task. Invalid claims return all problems without
+recording a result, allowing correction and resubmission. Inspection is for criteria that cannot
+reasonably be tested and must explain why. Blocked results may omit evidence.
 Optional `status` is `done` (the default when omitted) or `blocked`. A blocked result requires
 `blocked_reason`, a string of 1–2000 characters naming the conflicting test, check, or path
 and explaining the conflict. `blocked_reason` must be absent for `done` or omitted status.

@@ -5,13 +5,20 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { loadProjectConfig } from "../src/config/project.mjs";
 import { startRun } from "../src/core/run.mjs";
 import { landBranch } from "../src/git/land.mjs";
 import { readReceipt, verifyReceipt } from "../src/git/receipts.mjs";
 import { git, resolveCommit } from "../src/util/git.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, testTempDir, valueTask, writeValue } from "./helpers.mjs";
+import {
+  createFakeAdapter,
+  fakeRuntimes,
+  makeRepo,
+  passReviewer,
+  testTempDir,
+  valueTask,
+  writeValue,
+} from "./helpers.mjs";
 
 const principal = "operator@example.invalid";
 const notes = "refs/notes/apocha";

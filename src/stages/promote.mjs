@@ -76,6 +76,9 @@ export async function runPromoteStage(_stage, ctx) {
       base_commit: promotion.old_head,
       candidate_digest: verified.candidate_digest,
       checks,
+      ...(ctx.state.implementation?.criteria_evidence
+        ? { criteria_evidence: ctx.state.implementation.criteria_evidence }
+        : {}),
       fixers: (verified.fixers ?? []).map(({ id, definition_digest, status, changed }) => ({
         id,
         definition_digest,

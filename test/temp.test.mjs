@@ -3,12 +3,19 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { resumeRun, startRun } from "../src/core/run.mjs";
 import { HarnessError } from "../src/util/errors.mjs";
 import { gitCommonDir } from "../src/util/git.mjs";
 import { listTempDirs, makeTempDir, removeTempDir } from "../src/util/temp.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, testTempDir, valueTask, writeValue } from "./helpers.mjs";
+import {
+  createFakeAdapter,
+  fakeRuntimes,
+  makeRepo,
+  passReviewer,
+  testTempDir,
+  valueTask,
+  writeValue,
+} from "./helpers.mjs";
 
 /** @param {import("node:test").TestContext} t */
 function isolatedTemp(t) {

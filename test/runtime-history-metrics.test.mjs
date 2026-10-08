@@ -1,14 +1,20 @@
 // @ts-check
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createFakeAdapter } from "../src/adapters/fake/index.mjs";
 import { computeMetrics } from "../src/core/metrics.mjs";
 import { resumeRun, startRun } from "../src/core/run.mjs";
 import { RunStore } from "../src/core/runs.mjs";
 import { verifyReceipt } from "../src/git/receipts.mjs";
 import { HarnessError } from "../src/util/errors.mjs";
 import { git } from "../src/util/git.mjs";
-import { fakeRuntimes, makeRepo, passReviewer, valueTask, writeValue } from "./helpers.mjs";
+import {
+  createFakeAdapter,
+  fakeRuntimes,
+  makeRepo,
+  passReviewer,
+  valueTask,
+  writeValue,
+} from "./helpers.mjs";
 
 for (const mode of ["changed", "unchanged", "returned"]) {
   test(`runtime config history survives ${mode} resumes and verifies in receipts`, async () => {

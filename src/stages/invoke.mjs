@@ -69,6 +69,8 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
       deleted_paths: options.deletedPaths ?? [],
       test_edits: ctx.task.test_edits,
       existing_test_files: existingTestFiles(ctx.candidate, ctx.config),
+      acceptance_criteria: ctx.task.acceptance_criteria,
+      task_checks: ctx.task.checks,
       run_checks:
         role === "implementer" ? ctx.task.checks.filter((id) => !ctx.config.checks[id].unsandboxed) : [],
       max_tool_calls: ctx.runtimes.budgets.max_tool_calls,

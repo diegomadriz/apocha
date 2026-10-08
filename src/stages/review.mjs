@@ -59,6 +59,13 @@ export async function runReviewStage(_stage, ctx) {
     return "too_large";
   }
   const bundle = {
+    criteria_evidence: ctx.task.acceptance_criteria.map((text, index) => ({
+      criterion: index + 1,
+      acceptance_criterion: text,
+      evidence:
+        ctx.state.implementation?.criteria_evidence?.find((entry) => entry.criterion === index + 1)
+          ?.evidence ?? [],
+    })),
     test_changes: testChanges,
     refactors_to_check: testChanges
       .filter((entry) => entry.kind === "refactor" && entry.assertions_preserved === false)

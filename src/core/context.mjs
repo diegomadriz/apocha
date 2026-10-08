@@ -1,6 +1,10 @@
 // @ts-check
 
 /**
+ * @typedef {{ criterion: number, evidence: ({ kind: "test", path: string, name: string } | { kind: "check", check_id: string } | { kind: "inspection", note: string })[] }} CriteriaEvidence
+ */
+
+/**
  * @typedef {{
  *   path: string, change: "modified" | "deleted",
  *   declared: boolean, kind?: "behaviour" | "refactor" | "fixture", reason?: string,
@@ -33,7 +37,7 @@
  *     checks: { id: string, status: string, exit_code?: number | null, error?: string | null, definition_digest?: string, sandbox?: string, output_digest?: string, duration_ms?: number, files?: string[] }[],
  *   },
  *   last_review: null | { decision: string, findings: any[], reason?: string, candidate_digest: string },
- *   implementation: null | { summary: string, unresolved_uncertainties: string[], status?: "blocked", blocked_reason?: string },
+ *   implementation: null | { summary: string, unresolved_uncertainties: string[], status?: "blocked", blocked_reason?: string, criteria_evidence?: CriteriaEvidence[] },
  *   blocked_claims?: { blocked_reason?: string, summary?: string, decision: string, confirmed: boolean, reviewer_reason?: string }[],
  *   runtimes: { implementer?: any, reviewer?: any },
  *   usage: Record<string, Record<string, number>>,
