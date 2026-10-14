@@ -1,7 +1,8 @@
 // @ts-check
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import {
   resolveBackend,
@@ -211,6 +212,8 @@ export async function runCheck({
       let nodePath = null;
       let sourceBin = null;
       let extraModules = [];
+      /** @type {Record<string, string>} */
+      const corepackEnv = {};
       if (check.dependencies === "npm" || check.dependencies === "pnpm") {
         const prepare = check.dependencies === "pnpm" ? preparePnpmDependencies : prepareNpmDependencies;
         const deps = prepare({
@@ -225,6 +228,13 @@ export async function runCheck({
         nodePath = deps.node_modules;
         sourceBin = deps.source_bin;
         extraModules = deps.importer_modules;
+        const corepackHome =
+          process.env.COREPACK_HOME ??
+          path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), ".cache"), "node", "corepack");
+        if (existsSync(corepackHome) && statSync(corepackHome).isDirectory())
+          corepackEnv.COREPACK_HOME = corepackHome;
+        corepackEnv.COREPACK_ENABLE_NETWORK = "0";
+        corepackEnv.COREPACK_ENABLE_DOWNLOAD_PROMPT = "0";
       }
       const hostPath = (process.env.PATH ?? "")
         .split(path.delimiter)
@@ -244,6 +254,7 @@ export async function runCheck({
         CI: "1",
         ...(backend === "none" ? {} : { [SANDBOX_MARKER]: backend }),
         ...(nodePath ? { NODE_PATH: nodePath } : {}),
+        ...corepackEnv,
         ...check.env,
       });
       if (check.unsandboxed) {

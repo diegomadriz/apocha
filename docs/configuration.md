@@ -73,6 +73,9 @@ must resolve inside the workspace. Root and importer `node_modules` are copied u
 same copy-on-write fallback as npm. All dependency symlinks must be relative and remain
 inside the workspace root. Successful validation is cached per run, with source inputs,
 `node_modules/.modules.yaml` and `node_modules/.pnpm/lock.yaml` checked before reuse.
+Checks with `dependencies: "pnpm"` or `"npm"` reuse the host Corepack cache read-only and never
+download a package manager; a missing pinned version fails with Corepack’s message and is
+fixed by running the project’s package manager once outside Apocha.
 
 Seatbelt denies DNS, loopback and outside Unix sockets by default. Workspace Unix sockets
 remain available for tool IPC. Set `loopback: true` for checks that run local servers or bundler
