@@ -69,7 +69,20 @@ export function planGc(repositoryRoot, options = {}) {
     throw new HarnessError("config", "invalid_target", "target must be a branch name");
   const head = resolveCommit(repositoryRoot, targetRef);
   if (!head) throw new HarnessError("config", "unknown_target", `unknown target branch: ${target}`);
-  const prefix = loadProjectConfig(repositoryRoot).refs.batch_prefix;
+  let config;
+  try {
+    config = loadProjectConfig(repositoryRoot);
+  } catch (error) {
+    if (error instanceof HarnessError && error.code === "missing_project_config") {
+      const defaultHint =
+        options.target === undefined
+          ? " (the default target is the branch checked out in the main worktree)"
+          : "";
+      error.message = `apocha.config.json not found on ${target} (working tree: ${repositoryRoot})${defaultHint}; pass --target <branch> for a configured branch, or run 'apocha init' if this repository has no Apocha config`;
+    }
+    throw error;
+  }
+  const prefix = config.refs.batch_prefix;
   const store = new RunStore(repositoryRoot);
   const runs = store.list().filter((run) => !run.unreadable);
   const now = Date.now();

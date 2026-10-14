@@ -71,7 +71,19 @@ export function repositoryStatus(repositoryRoot, options = {}) {
             env: { GIT_OPTIONAL_LOCKS: "0" },
           }).stdout,
         ).trim();
-  const config = loadProjectConfigAt(repositoryRoot, tip);
+  let config;
+  try {
+    config = loadProjectConfigAt(repositoryRoot, tip);
+  } catch (error) {
+    if (error instanceof HarnessError && error.code === "missing_project_config") {
+      const defaultHint =
+        options.target === undefined
+          ? " (the default target is the branch checked out in the main worktree)"
+          : "";
+      error.message = `apocha.config.json not found on ${name}${defaultHint}; pass --target <branch> for a configured branch, or run 'apocha init' if this repository has no Apocha config`;
+    }
+    throw error;
+  }
   const store = new RunStore(repositoryRoot);
   const runs = store.list();
   const ancestor = (a, b) =>

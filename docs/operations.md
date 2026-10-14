@@ -51,6 +51,7 @@ Run `apocha status` to see batches, runs needing attention, disk usage, and
 suggested commands. Preview cleanup with `apocha gc`, then run
 `apocha gc --apply` to carry it out. Paused candidates stay until resumed or
 explicitly abandoned with `--abandon-paused-days N`; see Garbage collection below.
+For status and GC, the default target is the main worktree's branch; pass `--target <branch>` from a linked worktree on another branch.
 
 To restore a retired ref, use its full OID printed by land or GC, or stored in
 the land/GC record:
