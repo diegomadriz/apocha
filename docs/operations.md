@@ -269,6 +269,21 @@ appear as `n/a` in text and Markdown.
 
 ## Troubleshooting
 
+Before invoking Codex, Claude Code or Pi, run, integrate and resume check that
+Apocha's MCP server dependencies resolve from its own installation. Missing dependencies
+fail with `infra/harness_dependencies_missing` and name the Apocha directory:
+"Apocha's own dependencies are not installed in <dir>; run npm ci there".
+Run `npm ci` there, including for a separate checkout or worktree.
+`doctor` reports the same check as `apocha dependencies`. Fake runs skip this preflight.
+
+At run start, an explicit or default `test_edits: "justified"` without
+`tests.run_files` emits `test-policy.fallback` with policy `justified`,
+effective `additive`, and reason `tests.run_files is not set`. Progress prints:
+'warning: tests.run_files is not set, so changes to existing tests are limited to additions; set tests.run_files, or give the task test_edits "allowed" with test_changes declarations'.
+The warning does not fail the run or change any digest. Configuring `tests.run_files`
+or using another test-edit policy removes it. Integrate uses the same check,
+though its default `additive` policy does not trigger the warning.
+
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `ERROR` with `infra/dependencies_missing` | `node_modules` not installed in the source checkout | `npm ci` in the check's `cwd` |

@@ -81,6 +81,7 @@ Seatbelt denies DNS, loopback and outside Unix sockets by default. Workspace Uni
 remain available for tool IPC. Set `loopback: true` for checks that run local servers or bundler
 workers; this does not enable DNS or external network. `network: true` or `sandbox.network: "allow"`
 enables network regardless of `loopback`, while listed daemon sockets remain denied.
+A loopback check shares host ports with anything running on this machine, such as a local dev server. Give test servers ports that local apps do not use.
 Set `browser: true` only for checks that run a headless Chromium browser. It allows only
 registration and lookup of `org.chromium.*` Mach services on Seatbelt and is a no-op on
 bubblewrap. Browsers usually also need `loopback: true` for a local test server; `browser`

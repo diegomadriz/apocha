@@ -1,6 +1,7 @@
 // @ts-check
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { assertApochaDependencies } from "../adapters/dependencies.mjs";
 import { adapterForRole } from "../adapters/index.mjs";
 import { warnCatalogUnsandboxedChecks } from "../checks/sandbox.mjs";
 import { loadProjectConfigAt, selectChecks } from "../config/project.mjs";
@@ -43,6 +44,7 @@ import { newRunId, RunStore, stateDir } from "./runs.mjs";
  *   trustRepoRuntimes?: boolean,
  *   runtimes?: import("../config/runtime.mjs").RuntimeConfig,
  *   adapters?: { implementer: import("../adapters/contract.mjs").Adapter, reviewer: import("../adapters/contract.mjs").Adapter },
+ *   resolveDependency?: (specifier: string) => string,
  *   allowGovernanceEdits?: boolean,
  *   governanceReason?: string,
  *   integration?: { topic: string, checks?: string[] | null, maxRepairs?: number, testEdits?: import("../config/task.mjs").Task["test_edits"] },
@@ -173,6 +175,8 @@ export async function startRun(options) {
     reviewer: adapterForRole(runtimes, "reviewer"),
   };
 
+  assertApochaDependencies(runtimes, adapters, options.resolveDependency);
+
   const store = new RunStore(repositoryRoot);
   // A run must not build on another run's batch while that run can still change it.
   const fullBase = String(
@@ -251,6 +255,13 @@ export async function startRun(options) {
       batch_ref: batchRef,
       sandbox: sandboxBackend,
     });
+    if ((task.test_edits ?? "justified") === "justified" && !config.tests.run_files) {
+      ctx.event("test-policy.fallback", {
+        policy: "justified",
+        effective: "additive",
+        reason: "tests.run_files is not set",
+      });
+    }
     warnUnsandboxedChecks(ctx);
     const summary = finish(ctx, await runEngine(ctx));
     paused = summary.outcome === "PAUSED";
@@ -284,7 +295,7 @@ export async function startRun(options) {
 
 /**
  * Resume a PAUSED run from the stage it paused in.
- * @param {{ cwd: string, runId: string, decision?: "approve" | "reject", runtimesPath?: string, trustRepoRuntimes?: boolean, runtimes?: import("../config/runtime.mjs").RuntimeConfig, adapters?: StartOptions["adapters"], signal?: AbortSignal, onEvent?: StartOptions["onEvent"] }} options
+ * @param {{ cwd: string, runId: string, decision?: "approve" | "reject", runtimesPath?: string, trustRepoRuntimes?: boolean, runtimes?: import("../config/runtime.mjs").RuntimeConfig, adapters?: StartOptions["adapters"], resolveDependency?: StartOptions["resolveDependency"], signal?: AbortSignal, onEvent?: StartOptions["onEvent"] }} options
  */
 export async function resumeRun(options) {
   const repositoryRoot = findRoot(options.cwd);
@@ -304,6 +315,11 @@ export async function resumeRun(options) {
   const runtimes =
     options.runtimes ?? loadRuntimeConfig(repositoryRoot, options.runtimesPath, options.trustRepoRuntimes);
   assertReviewIndependence(config, runtimes);
+  const adapters = options.adapters ?? {
+    implementer: adapterForRole(runtimes, "implementer"),
+    reviewer: adapterForRole(runtimes, "reviewer"),
+  };
+  assertApochaDependencies(runtimes, adapters, options.resolveDependency);
   const state = record.state;
   if (state.awaiting) {
     if (!options.decision)
@@ -328,10 +344,7 @@ export async function resumeRun(options) {
     task: record.task,
     taskDigest: record.task_digest,
     candidate: attachCandidate(repositoryRoot, record.candidate_root, record.base_commit),
-    adapters: options.adapters ?? {
-      implementer: adapterForRole(runtimes, "implementer"),
-      reviewer: adapterForRole(runtimes, "reviewer"),
-    },
+    adapters,
     sandboxBackend: record.sandbox,
     batchRef: record.batch_ref,
     message: record.message,

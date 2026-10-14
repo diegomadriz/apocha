@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
+import { checkApochaDependencies } from "../adapters/dependencies.mjs";
 import { adapterForRole } from "../adapters/index.mjs";
 import { collectRunFacts } from "../analytics/collect.mjs";
 import { computeAnalytics, DEFINITIONS } from "../analytics/compute.mjs";
@@ -95,6 +96,12 @@ function print(value) {
 /** Progress lines on stderr. @param {boolean} quiet */
 function progress(quiet) {
   return (/** @type {Record<string, any>} */ event) => {
+    if (event.type === "test-policy.fallback") {
+      process.stderr.write(
+        'warning: tests.run_files is not set, so changes to existing tests are limited to additions; set tests.run_files, or give the task test_edits "allowed" with test_changes declarations\n',
+      );
+      return;
+    }
     if (event.type === "sandbox.warning") {
       process.stderr.write(`warning: ${event.message}\n`);
       return;
@@ -590,12 +597,14 @@ export async function main(argv) {
 
 /**
  * @param {string} cwd
- * @param {{ live: boolean, runtimesPath?: string, trustRepoRuntimes?: boolean, json: boolean }} options
+ * @param {{ live: boolean, runtimesPath?: string, trustRepoRuntimes?: boolean, json: boolean, resolveDependency?: (specifier: string) => string }} options
  */
-async function doctor(cwd, options) {
+export async function doctor(cwd, options) {
   /** @type {{ name: string, ok: boolean, detail: string }[]} */
   const results = [];
   const record = (name, ok, detail) => results.push({ name, ok, detail });
+  const dependencies = checkApochaDependencies(options.resolveDependency);
+  record("apocha dependencies", dependencies.ok, dependencies.detail);
   let root = null;
   try {
     root = repositoryRoot(cwd);
