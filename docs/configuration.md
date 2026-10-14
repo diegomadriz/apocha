@@ -48,7 +48,7 @@ The closed catalog. Each check:
 | `run` | required | argv, no shell. `{source}` expands to the source checkout root, which checks may read (for a venv or toolchain kept there). |
 | `cwd` | `.` | Working directory inside the materialized tree |
 | `timeout_ms` | 300000 | A timeout is an infrastructure error, not a failure |
-| `dependencies` | `none` | `none`: nothing added. `npm`: copy `node_modules` from the source checkout after checking that `package.json` and `package-lock.json` equal the base commit and that installed direct dependencies match the lock. |
+| `dependencies` | `none` | `none`: nothing added. `npm`: copy `node_modules` from the source checkout after checking that `package.json` and `package-lock.json` equal the base commit and that installed direct dependencies match the lock. `pnpm`: copy the root and importer dependencies from a validated pnpm workspace (see below). |
 | `unsandboxed` | `false` | Skip the OS sandbox for this check, even under `sandbox.mode: "required"`. No sandbox markers are set; the result and receipt record `none`. A governance-controlled catalog choice, warned on every run and listed by doctor. |
 | `network` | `false` | Allow network for this check |
 | `loopback` | `false` | Seatbelt: allow loopback bind, listen and connect, including host loopback services. Bubblewrap: accepted as a no-op inside its private network namespace. |
@@ -64,6 +64,15 @@ are checked before reuse; changed inputs trigger validation again. Copies use
 clonefile on macOS or reflinks on Linux when available, with a recursive-copy
 fallback. Every check has its own writable dependency tree, and copied symlinks
 must remain inside that tree.
+For `dependencies: "pnpm"`, `cwd` must be the workspace root containing a v9
+`pnpm-lock.yaml`. The lock, `pnpm-workspace.yaml`, `.npmrc`, root manifest and every
+importer manifest must match the base commit, candidate and source checkout byte for byte.
+Every locked direct dependency must be installed at its locked version; `link:` dependencies
+must resolve inside the workspace. Root and importer `node_modules` are copied using the
+same copy-on-write fallback as npm. All dependency symlinks must be relative and remain
+inside the workspace root. Successful validation is cached per run, with source inputs,
+`node_modules/.modules.yaml` and `node_modules/.pnpm/lock.yaml` checked before reuse.
+
 Seatbelt denies DNS, loopback and outside Unix sockets by default. Workspace Unix sockets
 remain available for tool IPC. Set `loopback: true` for checks that run local servers or bundler
 workers; this does not enable DNS or external network. `network: true` or `sandbox.network: "allow"`
@@ -73,7 +82,7 @@ enables network regardless of `loopback`, while listed daemon sockets remain den
 
 Optional closed fixer catalog, read from the base commit and included in the config digest.
 Each definition accepts `description`, `run` (argv, no shell), `cwd`, `timeout_ms`,
-`dependencies: "npm"` or omitted, and literal `env`, with the same defaults and
+`dependencies: "npm"` or `"pnpm"` or omitted, and literal `env`, with the same defaults and
 validation as checks. An optional whole `{files}` argv element expands to eligible
 changed paths relative to `cwd`; embedded or repeated placeholders are rejected.
 
@@ -106,7 +115,7 @@ Optional check-like command for fail-before evidence, for example
 `{"run": ["node", "--test", "{files}"], "cwd": ".", "timeout_ms": 300000, "dependencies": "npm"}`.
 The argv must contain exactly one whole element `{files}`; it expands to test paths,
 one per argument, relative to `cwd`. Working directory, timeout, and literal `env`
-follow catalog check rules; `dependencies` may be `npm` or omitted.
+follow catalog check rules; `dependencies` may be `npm`, `pnpm` or omitted.
 The normalized definition is included in the config digest. Omit it to disable base runs.
 Without `tests.run_files`, `justified` falls back to `additive`.
 Both `apply_patch` and the structural check enforce it; see [Test edit policy](#test-edit-policy).

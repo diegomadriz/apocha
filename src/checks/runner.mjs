@@ -17,7 +17,7 @@ import { describeError } from "../util/errors.mjs";
 import { git, gitBuffer, gitCommonDir } from "../util/git.mjs";
 import { canonicalPath, inAnyScope, isInside } from "../util/paths.mjs";
 import { makeTempDir, removeTempDir } from "../util/temp.mjs";
-import { dependencyCacheFor, prepareNpmDependencies } from "./dependencies.mjs";
+import { dependencyCacheFor, prepareNpmDependencies, preparePnpmDependencies } from "./dependencies.mjs";
 
 /**
  * Check evidence. `status` is `pass`, `fail`, or `infra_error`; infra errors
@@ -209,8 +209,10 @@ export async function runCheck({
       let extraPath = [];
       let nodePath = null;
       let sourceBin = null;
-      if (check.dependencies === "npm") {
-        const deps = prepareNpmDependencies({
+      let extraModules = [];
+      if (check.dependencies === "npm" || check.dependencies === "pnpm") {
+        const prepare = check.dependencies === "pnpm" ? preparePnpmDependencies : prepareNpmDependencies;
+        const deps = prepare({
           candidateRoot: candidate.root,
           sourceRoot,
           baseCommit: candidate.base_commit,
@@ -221,6 +223,7 @@ export async function runCheck({
         extraPath = [path.join(deps.node_modules, ".bin")];
         nodePath = deps.node_modules;
         sourceBin = deps.source_bin;
+        extraModules = deps.importer_modules;
       }
       const hostPath = (process.env.PATH ?? "")
         .split(path.delimiter)
@@ -278,7 +281,7 @@ export async function runCheck({
         argv,
       );
       prepared = { ...wrapped, cwd, env };
-      onPrepared?.(execRoot, [home, tmp, ...(nodePath ? [nodePath] : [])]);
+      onPrepared?.(execRoot, [home, tmp, ...(nodePath ? [nodePath] : []), ...extraModules]);
     } catch (error) {
       const cleanupError = cleanup();
       const detail = describeError(error);

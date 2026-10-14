@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `dependencies: "pnpm"` for checks, fixers and test evidence, with workspace lock validation, contained dependency copies and pnpm script detection in `apocha init`.
+
 - Test edits now default to `justified`: an existing test may change only when its old version fails on the new code, or when the edit keeps every existing assertion and makes the test fail on the old code (verdict `strengthened`). Edits that make a test pass on both old and new code are rejected. Without `tests.run_files`, only additions are allowed.
 - Tasks can declare test changes (`behaviour`, `refactor`, `fixture`).
   `apocha validate --impact` lists existing tests a task may affect.

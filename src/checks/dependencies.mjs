@@ -30,11 +30,11 @@ import { isInside } from "../util/paths.mjs";
  *   what gets installed (dependency changes need a human).
  */
 
-/** @param {string} root @param {string} label */
-function assertContainedSymlinks(root, label) {
+/** @param {string} root @param {string} label @param {string} [workspace] */
+function assertContainedSymlinks(root, label, workspace = root) {
   if (lstatSync(root).isSymbolicLink())
     throw new HarnessError("integrity", "dependency_symlink", `${label} node_modules is a symlink`);
-  const treeRoot = realpathSync(root);
+  const treeRoot = realpathSync(workspace);
   const pending = [root];
   while (pending.length) {
     const directory = /** @type {string} */ (pending.pop());
@@ -89,7 +89,7 @@ function sameBytes(a, b) {
 
 /**
  * Successful validations belong to a candidate's run, not the process or checkout.
- * @typedef {{ fingerprint: string, manifest: Buffer | null, lock: Buffer | null }} DependencyValidation
+ * @typedef {{ fingerprint: string, manifest: Buffer | null, lock: Buffer | null, inputs?: string }} DependencyValidation
  * @typedef {{ entries: Map<string, DependencyValidation> }} DependencyCache
  * @typedef {{ cache?: DependencyCache, copyCommand?: string, onValidation?: (source: string) => void, onCopied?: (method: "command" | "fallback") => void }} DependencyOptions
  */
@@ -219,6 +219,17 @@ function copyDependencies(source, execCwd, options) {
   const target = path.resolve(execCwd, "node_modules");
   if (existsSync(target))
     throw new HarnessError("integrity", "dependency_contract", "candidate already contains node_modules");
+  copyDependencyTree(source, target, options);
+  assertContainedSymlinks(target, "copied");
+  return {
+    node_modules: target,
+    source_bin: path.join(source, ".bin"),
+    importer_modules: /** @type {string[]} */ ([]),
+  };
+}
+
+/** @param {string} source @param {string} target @param {DependencyOptions} options */
+function copyDependencyTree(source, target, options) {
   const args =
     process.platform === "darwin"
       ? ["-c", "-R", source, target]
@@ -240,7 +251,219 @@ function copyDependencies(source, execCwd, options) {
       mode: constants.COPYFILE_FICLONE,
     });
   }
-  assertContainedSymlinks(target, "copied");
   options.onCopied?.(copied && !copied.error && copied.status === 0 ? "command" : "fallback");
-  return { node_modules: target, source_bin: path.join(source, ".bin") };
+}
+
+/** Decode the scalar keys and values emitted by pnpm, without a YAML dependency.
+ * @param {string} value
+ */
+function pnpmScalar(value) {
+  const text = value.trim();
+  if (text.startsWith('"')) return JSON.parse(text);
+  if (text.startsWith("'") && text.endsWith("'")) return text.slice(1, -1).replaceAll("''", "'");
+  return text;
+}
+
+/** Read only v9's importer mappings; package snapshots are deliberately ignored.
+ * @param {Buffer | null} bytes
+ * @returns {Map<string, Map<string, string>>}
+ */
+function pnpmImporters(bytes) {
+  const invalid = () =>
+    new HarnessError(
+      "infra",
+      "dependency_contract",
+      "invalid pnpm v9 importers or unsupported lockfileVersion",
+    );
+  if (!bytes) throw invalid();
+  const lines = bytes.toString("utf8").split(/\r?\n/);
+  const version = lines.find((line) => line.startsWith("lockfileVersion:"));
+  if (!version || pnpmScalar(version.slice("lockfileVersion:".length)) !== "9.0") throw invalid();
+  const importers = new Map();
+  let inside = false;
+  let importer = null;
+  let section = false;
+  let dependency = null;
+  for (const line of lines) {
+    if (!line.trim() || line.trimStart().startsWith("#")) continue;
+    if (!inside) {
+      if (line === "importers:") inside = true;
+      continue;
+    }
+    if (!line.startsWith(" ")) break;
+    const match = /^( *)(.+?):(?:\s+(.*))?$/.exec(line);
+    if (!match) throw invalid();
+    const indent = match[1].length;
+    const key = pnpmScalar(match[2]);
+    const value = match[3] ?? "";
+    if (indent === 2) {
+      if (
+        key !== "." &&
+        (!key ||
+          key.split("/").some((part) => !part || part === "." || part === "..") ||
+          path.isAbsolute(key) ||
+          key.includes("\\") ||
+          key.split("/").includes("node_modules"))
+      )
+        throw invalid();
+      if (importers.has(key)) throw invalid();
+      importer = new Map();
+      importers.set(key, importer);
+      section = false;
+      dependency = null;
+      if (value && value !== "{}") throw invalid();
+    } else if (indent === 4) {
+      section = ["dependencies", "devDependencies", "optionalDependencies"].includes(key);
+      dependency = null;
+      if (section && value && value !== "{}") throw invalid();
+    } else if (section && indent === 6) {
+      if (
+        !importer ||
+        !/^(?:@[^/]+\/)?[^/]+$/.test(key) ||
+        key.split("/").some((part) => part === "." || part === "..") ||
+        key.includes("\\")
+      )
+        throw invalid();
+      dependency = key;
+      importer.set(key, "");
+      if (value) throw invalid();
+    } else if (section && indent === 8 && key === "version") {
+      if (!importer || !dependency || !value) throw invalid();
+      importer.set(dependency, pnpmScalar(value));
+    } else if (section && indent !== 8) throw invalid();
+  }
+  if (!importers.size || [...importers.values()].some((deps) => [...deps.values()].some((v) => !v)))
+    throw invalid();
+  return importers;
+}
+
+/** @param {string} file */
+function dependencyPathExists(file) {
+  try {
+    lstatSync(file);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Validate a pnpm workspace and copy its virtual store and importer links.
+ * @param {{ candidateRoot: string, sourceRoot: string, baseCommit: string, cwd: string, execCwd: string, options?: DependencyOptions }} input
+ */
+export function preparePnpmDependencies({
+  candidateRoot,
+  sourceRoot,
+  baseCommit,
+  cwd,
+  execCwd,
+  options = {},
+}) {
+  const sourceWorkspace = path.resolve(sourceRoot, cwd);
+  const lock = fileAt(candidateRoot, cwd, "pnpm-lock.yaml");
+  // Compare the lock before parsing candidate-controlled importer paths.
+  const compare = (/** @type {string} */ name) => {
+    const candidate = fileAt(candidateRoot, cwd, name);
+    if (!sameBytes(candidate, baseFile(candidateRoot, baseCommit, cwd, name)))
+      throw new HarnessError(
+        "integrity",
+        "dependency_contract",
+        `${path.posix.join(cwd, name)} differs from the base commit`,
+      );
+    if (!sameBytes(candidate, fileAt(sourceRoot, cwd, name)))
+      throw new HarnessError(
+        "infra",
+        "dependency_contract",
+        `source checkout ${name} differs from the candidate; reinstall or sync the checkout`,
+      );
+    return candidate;
+  };
+  compare("pnpm-lock.yaml");
+  const importers = pnpmImporters(lock);
+  const names = [
+    ...new Set([
+      "pnpm-lock.yaml",
+      "pnpm-workspace.yaml",
+      ".npmrc",
+      "package.json",
+      ...[...importers.keys()].map((name) => path.posix.join(name, "package.json")),
+    ]),
+  ];
+  const candidateInputs = names.map((name) => fileAt(candidateRoot, cwd, name));
+  const source = path.join(sourceWorkspace, "node_modules");
+  const sourceFingerprint = fingerprint([
+    ...names.map((name) => fileAt(sourceRoot, cwd, name)),
+    fileAt(source, ".", ".modules.yaml"),
+    fileAt(source, ".pnpm", "lock.yaml"),
+  ]);
+  const inputs = fingerprint(candidateInputs);
+  const key = JSON.stringify(["pnpm", source, baseCommit]);
+  const cached = options.cache?.entries.get(key);
+  const trees = [...new Set([".", ...importers.keys()])].map((name) => path.posix.join(name, "node_modules"));
+  if (cached?.fingerprint !== sourceFingerprint || cached.inputs !== inputs) {
+    options.cache?.entries.delete(key);
+    options.onValidation?.(source);
+    for (const name of names) compare(name);
+    // Symlink integrity outranks an otherwise stale installed dependency.
+    for (const tree of trees) {
+      const directory = path.join(sourceWorkspace, tree);
+      if (dependencyPathExists(directory)) assertContainedSymlinks(directory, "source", sourceWorkspace);
+    }
+    for (const [importer, dependencies] of importers) {
+      for (const [name, version] of dependencies) {
+        const installed = path.join(sourceWorkspace, importer, "node_modules", name);
+        const stale = () =>
+          new HarnessError(
+            "infra",
+            "dependencies_stale",
+            `importer ${importer} dependency ${name} is missing or different; lock says ${version}`,
+          );
+        if (!existsSync(installed)) throw stale();
+        if (version.startsWith("link:")) {
+          const linked = path.resolve(sourceWorkspace, importer, version.slice(5));
+          if (
+            !isInside(linked, sourceWorkspace) ||
+            !existsSync(linked) ||
+            !lstatSync(realpathSync(linked)).isDirectory() ||
+            !lstatSync(installed).isSymbolicLink() ||
+            realpathSync(installed) !== realpathSync(linked) ||
+            !isInside(realpathSync(linked), realpathSync(sourceWorkspace))
+          )
+            throw stale();
+        } else {
+          try {
+            const pkg = JSON.parse(readFileSync(path.join(installed, "package.json"), "utf8"));
+            if (pkg.name !== name || pkg.version !== version.replace(/\(.*$/, "")) throw stale();
+          } catch {
+            throw stale();
+          }
+        }
+      }
+    }
+    if (!existsSync(source))
+      throw new HarnessError("infra", "dependencies_missing", `node_modules is not installed in ${cwd}`);
+    options.cache?.entries.set(key, {
+      fingerprint: sourceFingerprint,
+      inputs,
+      manifest: candidateInputs[names.indexOf("package.json")],
+      lock,
+    });
+  }
+  for (const tree of trees) {
+    if (dependencyPathExists(path.join(execCwd, tree)))
+      throw new HarnessError("integrity", "dependency_contract", `candidate already contains ${tree}`);
+  }
+  for (const tree of trees) {
+    const directory = path.join(sourceWorkspace, tree);
+    if (existsSync(directory)) copyDependencyTree(directory, path.join(execCwd, tree), options);
+  }
+  for (const tree of trees) {
+    const directory = path.join(execCwd, tree);
+    if (existsSync(directory)) assertContainedSymlinks(directory, "copied", execCwd);
+  }
+  return {
+    node_modules: path.join(execCwd, "node_modules"),
+    source_bin: path.join(source, ".bin"),
+    importer_modules: trees.filter((tree) => tree !== "node_modules").map((tree) => path.join(execCwd, tree)),
+  };
 }

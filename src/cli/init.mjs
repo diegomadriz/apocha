@@ -25,18 +25,25 @@ export function initProject(root, options = {}) {
   const pkgFile = path.join(root, "package.json");
   if (existsSync(pkgFile)) {
     const scripts = JSON.parse(readFileSync(pkgFile, "utf8")).scripts ?? {};
-    const dependencies = existsSync(path.join(root, "package-lock.json")) ? "npm" : "none";
+    const dependencies = existsSync(path.join(root, "pnpm-lock.yaml"))
+      ? "pnpm"
+      : existsSync(path.join(root, "package-lock.json"))
+        ? "npm"
+        : "none";
     if (typeof scripts.test === "string" && /\bnode\s+--test\b/.test(scripts.test))
       tests.run_files = {
         run: ["node", "--test", "{files}"],
         cwd: ".",
         timeout_ms: 300000,
-        ...(dependencies === "npm" ? { dependencies } : {}),
+        ...(dependencies !== "none" ? { dependencies } : {}),
       };
     for (const name of ["lint", "typecheck", "test", "build"]) {
       if (scripts[name])
         checks[name] = {
-          run: ["npm", name === "test" ? "test" : "run", ...(name === "test" ? [] : [name])],
+          run:
+            dependencies === "pnpm"
+              ? ["pnpm", "run", name]
+              : ["npm", name === "test" ? "test" : "run", ...(name === "test" ? [] : [name])],
           cwd: ".",
           timeout_ms: 300000,
           dependencies,

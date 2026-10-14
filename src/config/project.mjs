@@ -55,7 +55,7 @@ export const DEFAULT_LIMITS = Object.freeze({
 });
 
 /**
- * @typedef {{ id: string, run: string[], cwd: string, timeout_ms: number, dependencies: "none" | "npm", network: boolean, loopback: boolean, unsandboxed: boolean, env: Record<string, string>, description?: string }} CheckDefinition
+ * @typedef {{ id: string, run: string[], cwd: string, timeout_ms: number, dependencies: "none" | "npm" | "pnpm", network: boolean, loopback: boolean, unsandboxed: boolean, env: Record<string, string>, description?: string }} CheckDefinition
  * @typedef {{
  *   version: 1,
  *   root: string,

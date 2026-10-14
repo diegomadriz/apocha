@@ -274,6 +274,7 @@ appear as `n/a` in text and Markdown.
 | `ERROR` with `infra/dependencies_missing` | `node_modules` not installed in the source checkout | `npm ci` in the check's `cwd` |
 | `ERROR` with `infra/dependency_contract` | Source checkout's `package.json` or lock differs from the base | Sync the checkout with the base commit |
 | Check `fail` with `integrity/dependency_contract` | The candidate changed `package.json` or the lock | Dependency changes need a person; do them outside the agent run |
+| `ERROR` with `infra/dependencies_stale` in a pnpm workspace | Installed importer dependencies differ from the lock | `pnpm install --frozen-lockfile` in the check's `cwd` (workspace root) |
 | Check `infra_error` with `timeout` | Slow machine or hung test | Raise `timeout_ms`, or stop other heavy processes |
 | A check fails only under the sandbox | It needs network, a denied path, or a write outside its tree | Set `network: true` for that check, or point caches at `HOME`/`TMPDIR` |
 | `PAUSED` with "usage limit reached" | The runtime's plan limit | `apocha resume <run-id>` after the reset time |
