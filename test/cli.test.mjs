@@ -24,6 +24,29 @@ function cli(cwd, args, env = {}) {
   return { code: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
+test("doctor reports browser checks alongside unsandboxed checks", () => {
+  const repo = makeRepo({
+    config: {
+      version: 1,
+      checks: {
+        browser: { run: ["node"], browser: true },
+        ordinary: { run: ["node"] },
+        "opted-out": { run: ["node"], unsandboxed: true },
+      },
+    },
+  });
+  try {
+    const rows = JSON.parse(cli(repo.root, ["doctor", "--json"]).stdout);
+    const browser = rows.find((row) => row.name === "browser checks");
+    assert.equal(browser.ok, true);
+    assert.equal(browser.detail, "browser (Seatbelt allows org.chromium Mach services)");
+    assert.equal(rows.find((row) => row.name === "unsandboxed checks").detail, "opted-out");
+    assert.match(cli(repo.root, ["doctor"]).stdout, /browser.*Seatbelt allows org.chromium Mach services/);
+  } finally {
+    repo.cleanup();
+  }
+});
+
 test("help, version, and unknown commands", () => {
   assert.match(cli(os.tmpdir(), ["--help"]).stdout, /Usage: apocha <command>/);
   assert.match(cli(os.tmpdir(), ["version"]).stdout, /^\d+\.\d+\.\d+/);

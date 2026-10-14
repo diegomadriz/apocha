@@ -155,7 +155,7 @@ function sbplString(value) {
 }
 
 /**
- * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, loopback?: boolean }} policy
+ * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, loopback?: boolean, browser?: boolean }} policy
  */
 export function seatbeltProfile(policy) {
   const lines = ["(version 1)", policy.network ? "(allow default)" : "(deny default)"];
@@ -182,6 +182,13 @@ export function seatbeltProfile(policy) {
         "; Workspace Unix sockets provide IPC for tools without reaching host daemons.",
         `(allow network* (remote unix-socket (path-prefix ${prefix})))`,
         `(allow network-bind network-inbound (local unix-socket (path-prefix ${prefix})))`,
+      );
+    }
+    if (policy.browser) {
+      lines.push(
+        "; Explicit per-check headless Chromium Mach service registration and lookup.",
+        '(allow mach-register (global-name-prefix "org.chromium."))',
+        '(allow mach-lookup (global-name-prefix "org.chromium."))',
       );
     }
     if (policy.loopback) {
@@ -244,7 +251,7 @@ export function seatbeltProfile(policy) {
 }
 
 /**
- * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, loopback?: boolean, cwd: string }} policy
+ * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, loopback?: boolean, browser?: boolean, cwd: string }} policy
  * @param {string[]} argv
  * @param {string[]} [socketDirectories]
  */
@@ -283,7 +290,7 @@ export function bwrapArgs(policy, argv, socketDirectories = hiddenSocketDirector
 /**
  * Wrap a command for the chosen backend.
  * @param {SandboxBackend} backend
- * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, loopback?: boolean, cwd: string }} policy
+ * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, loopback?: boolean, browser?: boolean, cwd: string }} policy
  * @param {string[]} argv
  * @returns {{ command: string, args: string[] }}
  */

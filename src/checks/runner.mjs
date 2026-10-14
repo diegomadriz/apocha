@@ -66,6 +66,7 @@ export function checkDefinitionDigest(check) {
     dependencies: check.dependencies,
     network: check.network,
     loopback: check.loopback,
+    browser: check.browser,
     unsandboxed: check.unsandboxed,
     env: check.env,
   });
@@ -277,7 +278,15 @@ export async function runCheck({
       );
       const wrapped = wrapCommand(
         backend,
-        { writable: [workspace], denyRead, denySockets, network, loopback: check.loopback, cwd },
+        {
+          writable: [workspace],
+          denyRead,
+          denySockets,
+          network,
+          loopback: check.loopback,
+          browser: check.browser,
+          cwd,
+        },
         argv,
       );
       prepared = { ...wrapped, cwd, env };

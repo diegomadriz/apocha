@@ -28,7 +28,7 @@ index (no `.git`, no untracked or ignored files, no forbidden paths), under an O
 
 | Backend | Platform | Policy |
 |---|---|---|
-| Seatbelt | macOS (`/usr/bin/sandbox-exec`) | Writes only in the check workspace (its tree, scratch `HOME`, and `TMPDIR`). Reads denied for credential stores, the candidate clone, the source `.git`, and forbidden paths. Deny by default, with explicit process and system-service allows. Broad toolchain reads remain intentional. DNS, host loopback and outside Unix sockets are denied unless network is allowed; `loopback: true` permits loopback only. Workspace Unix sockets work. Listed local daemon sockets stay denied. |
+| Seatbelt | macOS (`/usr/bin/sandbox-exec`) | Writes only in the check workspace (its tree, scratch `HOME`, and `TMPDIR`). Reads denied for credential stores, the candidate clone, the source `.git`, and forbidden paths. Deny by default, with explicit process and system-service allows. Broad toolchain reads remain intentional. DNS, host loopback and outside Unix sockets are denied unless network is allowed; `loopback: true` permits loopback only. For headless Chromium checks, `browser: true` allows registration and lookup of `org.chromium.*` Mach services only; it implies no loopback, network or other allow. Browsers usually also need loopback for a local test server. Workspace Unix sockets work. Listed local daemon sockets stay denied. |
 | bubblewrap | Linux | Read-only view of the host root, writable workspace, read-only tmpfs (`--tmpfs` followed by `--remount-ro`) over denied directories, read-only `/dev/null` over denied files, `--unshare-net` unless the check allows network, `--unshare-pid`, `--die-with-parent` |
 | none | anywhere | Scratch `HOME` and `TMPDIR` and the env allowlist still apply. Recorded as `none` in the receipt. Set `sandbox.mode: "required"` to refuse running without a backend. |
 
@@ -97,6 +97,13 @@ Other terminals (`/dev/ttys*`) and pseudo-terminals (`/dev/pty*`, `/dev/ptmx`) a
 workspace support tool IPC. `checks.<id>.loopback: true` allows loopback binding, listening and
 connections, including access to host loopback services. Use it only for checks that need this.
 On bubblewrap the option is accepted as a no-op: loopback is inside its isolated network namespace.
+Set `checks.<id>.browser: true` only for checks that run headless Chromium. Seatbelt then
+allows `mach-register` and `mach-lookup` for the `org.chromium.` global name prefix.
+This adds no other allow and implies neither loopback nor network; it is a no-op on
+bubblewrap and adds nothing when network is already allowed. Browsers usually also need
+`loopback: true` to load pages from a local test server. Checks get a scratch `HOME`,
+so set `PLAYWRIGHT_BROWSERS_PATH` in the check's `env` for Playwright's installed browsers.
+Use a portable installation path; do not commit an absolute home path to the repository.
 Enabling network retains the previous permissive service policy, with read, write and socket
 restrictions still enforced.
 

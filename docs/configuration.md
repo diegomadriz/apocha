@@ -52,6 +52,7 @@ The closed catalog. Each check:
 | `unsandboxed` | `false` | Skip the OS sandbox for this check, even under `sandbox.mode: "required"`. No sandbox markers are set; the result and receipt record `none`. A governance-controlled catalog choice, warned on every run and listed by doctor. |
 | `network` | `false` | Allow network for this check |
 | `loopback` | `false` | Seatbelt: allow loopback bind, listen and connect, including host loopback services. Bubblewrap: accepted as a no-op inside its private network namespace. |
+| `browser` | `false` | For checks that run headless Chromium: Seatbelt allows registration and lookup of `org.chromium.*` Mach services. No-op on bubblewrap; implies no loopback, network or other allow. |
 | `env` | `{}` | Literal environment additions. No host variables are forwarded except `PATH`, locale, and terminal settings. |
 | `description` | | Shown to the implementer next to the check ID |
 
@@ -77,6 +78,13 @@ Seatbelt denies DNS, loopback and outside Unix sockets by default. Workspace Uni
 remain available for tool IPC. Set `loopback: true` for checks that run local servers or bundler
 workers; this does not enable DNS or external network. `network: true` or `sandbox.network: "allow"`
 enables network regardless of `loopback`, while listed daemon sockets remain denied.
+Set `browser: true` only for checks that run a headless Chromium browser. It allows only
+registration and lookup of `org.chromium.*` Mach services on Seatbelt and is a no-op on
+bubblewrap. Browsers usually also need `loopback: true` for a local test server; `browser`
+does not imply it or network access. Checks get a scratch `HOME`, so Playwright needs
+`PLAYWRIGHT_BROWSERS_PATH` set in the check's `env` to find its installed browsers.
+Do not commit an absolute home path to a repository; use a portable browser installation
+path instead. Environment values are literal, so `~` and host variables are not expanded.
 
 ### `fixers` and `default_fixers`
 

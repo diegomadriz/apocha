@@ -656,6 +656,14 @@ async function doctor(cwd, options) {
         .map((check) => check.id)
         .join(", ") || "none",
     );
+    record(
+      "browser checks",
+      true,
+      Object.values(config.checks)
+        .filter((check) => check.browser)
+        .map((check) => `${check.id} (Seatbelt allows org.chromium Mach services)`)
+        .join(", ") || "none",
+    );
     try {
       record(
         "sandbox for this project",

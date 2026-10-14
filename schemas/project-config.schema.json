@@ -137,6 +137,7 @@
         "unsandboxed": { "description": "Skip the OS sandbox for this check, even in required mode. Governance-controlled opt-out.", "type": "boolean", "default": false },
         "network": { "type": "boolean" },
         "loopback": { "description": "Allow loopback bind and connect on Seatbelt; no-op on bubblewrap.", "type": "boolean", "default": false },
+        "browser": { "description": "Allow a headless Chromium to register and look up its own org.chromium.* Mach services on Seatbelt; no-op on bubblewrap. Implies nothing else.", "type": "boolean", "default": false },
         "env": {
           "description": "Fixed environment additions. Values are literal; no host variables are forwarded.",
           "type": "object", "additionalProperties": { "type": "string", "maxLength": 2000 }
