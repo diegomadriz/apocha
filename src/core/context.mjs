@@ -11,7 +11,7 @@
  *   old_on_candidate?: "old_fails_on_candidate" | "old_passes_on_candidate" | "error",
  *   new_on_base?: "passes_on_base" | "fails_on_base" | "error" | "not_run",
  *   assertions_preserved?: boolean, note?: string,
- *   verdict: "necessary" | "strengthened" | "unnecessary" | "weakened" | "error" | "refactor" | "declared_fixture",
+ *   verdict: "necessary" | "strengthened" | "unnecessary" | "weakened" | "error" | "refactor" | "declared_fixture" | "unevaluated",
  * }} TestChangeEvidence
  */
 

@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { runFixers } from "../checks/fixers.mjs";
 import { checkDefinitionDigest, runCheck } from "../checks/runner.mjs";
+import { canRunTestPath } from "../config/project.mjs";
 import { effectiveProtectedPaths } from "../config/task.mjs";
 import { snapshotCandidate } from "../git/candidate.mjs";
 import { testEdits } from "../git/test-edits.mjs";
@@ -228,12 +229,14 @@ export async function runChecksStage(_stage, ctx) {
         (a, b) => Number(tests.changed.includes(b)) - Number(tests.changed.includes(a)) || a.localeCompare(b),
       );
     const support = tests.added.filter((file) => existsSync(path.join(ctx.candidate.root, file)));
-    for (const [index, file] of files.entries()) {
+    let executed = 0;
+    for (const file of files) {
       if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
-      if (index >= 10) {
+      if (!canRunTestPath(ctx.config, file) || executed >= 10) {
         testsOnBase.push({ path: file, result: "not_run" });
         continue;
       }
+      executed++;
       const result = await runCheck({
         check: runFiles,
         candidate: ctx.candidate,
@@ -256,12 +259,20 @@ export async function runChecksStage(_stage, ctx) {
       testsOnBase.push({ path: file, result: classification });
       ctx.event("test-on-base.finished", { path: file, result: classification });
     }
-    const evidenceNeeded = tests.changed.filter((file) => !fixtureFiles.has(file));
-    if (tests.effective_policy === "justified" && (evidenceNeeded.length || fixtureFiles.size)) {
+    const evidenceNeeded = tests.changed.filter(
+      (file) => !fixtureFiles.has(file) && canRunTestPath(ctx.config, file),
+    );
+    const unevaluated = tests.changed.filter(
+      (file) => !fixtureFiles.has(file) && !canRunTestPath(ctx.config, file),
+    );
+    if (
+      tests.effective_policy === "justified" &&
+      (evidenceNeeded.length || unevaluated.length || fixtureFiles.size)
+    ) {
       const reasons = [];
       if (evidenceNeeded.length > 10)
         reasons.push(`${evidenceNeeded.length} changed existing test files exceeds the limit of 10`);
-      for (const file of [...evidenceNeeded.slice(0, 10), ...fixtureFiles].sort()) {
+      for (const file of [...evidenceNeeded.slice(0, 10), ...unevaluated, ...fixtureFiles].sort()) {
         if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
         const modified = existsSync(path.join(ctx.candidate.root, file));
         const declaration = declarations.get(file);
@@ -289,6 +300,20 @@ export async function runChecksStage(_stage, ctx) {
             verdict: "declared_fixture",
           });
           ctx.event("test-change.finished", { path: file, verdict: "declared_fixture" });
+          continue;
+        }
+        if (!canRunTestPath(ctx.config, file)) {
+          testChanges.push({
+            path: file,
+            change: modified ? "modified" : "deleted",
+            ...declared,
+            ...assertionEvidence,
+            verdict: "unevaluated",
+          });
+          reasons.push(
+            `${file} is outside tests.run_files.paths, so this change cannot be evaluated; restore it or only add to it`,
+          );
+          ctx.event("test-change.finished", { path: file, verdict: "unevaluated" });
           continue;
         }
         const newOnBase = modified ? testsOnBase.find((entry) => entry.path === file)?.result : undefined;

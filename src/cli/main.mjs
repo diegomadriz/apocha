@@ -8,7 +8,12 @@ import { adapterForRole } from "../adapters/index.mjs";
 import { collectRunFacts } from "../analytics/collect.mjs";
 import { computeAnalytics, DEFINITIONS } from "../analytics/compute.mjs";
 import { formatAnalyticsMarkdown, formatAnalyticsText } from "../analytics/report.mjs";
-import { loadProjectConfig, loadProjectConfigAt, PROJECT_CONFIG_FILE } from "../config/project.mjs";
+import {
+  canRunTestPath,
+  loadProjectConfig,
+  loadProjectConfigAt,
+  PROJECT_CONFIG_FILE,
+} from "../config/project.mjs";
 import { loadRuntimeConfig, roleProvider } from "../config/runtime.mjs";
 import { validateTask } from "../config/task.mjs";
 import { applyGc, planGc } from "../core/gc.mjs";
@@ -20,11 +25,13 @@ import { formatStatusText, repositoryStatus } from "../core/status.mjs";
 import { landBranch } from "../git/land.mjs";
 import { verifyReceipt } from "../git/receipts.mjs";
 import { allowedSignersAt, signingKeyAllowed } from "../git/signatures.mjs";
+import { existingTestFiles } from "../git/test-edits.mjs";
 import { testImpact } from "../git/test-impact.mjs";
 import { formatRangeMarkdown, verifyRange } from "../git/verify-range.mjs";
 import { detectBackend, resolveBackend } from "../sandbox/index.mjs";
 import { describeError, HarnessError } from "../util/errors.mjs";
 import { repositoryRoot, resolveCommit } from "../util/git.mjs";
+import { inAnyScope } from "../util/paths.mjs";
 import { loadSchema } from "../util/schema.mjs";
 import { GENERATOR } from "../version.mjs";
 import { initProject } from "./init.mjs";
@@ -245,6 +252,15 @@ export async function main(argv) {
         config,
         baseCommit,
       );
+      if (config.tests.run_files?.paths !== undefined) {
+        const outside = existingTestFiles({ root, base_commit: baseCommit }, config).filter(
+          (file) => inAnyScope(file, task.allowed_paths) && !canRunTestPath(config, file),
+        );
+        for (const file of outside)
+          process.stderr.write(
+            `${file} is outside tests.run_files.paths; only additions will be accepted under justified\n`,
+          );
+      }
       if (values.impact) {
         const impact = testImpact(root, baseCommit, config, task);
         print(

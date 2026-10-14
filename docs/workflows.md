@@ -106,6 +106,7 @@ for each non-additively modified or deleted existing test (up to 10 files):
 | `weakened` | Old version fails on candidate but new version passes on base | Fail |
 | `refactor` | Declared refactor whose old version passes on candidate | Pass; assertion preservation remains advisory |
 | `declared_fixture` | Declared support file with no runnable tests | Pass without evidence runs |
+| `unevaluated` | Existing test outside `tests.run_files.paths` changed beyond additions or deleted | Fail; restore it or only add to it |
 | `error` | Execution evidence cannot be established | Infrastructure error |
 
 A refactor whose old version fails follows the normal behaviour change rules.

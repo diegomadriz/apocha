@@ -64,7 +64,7 @@ export const DEFAULT_LIMITS = Object.freeze({
  *   default_checks: string[],
  *   fixers: Record<string, CheckDefinition>,
  *   default_fixers: string[],
- *   tests: { paths: string[], run_files?: CheckDefinition },
+ *   tests: { paths: string[], run_files?: CheckDefinition & { paths?: string[] } },
  *   review: { require_independent: boolean },
  *   receipts: { allowed_signers: string, require_signed: boolean },
  *   paths: { protected: string[], governance: string[], forbidden: string[], design_reference_prefix: string },
@@ -185,7 +185,14 @@ export function normalizeProjectConfig(raw, root) {
     default_checks: defaults,
     tests: {
       ...(input.tests?.run_files
-        ? { run_files: normalizeCheck("tests-on-base", input.tests.run_files) }
+        ? {
+            run_files: {
+              ...normalizeCheck("tests-on-base", input.tests.run_files),
+              ...(input.tests.run_files.paths !== undefined
+                ? { paths: pathList(input.tests.run_files.paths, "tests.run_files.paths") }
+                : {}),
+            },
+          }
         : {}),
       paths: pathList(
         input.tests?.paths ?? ["test/", "tests/", "__tests__/", "*.test.*", "*.spec.*"],
@@ -285,7 +292,18 @@ export function selectChecks(config, changedFiles) {
  * @param {string} relativePath
  */
 export function isTestPath(config, relativePath) {
-  return config.tests.paths.some((entry) => {
+  return matchesTestPaths(config.tests.paths, relativePath);
+}
+
+/** @param {ProjectConfig} config @param {string} relativePath */
+export function canRunTestPath(config, relativePath) {
+  const paths = config.tests.run_files?.paths;
+  return paths === undefined || matchesTestPaths(paths, relativePath);
+}
+
+/** @param {string[]} paths @param {string} relativePath */
+function matchesTestPaths(paths, relativePath) {
+  return paths.some((entry) => {
     if (entry.endsWith("/")) return relativePath.startsWith(entry);
     if (!entry.includes("*")) return relativePath === entry;
     const pattern = entry

@@ -128,6 +128,9 @@ Optional check-like command for fail-before evidence, for example
 The argv must contain exactly one whole element `{files}`; it expands to test paths,
 one per argument, relative to `cwd`. Working directory, timeout, and literal `env`
 follow catalog check rules; `dependencies` may be `npm`, `pnpm` or omitted.
+Optional `paths` lists test files this command can run, using the same syntax as `tests.paths`.
+Omitting `paths` covers every test path; an empty array covers none. Files outside it
+receive no execution evidence and do not count toward the 10-file limit.
 The normalized definition is included in the config digest. Omit it to disable base runs.
 Without `tests.run_files`, `justified` falls back to `additive`.
 Both `apply_patch` and the structural check enforce it; see [Test edit policy](#test-edit-policy).
@@ -141,7 +144,7 @@ After catalog checks pass, up to 10 added or modified test files run individuall
 against the base tree with the candidate test and added test-support files overlaid.
 Deleted tests are skipped. Review bundles expose `tests_on_base` and receipts
 record `tests.on_base`: `passes_on_base`, `fails_on_base`, `error` (timeout or
-infrastructure failure), or `not_run` (over the limit).
+infrastructure failure), or `not_run` (outside `run_files.paths` or over the limit).
 A passing-on-base result is evidence for the reviewer, not proof of a bad test:
 refactors and new coverage of existing behavior may legitimately pass.
 
@@ -301,7 +304,13 @@ checks pass. This covers edits beyond additions, up to 10 files; more fails.
 - `necessary` and `strengthened` edits pass, subject to the reviewer's judgment of the
   intended behaviour change.
 
-`unnecessary` and `weakened` fail the repairable `test-changes` check.
+Existing tests outside `tests.run_files.paths` only accept additions under `justified`.
+Non-additive edits or deletions receive `unevaluated` without execution evidence and
+fail `test-changes`; restore them or only add to them. Declared fixtures retain their
+normal handling. `apocha validate` (including `--impact`) lists existing task tests
+outside this filter.
+
+`unnecessary`, `weakened`, and `unevaluated` fail the repairable `test-changes` check.
 Evidence errors are infrastructure errors. Without `tests.run_files`, necessity
 evidence is unavailable.
 Review bundles include `test_changes` evidence and each file's diff, bounded by
