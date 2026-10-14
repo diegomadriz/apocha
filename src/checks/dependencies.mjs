@@ -276,64 +276,81 @@ function pnpmImporters(bytes) {
       "invalid pnpm v9 importers or unsupported lockfileVersion",
     );
   if (!bytes) throw invalid();
-  const lines = bytes.toString("utf8").split(/\r?\n/);
-  const version = lines.find((line) => line.startsWith("lockfileVersion:"));
-  if (!version || pnpmScalar(version.slice("lockfileVersion:".length)) !== "9.0") throw invalid();
+  const documents = bytes.toString("utf8").split(/^---\r?$/m);
+  // A leading document separator does not introduce an empty document.
+  if (
+    documents.length > 1 &&
+    documents[0].split(/\r?\n/).every((line) => !line.trim() || line.trimStart().startsWith("#"))
+  )
+    documents.shift();
   const importers = new Map();
-  let inside = false;
-  let importer = null;
-  let section = false;
-  let dependency = null;
-  for (const line of lines) {
-    if (!line.trim() || line.trimStart().startsWith("#")) continue;
-    if (!inside) {
-      if (line === "importers:") inside = true;
-      continue;
+  for (const document of documents) {
+    const lines = document.split(/\r?\n/);
+    const version = lines.find((line) => line.startsWith("lockfileVersion:"));
+    if (!version || pnpmScalar(version.slice("lockfileVersion:".length)) !== "9.0") throw invalid();
+    const documentImporters = new Map();
+    let inside = false;
+    let importer = null;
+    let section = false;
+    let dependency = null;
+    for (const line of lines) {
+      if (!line.trim() || line.trimStart().startsWith("#")) continue;
+      if (!inside) {
+        if (line === "importers:") inside = true;
+        continue;
+      }
+      if (!line.startsWith(" ")) break;
+      const match = /^( *)(.+?):(?:\s+(.*))?$/.exec(line);
+      if (!match) throw invalid();
+      const indent = match[1].length;
+      const key = pnpmScalar(match[2]);
+      const value = match[3] ?? "";
+      if (indent === 2) {
+        if (
+          key !== "." &&
+          (!key ||
+            key.split("/").some((part) => !part || part === "." || part === "..") ||
+            path.isAbsolute(key) ||
+            key.includes("\\") ||
+            key.split("/").includes("node_modules"))
+        )
+          throw invalid();
+        if (documentImporters.has(key)) throw invalid();
+        importer = new Map();
+        documentImporters.set(key, importer);
+        section = false;
+        dependency = null;
+        if (value && value !== "{}") throw invalid();
+      } else if (indent === 4) {
+        section = ["dependencies", "devDependencies", "optionalDependencies"].includes(key);
+        dependency = null;
+        if (section && value && value !== "{}") throw invalid();
+      } else if (section && indent === 6) {
+        if (
+          !importer ||
+          !/^(?:@[^/]+\/)?[^/]+$/.test(key) ||
+          key.split("/").some((part) => part === "." || part === "..") ||
+          key.includes("\\")
+        )
+          throw invalid();
+        dependency = key;
+        importer.set(key, "");
+        if (value) throw invalid();
+      } else if (section && indent === 8 && key === "version") {
+        if (!importer || !dependency || !value) throw invalid();
+        importer.set(dependency, pnpmScalar(value));
+      } else if (section && indent !== 8) throw invalid();
     }
-    if (!line.startsWith(" ")) break;
-    const match = /^( *)(.+?):(?:\s+(.*))?$/.exec(line);
-    if (!match) throw invalid();
-    const indent = match[1].length;
-    const key = pnpmScalar(match[2]);
-    const value = match[3] ?? "";
-    if (indent === 2) {
-      if (
-        key !== "." &&
-        (!key ||
-          key.split("/").some((part) => !part || part === "." || part === "..") ||
-          path.isAbsolute(key) ||
-          key.includes("\\") ||
-          key.split("/").includes("node_modules"))
-      )
-        throw invalid();
-      if (importers.has(key)) throw invalid();
-      importer = new Map();
-      importers.set(key, importer);
-      section = false;
-      dependency = null;
-      if (value && value !== "{}") throw invalid();
-    } else if (indent === 4) {
-      section = ["dependencies", "devDependencies", "optionalDependencies"].includes(key);
-      dependency = null;
-      if (section && value && value !== "{}") throw invalid();
-    } else if (section && indent === 6) {
-      if (
-        !importer ||
-        !/^(?:@[^/]+\/)?[^/]+$/.test(key) ||
-        key.split("/").some((part) => part === "." || part === "..") ||
-        key.includes("\\")
-      )
-        throw invalid();
-      dependency = key;
-      importer.set(key, "");
-      if (value) throw invalid();
-    } else if (section && indent === 8 && key === "version") {
-      if (!importer || !dependency || !value) throw invalid();
-      importer.set(dependency, pnpmScalar(value));
-    } else if (section && indent !== 8) throw invalid();
+    for (const [name, dependencies] of documentImporters) {
+      const merged = importers.get(name) ?? new Map();
+      for (const [dependency, version] of dependencies) {
+        if (!version || (merged.has(dependency) && merged.get(dependency) !== version)) throw invalid();
+        merged.set(dependency, version);
+      }
+      importers.set(name, merged);
+    }
   }
-  if (!importers.size || [...importers.values()].some((deps) => [...deps.values()].some((v) => !v)))
-    throw invalid();
+  if (!importers.size) throw invalid();
   return importers;
 }
 

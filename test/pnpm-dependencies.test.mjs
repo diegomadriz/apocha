@@ -41,7 +41,8 @@ const probe = [
   "-e",
   "if(require('./packages/a/node_modules/tiny')!==42 || require('./packages/a/node_modules/b')!==7 || require('./packages/b/node_modules/tiny')!==42)process.exit(1); if(process.env.NODE_PATH!==process.cwd()+'/node_modules'||process.env.PATH.split(require('node:path').delimiter)[0]!==process.cwd()+'/node_modules/.bin')process.exit(2)",
 ];
-function fixture() {
+/** @param {string} [lockfile] */
+function fixture(lockfile = lock) {
   const definition = { run: probe, dependencies: "pnpm" };
   const raw = {
     version: 1,
@@ -54,7 +55,7 @@ function fixture() {
     config: raw,
     files: {
       ".gitignore": "node_modules/\n",
-      "pnpm-lock.yaml": lock,
+      "pnpm-lock.yaml": lockfile,
       "pnpm-workspace.yaml": "packages:\n  - packages/*\n",
       ".npmrc": "shared-workspace-lockfile=true\n",
       "package.json": JSON.stringify({ scripts: { test: "node --test", lint: "biome check" } }),
@@ -266,3 +267,104 @@ test("pnpm fixers exclude every copied importer node_modules from snapshots", as
   assert.deepEqual(result.ignored_changes, []);
   assert.equal(readFileSync(path.join(f.candidate.root, "src/value.txt"), "utf8"), "2\n");
 });
+
+const environmentLock = `---
+lockfileVersion: '9.0'
+importers:
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      pnpm:
+        specifier: 12.11.2
+        version: 12.11.2
+packages:
+  ignored@12.11.2:
+    resolution: {integrity: ignored}
+`;
+const multidocumentLock = `${environmentLock}---\n${lock}`;
+
+test("pnpm multidocument lock copies all importers and resolves importer-local dependencies", async () => {
+  const f = fixture(multidocumentLock);
+  const methods = [];
+  const result = await run(f, { onCopied: (method) => methods.push(method) });
+  assert.equal(result.status, "pass", result.error ?? result.stderr);
+  assert.equal(methods.length, 3);
+  const importerResult = await runCheck({
+    candidate: f.candidate,
+    config: f.config,
+    check: {
+      ...f.config.checks.probe,
+      run: [
+        "node",
+        "-e",
+        "process.chdir('packages/a');const localRequire=require('node:module').createRequire(process.cwd()+'/probe.cjs');require('node:assert/strict').equal(localRequire('b'),7);require('node:assert/strict').equal(localRequire('tiny'),42)",
+      ],
+    },
+    backend: "none",
+  });
+  assert.equal(importerResult.status, "pass", importerResult.error ?? importerResult.stderr);
+});
+
+test("pnpm multidocument lock validates a stale dependency in a later importer", async () => {
+  const f = fixture(multidocumentLock);
+  rmSync(path.join(f.root, "packages/a/node_modules/tiny"));
+  const result = await run(f);
+  assert.equal(result.status, "infra_error");
+  assert.match(result.error ?? "", /dependencies_stale: importer packages\/a dependency tiny/);
+});
+
+test("pnpm multidocument lock refuses an unsupported version in a later document", async () => {
+  const f = fixture(`${environmentLock}---\n${lock.replace("9.0", "8.0")}`);
+  const result = await run(f);
+  assert.equal(result.status, "infra_error");
+  assert.match(result.error ?? "", /dependency_contract.*unsupported lockfileVersion/);
+});
+
+test("pnpm multidocument lock refuses conflicting versions for a shared importer", async () => {
+  const first = `lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      tiny:
+        version: 1.0.0
+`;
+  const f = fixture(`${first}---\n${lock.replace("version: 1.0.0", "version: 2.0.0")}`);
+  const result = await run(f);
+  assert.equal(result.status, "infra_error");
+  assert.match(result.error ?? "", /dependency_contract.*invalid pnpm v9 importers/);
+});
+
+for (const missing of [null, "b", "tiny"]) {
+  test(`pnpm merges shared importer dependencies across documents: ${missing ?? "installed"}`, async () => {
+    const first = `lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      b:
+        version: link:packages/b
+      tiny:
+        version: 1.0.0
+`;
+    const f = fixture(`${first}---\n${lock}`);
+    symlinkSync("../packages/b", path.join(f.root, "node_modules/b"));
+    if (missing) rmSync(path.join(f.root, "node_modules", missing));
+    const result = await run(f);
+    assert.equal(result.status, missing ? "infra_error" : "pass", result.error ?? result.stderr);
+    if (missing) assert.match(result.error ?? "", /dependencies_stale: importer \. dependency/);
+  });
+}
+
+for (const [problem, projectLock] of [
+  ["missing lockfileVersion", lock.replace("lockfileVersion: '9.0'\n", "")],
+  ["unsafe importer path", lock.replace("packages/a:", "../a:")],
+  ["invalid dependency name", lock.replace("      tiny:", "      ../tiny:")],
+  ["missing dependency version", lock.replace("        version: 1.0.0\n", "")],
+  ["duplicate importer", lock.replace("  packages/b:", "  packages/a:")],
+]) {
+  test(`pnpm preserves validation in later documents: ${problem}`, async () => {
+    const f = fixture(`${environmentLock}---\n${projectLock}`);
+    const result = await run(f);
+    assert.equal(result.status, "infra_error");
+    assert.match(result.error ?? "", /dependency_contract.*invalid pnpm v9 importers/);
+  });
+}
