@@ -2,8 +2,6 @@
 
 ## Unreleased
 
-- Add `dependencies: "pnpm"` for checks, fixers and test evidence, with workspace lock validation, contained dependency copies and pnpm script detection in `apocha init`.
-
 - Test edits now default to `justified`: an existing test may change only when its old version fails on the new code, or when the edit keeps every existing assertion and makes the test fail on the old code (verdict `strengthened`). Edits that make a test pass on both old and new code are rejected. Without `tests.run_files`, only additions are allowed.
 - Tasks can declare test changes (`behaviour`, `refactor`, `fixture`).
   `apocha validate --impact` lists existing tests a task may affect.
@@ -15,6 +13,11 @@
 - The real-sandbox self-test runs inside Apocha, with short socket paths on macOS.
 - Every finished run keeps its final code as `candidate.patch` in the run directory, including runs that did not pass. `apocha status <run-id>` shows it, and `git apply --binary` restores it on the base commit.
 - An implementer that stops without calling `submit_result` gets one continuation to finish. Each agent's final message is recorded in the event log.
+- Checks, fixers and test evidence support pnpm workspaces with `dependencies: "pnpm"`. The lockfile and every workspace manifest must match the base commit, installed versions are checked for each workspace package, lockfiles with several YAML documents (pnpm 11 and later) are read in full, and `apocha init` detects pnpm.
+- Checks that use pnpm or npm reuse the host's Corepack cache read-only and never download a package manager.
+- A check can set `browser: true` so a headless Chromium can run inside the macOS sandbox. It allows only Chromium's own Mach services and implies nothing else.
+- Runs stop before the first agent call, with the fix, when Apocha's own dependencies are not installed, and warn when changes to existing tests are limited to additions because `tests.run_files` is not set.
+- `apocha status` and `apocha gc` name the branch they checked when no project config is found, and suggest `--target`.
 
 ## 0.2.0 (2026-10-06)
 
