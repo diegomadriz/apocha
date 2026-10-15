@@ -322,6 +322,7 @@ export async function runChecksStage(_stage, ctx) {
           candidate: ctx.candidate,
           config: ctx.config,
           backend: ctx.sandboxBackend,
+          signingKey: ctx.runtimes?.signing?.key,
           secretFileCache,
           dependencyOptions,
           signal: ctx.signal,
