@@ -71,7 +71,6 @@ if (observed === "2") {
       version: 1,
       checks: { tests: { run: ["node", testPath] } },
       tests: {
-        policy: "justified",
         paths: ["test/"],
         run_files: { run: ["node", "{files}"] },
       },
