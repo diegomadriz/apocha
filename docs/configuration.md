@@ -123,8 +123,10 @@ depth. With `/`, the directory part is literal and only the last component may
 contain `*`: `pkg/src/export*.ts` matches `pkg/src/export-sync.ts`, but not
 `pkg/src/sub/export.ts` or `pkg/export.ts`. Each `*` matches zero or more
 characters and never crosses `/`. Config validation rejects `**`, `*` in directory
-components or prefix entries, and the unsupported glob characters `?`, `[`, `]`,
-`{`, and `}`, naming the field and entry.
+components or prefix entries, and the unsupported glob characters `?`, `{`, and `}`,
+naming the field and entry. Brackets `[` and `]` match literally in exact, prefix,
+and wildcard entries, for example Next.js route folders such as `app/[id]/` and
+`app/[...slug]/page.tsx`.
 For example, `{"tests": {"paths": ["test/", "*.spec.*", "qa/check.mjs"]}}`.
 These settings are included in the project config digest and read from the base commit.
 

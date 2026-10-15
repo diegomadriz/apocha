@@ -305,13 +305,13 @@ function validatePathPattern(entry, label) {
   canonicalPath(entry, label);
   if (
     entry.includes("**") ||
-    /[?[\]{}]/.test(entry) ||
+    /[?{}]/.test(entry) ||
     entry.slice(0, entry.lastIndexOf("/") + 1).includes("*")
   ) {
     throw new HarnessError(
       "config",
       "invalid_path_pattern",
-      `${label} contains an unsupported path pattern: ${JSON.stringify(entry)}`,
+      `${label} contains an unsupported path pattern: ${JSON.stringify(entry)}; **, * in directory components or prefix entries, ?, {, and } are unsupported; [ and ] match literally (for example Next.js route folders)`,
     );
   }
   return entry;

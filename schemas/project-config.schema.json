@@ -27,7 +27,7 @@
       "items": {
         "type": "object", "additionalProperties": false, "required": ["paths", "checks"],
         "properties": {
-          "paths": { "description": "Entries match directory prefixes ending in / without wildcards, exact paths, or * wildcards in basenames at any depth or only the last component under a literal directory; * never crosses /, and **, directory wildcards, ?, [, ], {, and } are unsupported.", "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/path" } },
+          "paths": { "description": "Entries match directory prefixes ending in / without wildcards, exact paths, or * wildcards in basenames at any depth or only the last component under a literal directory; * never crosses /, and **, directory or prefix wildcards, ?, {, and } are unsupported. Brackets [ and ] match literally (for example Next.js route folders).", "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/path" } },
           "checks": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/check_id" } }
         }
       }
@@ -52,7 +52,7 @@
     "tests": {
       "type": "object", "additionalProperties": false,
       "properties": {
-        "paths": { "description": "Entries match directory prefixes ending in / without wildcards, exact paths, or * wildcards in basenames at any depth or only the last component under a literal directory; * never crosses /, and **, directory wildcards, ?, [, ], {, and } are unsupported.", "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
+        "paths": { "description": "Entries match directory prefixes ending in / without wildcards, exact paths, or * wildcards in basenames at any depth or only the last component under a literal directory; * never crosses /, and **, directory or prefix wildcards, ?, {, and } are unsupported. Brackets [ and ] match literally (for example Next.js route folders).", "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
         "run_files": { "$ref": "#/$defs/run_files" }
       }
     },
@@ -100,7 +100,7 @@
     "run_files": {
       "type": "object", "additionalProperties": false, "required": ["run"],
       "properties": {
-        "paths": { "description": "Entries match directory prefixes ending in / without wildcards, exact paths, or * wildcards in basenames at any depth or only the last component under a literal directory; * never crosses /, and **, directory wildcards, ?, [, ], {, and } are unsupported.", "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
+        "paths": { "description": "Entries match directory prefixes ending in / without wildcards, exact paths, or * wildcards in basenames at any depth or only the last component under a literal directory; * never crosses /, and **, directory or prefix wildcards, ?, {, and } are unsupported. Brackets [ and ] match literally (for example Next.js route folders).", "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
         "run": {
           "description": "argv with exactly one whole {files} element, expanded to individual test paths.",
           "type": "array", "minItems": 1, "maxItems": 50, "items": { "type": "string", "minLength": 1, "maxLength": 2000 }

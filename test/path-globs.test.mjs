@@ -48,6 +48,28 @@ for (const field of fields) {
       { entry: "qa/check.mjs", yes: ["qa/check.mjs"], no: ["other/qa/check.mjs", "qa/check.mjs.bak"] },
       { entry: "check.mjs", yes: ["check.mjs"], no: ["qa/check.mjs"] },
       { entry: "src/a+b(*).ts", yes: ["src/a+b(x).ts"], no: ["src/abx.ts"] },
+      {
+        entry: "app/[id]/",
+        yes: ["app/[id]/page.tsx", "app/[id]/nested/page.tsx"],
+        no: ["app/id/page.tsx", "app/i/page.tsx", "app/[id]-other/page.tsx"],
+      },
+      {
+        entry: "app/[...slug]/page.tsx",
+        yes: ["app/[...slug]/page.tsx"],
+        no: ["app/slug/page.tsx", "app/[...slug]/page.tsx.bak"],
+      },
+      {
+        entry: "*[a].mjs",
+        yes: ["src/x[a].mjs", "x[a].mjs"],
+        no: ["src/xa.mjs", "src/x[b].mjs", "src/x[a]Xmjs"],
+      },
+      {
+        entry: "app/[id]/*[a].tsx",
+        yes: ["app/[id]/page[a].tsx"],
+        no: ["app/id/page[a].tsx", "app/[id]/pagea.tsx", "app/[id]/nested/page[a].tsx"],
+      },
+      { entry: "src/x[.ts", yes: ["src/x[.ts"], no: ["src/x.ts"] },
+      { entry: "src/x].ts", yes: ["src/x].ts"], no: ["src/x.ts"] },
     ];
     for (const { entry, yes, no } of cases) {
       const config = normalizeProjectConfig(rawConfig(field, [entry]), "/repo");
@@ -69,8 +91,7 @@ for (const field of fields) {
       "src/*/x.ts",
       "src*/",
       "src/x?.ts",
-      "src/x[.ts",
-      "src/x].ts",
+      "src/{a,b}.ts",
       "src/x{.ts",
       "src/x}.ts",
       "**.ts",

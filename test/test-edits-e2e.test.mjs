@@ -262,11 +262,17 @@ test("isTestPath uses defaults, directory prefixes, basename wildcards, and exac
     {
       version: 1,
       checks: {},
-      tests: { paths: ["qa/", "*.test.mjs", "*.spec.*", "special/check.mjs"] },
+      tests: { paths: ["qa/", "*.test.mjs", "*.spec.*", "special/check.mjs", "*[a].mjs"] },
     },
     "/fixture",
   );
-  for (const file of ["qa/nested/test", "src/a.test.mjs", "src/a.spec.ts", "special/check.mjs"]) {
+  for (const file of [
+    "qa/nested/test",
+    "src/a.test.mjs",
+    "src/a.spec.ts",
+    "special/check.mjs",
+    "src/x[a].mjs",
+  ]) {
     assert.equal(isTestPath(custom, file), true, file);
   }
   for (const file of ["other/qa/a", "special/check.mjs.bak", "src/aXtest.mjs", "src/xa.mjs"]) {
