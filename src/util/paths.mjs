@@ -1,4 +1,5 @@
 // @ts-check
+import { readdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { HarnessError } from "./errors.mjs";
@@ -55,6 +56,46 @@ export function inAnyScope(candidate, scopes) {
 export function isForbidden(candidate, forbidden) {
   const lower = candidate.toLowerCase();
   return hasGitComponent(candidate) || forbidden.some((scope) => inScope(lower, scope.toLowerCase()));
+}
+
+/**
+ * Select forbidden files from the index used to materialize a check.
+ * @param {readonly string[]} files
+ * @param {readonly string[]} forbidden
+ */
+export function forbiddenMaterializedPaths(files, forbidden) {
+  return files.filter((file) => isForbidden(file, forbidden));
+}
+
+/**
+ * Include literal scopes and all existing case variants, resolving only their components.
+ * Directory scopes need no traversal below the matched directory.
+ * @param {string} root
+ * @param {readonly string[]} forbidden
+ * @returns {string[]}
+ */
+export function forbiddenDenyPaths(root, forbidden) {
+  const denied = new Set();
+  for (const scope of forbidden) {
+    denied.add(path.resolve(root, scope));
+    let parents = [root];
+    for (const component of scope.replace(/\/$/, "").split("/")) {
+      /** @type {string[]} */
+      const matches = [];
+      for (const parent of parents) {
+        try {
+          for (const name of readdirSync(parent)) {
+            if (name.toLowerCase() === component.toLowerCase()) matches.push(path.join(parent, name));
+          }
+        } catch (error) {
+          if (error.code !== "ENOENT" && error.code !== "ENOTDIR") throw error;
+        }
+      }
+      parents = matches;
+    }
+    for (const match of parents) denied.add(match);
+  }
+  return [...denied];
 }
 
 /** Expand a leading `~/` to the user's home directory. @param {string} value */

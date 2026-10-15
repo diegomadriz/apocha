@@ -3,7 +3,7 @@ import { lstatSync, readdirSync, readFileSync, readlinkSync, writeFileSync } fro
 import path from "node:path";
 import { sha256 } from "../util/digest.mjs";
 import { resolveInside } from "../util/fs-safe.mjs";
-import { inAnyScope } from "../util/paths.mjs";
+import { inAnyScope, isForbidden } from "../util/paths.mjs";
 import { checkDefinitionDigest, runCheck } from "./runner.mjs";
 
 /** @typedef {{ id: string, definition_digest: string, status: import("./runner.mjs").CheckResult["status"], changed: string[], ignored_changes: string[] }} FixerResult */
@@ -57,6 +57,7 @@ export async function runFixers(ctx, changedFiles) {
     (file) =>
       inAnyScope(file, ctx.task.allowed_paths) &&
       !inAnyScope(file, blocked) &&
+      !isForbidden(file, ctx.config.paths.forbidden) &&
       lstatExists(ctx.candidate.root, file),
   );
   /** @type {FixerResult[]} */

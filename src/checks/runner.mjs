@@ -16,7 +16,13 @@ import { decodeCaptured } from "../util/bounded.mjs";
 import { digestJson, sha256 } from "../util/digest.mjs";
 import { describeError } from "../util/errors.mjs";
 import { git, gitBuffer, gitCommonDir } from "../util/git.mjs";
-import { canonicalPath, inAnyScope, isInside } from "../util/paths.mjs";
+import {
+  canonicalPath,
+  forbiddenDenyPaths,
+  forbiddenMaterializedPaths,
+  isForbidden,
+  isInside,
+} from "../util/paths.mjs";
 import { makeTempDir, removeTempDir } from "../util/temp.mjs";
 import { dependencyCacheFor, prepareNpmDependencies, preparePnpmDependencies } from "./dependencies.mjs";
 
@@ -107,9 +113,20 @@ function infraResult(id, definitionDigest, sandbox, error) {
 function materialize(candidateRoot, execRoot, forbidden) {
   git(candidateRoot, ["add", "--all"]);
   git(candidateRoot, ["checkout-index", "--all", "--force", `--prefix=${execRoot}${path.sep}`]);
-  for (const scope of forbidden) {
-    rmSync(path.join(execRoot, scope), { recursive: true, force: true });
-  }
+  removeForbidden(execRoot, indexFiles(candidateRoot), forbidden);
+}
+
+/** @param {string} root @param {Record<string, string>} [env] */
+function indexFiles(root, env) {
+  return String(git(root, ["ls-files", "-z"], { env }).stdout)
+    .split("\0")
+    .filter(Boolean);
+}
+
+/** @param {string} root @param {string[]} files @param {string[]} forbidden */
+function removeForbidden(root, files, forbidden) {
+  for (const file of forbiddenMaterializedPaths(files, forbidden))
+    rmSync(path.join(root, file), { recursive: true, force: true });
 }
 
 /**
@@ -187,14 +204,17 @@ export async function runCheck({
           "--",
           ...baseOverlay,
         ]);
-        for (const scope of config.paths.forbidden)
-          rmSync(path.join(execRoot, scope), { recursive: true, force: true });
+        removeForbidden(
+          execRoot,
+          [...indexFiles(candidate.root, env), ...baseOverlay],
+          config.paths.forbidden,
+        );
       } else {
         materialize(candidate.root, execRoot, config.paths.forbidden);
       }
       for (const file of baseFiles ?? []) {
         canonicalPath(file, "baseFiles");
-        if (inAnyScope(file, config.paths.forbidden)) throw new Error(`base file is forbidden: ${file}`);
+        if (isForbidden(file, config.paths.forbidden)) throw new Error(`base file is forbidden: ${file}`);
         const target = path.resolve(execRoot, file);
         if (!isInside(target, execRoot)) throw new Error("base file escapes the tree");
         const contents = gitBuffer(candidate.root, ["show", `${candidate.base_commit}:${file}`]);
@@ -274,14 +294,20 @@ export async function runCheck({
         secrets = (secretFileCache?.discover ?? sourceSecretFiles)(sourceRoot);
         secretFileCache?.files.set(sourceRoot, secrets);
       }
-      const denyRead = resolveDenyPaths([
-        ...config.sandbox.deny_read,
-        ...secrets,
-        realpathSync(candidate.root),
-        commonDir,
-        path.join(sourceRoot, ".git"),
-        ...config.paths.forbidden.map((scope) => path.join(sourceRoot, scope)),
-      ]).filter((entry) => !isInside(workspace, entry));
+      const forbiddenPaths = forbiddenDenyPaths(sourceRoot, config.paths.forbidden);
+      const denyRead = [
+        ...new Set([
+          ...forbiddenPaths,
+          ...resolveDenyPaths([
+            ...config.sandbox.deny_read,
+            ...secrets,
+            realpathSync(candidate.root),
+            commonDir,
+            path.join(sourceRoot, ".git"),
+            ...forbiddenPaths,
+          ]),
+        ]),
+      ].filter((entry) => !isInside(workspace, entry));
       denyRead.push(...signingDenyPaths(signingKey));
       const network = check.network || config.sandbox.network === "allow";
       const denySockets = (backend === "bwrap" ? resolveDenyPaths : resolveSocketPaths)(

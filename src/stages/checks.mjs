@@ -13,7 +13,7 @@ import { failureFirst, failureSignalLines, utf8Prefix } from "../util/bounded.mj
 import { HarnessError } from "../util/errors.mjs";
 import { writeJsonAtomic } from "../util/fs-safe.mjs";
 import { git } from "../util/git.mjs";
-import { inAnyScope } from "../util/paths.mjs";
+import { inAnyScope, isForbidden } from "../util/paths.mjs";
 
 const FINDING_EVIDENCE_BYTES = 2000;
 const MAX_FINDINGS = 5;
@@ -107,7 +107,9 @@ export async function runChecksStage(_stage, ctx) {
   }
   const protectedPaths = effectiveProtectedPaths(ctx.task, ctx.config, ctx.governance.edits_allowed);
   const outOfScope = snapshot.changed_files.filter((file) => !inAnyScope(file, ctx.task.allowed_paths));
-  const protectedHits = snapshot.changed_files.filter((file) => inAnyScope(file, protectedPaths));
+  const protectedHits = snapshot.changed_files.filter(
+    (file) => inAnyScope(file, protectedPaths) || isForbidden(file, ctx.config.paths.forbidden),
+  );
   const tests = testEdits(ctx.candidate, ctx.config, snapshot.changed_files, ctx.task.test_edits);
   const testPolicyEvidence = {
     effective_policy: tests.effective_policy,
