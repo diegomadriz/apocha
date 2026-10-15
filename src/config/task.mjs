@@ -2,7 +2,14 @@
 import { digestJson } from "../util/digest.mjs";
 import { HarnessError } from "../util/errors.mjs";
 import { git } from "../util/git.mjs";
-import { canonicalPath, hasGitComponent, inAnyScope, inScope, isForbidden } from "../util/paths.mjs";
+import {
+  canonicalPath,
+  hasGitComponent,
+  inAnyScope,
+  inScope,
+  isAlwaysReadable,
+  isForbidden,
+} from "../util/paths.mjs";
 import { assertValid } from "../util/schema.mjs";
 import { isTestPath, selectChecks } from "./project.mjs";
 
@@ -94,7 +101,10 @@ export function validateTask(raw, config, baseCommit = "HEAD") {
       );
   }
   for (const entry of initial) {
-    if (!inAnyScope(entry, [...allowed, ...readOnly])) {
+    if (
+      !inAnyScope(entry, [...allowed, ...readOnly]) &&
+      !isAlwaysReadable(entry, config.paths.always_readable)
+    ) {
       throw new HarnessError(
         "config",
         "invalid_path",

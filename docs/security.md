@@ -22,6 +22,13 @@ fails the run if the runtime uses anything but the harness tools (see
 [adapters.md](adapters.md)). The harness tools read, search, and patch files inside the candidate,
 and run catalog checks.
 
+Implementers may read task `allowed_paths`, `read_only_paths`, and files matching
+`paths.always_readable` (default `["AGENTS.md"]`, matching that basename at any depth).
+Entries containing `/` use exact paths or directory prefixes ending in `/`; `[]` disables
+the extra access. Forbidden paths always override read access. This rule grants no write
+access: allowed scopes and protected or governance paths still govern edits. Reviewers may
+read the whole candidate except forbidden paths.
+
 **Checks run agent-written code.** A test file the agent added is executed by `npm test` or
 `pytest`. So checks, and `run_check`, run in a fresh directory built from the candidate's Git
 index (no `.git`, no untracked or ignored files, no forbidden paths), under an OS sandbox:

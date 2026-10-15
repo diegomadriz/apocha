@@ -65,6 +65,101 @@ function setup(overrides = {}, files = {}) {
   };
 }
 
+test("always_readable permits nested instructions but preserves forbidden and write boundaries", async () => {
+  const s = setup(
+    { read_only_paths: [] },
+    {
+      "sub/AGENTS.md": "instructions\n",
+      "private/AGENTS.md": "secret instructions\n",
+      "src/locked.txt": "locked\n",
+      "other/AGENTS.md/leak.txt": "instructions\n",
+    },
+  );
+  try {
+    const read = await s.tools.call("read_files", { paths: ["sub/AGENTS.md"] });
+    assert.equal(read.ok, true);
+    assert.equal(read.value.files[0].content, "instructions\n");
+    const search = await s.tools.call("search_code", { query: "instructions", paths: ["sub/AGENTS.md"] });
+    assert.equal(search.ok, true);
+    assert.equal(search.value.results[0].path, "sub/AGENTS.md");
+    const defaults = await s.tools.call("search_code", { query: "instructions" });
+    assert.deepEqual(defaults.value.results, []);
+    const directory = await s.tools.call("search_code", {
+      query: "instructions",
+      paths: ["other/AGENTS.md"],
+    });
+    assert.equal(directory.ok, true);
+    assert.deepEqual(directory.value.results, []);
+    for (const name of ["read_files", "search_code"]) {
+      const denied = await s.tools.call(name, { paths: ["private/AGENTS.md"], query: "instructions" });
+      assert.equal(denied.ok, false);
+      assert.match(denied.error, /not readable/);
+    }
+    for (const [file, error] of [
+      ["sub/AGENTS.md", /outside allowed_paths/],
+      ["src/locked.txt", /protected/],
+    ]) {
+      const denied = await s.tools.call("apply_patch", {
+        edits: [{ path: file, old_text: "", new_text: "changed" }],
+      });
+      assert.equal(denied.ok, false);
+      assert.match(denied.error, error);
+    }
+  } finally {
+    s.cleanup();
+  }
+});
+
+test("empty always_readable restores refusal outside task scopes", async () => {
+  const project = normalizeProjectConfig(
+    { version: 1, checks: {}, paths: { always_readable: [] } },
+    "/fixture",
+  );
+  const s = setup({ project, read_only_paths: [] }, { "sub/AGENTS.md": "instructions\n" });
+  try {
+    for (const name of ["read_files", "search_code"]) {
+      const denied = await s.tools.call(name, { paths: ["sub/AGENTS.md"], query: "instructions" });
+      assert.equal(denied.ok, false);
+      assert.match(denied.error, /outside allowed_paths/);
+    }
+  } finally {
+    s.cleanup();
+  }
+});
+
+test("always_readable supports exact paths and directory scopes without widening them", async () => {
+  const project = normalizeProjectConfig(
+    {
+      version: 1,
+      checks: {},
+      paths: { always_readable: ["docs/guide.md", "notes/"] },
+    },
+    "/fixture",
+  );
+  const s = setup(
+    { project, read_only_paths: [] },
+    {
+      "notes/nested/info.md": "guide\n",
+      "other/docs/guide.md": "guide\n",
+    },
+  );
+  try {
+    for (const file of ["docs/guide.md", "notes/nested/info.md"]) {
+      assert.equal((await s.tools.call("read_files", { paths: [file] })).ok, true);
+      const search = await s.tools.call("search_code", { paths: [file], query: "guide" });
+      assert.equal(search.ok, true);
+      assert.equal(search.value.results[0].path, file);
+    }
+    assert.equal((await s.tools.call("search_code", { paths: ["notes/"], query: "guide" })).ok, true);
+    for (const file of ["other/docs/guide.md", "docs/"]) {
+      assert.equal((await s.tools.call("read_files", { paths: [file] })).ok, false);
+    }
+    assert.equal((await s.tools.call("read_files", { paths: ["sub/AGENTS.md"] })).ok, false);
+  } finally {
+    s.cleanup();
+  }
+});
+
 test("read traces include requested paths on success and failure without contents", async () => {
   const s = setup();
   try {

@@ -67,7 +67,7 @@ export const DEFAULT_LIMITS = Object.freeze({
  *   tests: { paths: string[], run_files?: CheckDefinition & { paths?: string[] } },
  *   review: { require_independent: boolean },
  *   receipts: { allowed_signers: string, require_signed: boolean },
- *   paths: { protected: string[], governance: string[], forbidden: string[], design_reference_prefix: string },
+ *   paths: { protected: string[], governance: string[], forbidden: string[], always_readable: string[], design_reference_prefix: string },
  *   refs: { batch_prefix: string, notes: string },
  *   sandbox: { mode: "auto" | "required" | "none", network: "deny" | "allow", deny_read: string[], deny_sockets: string[] },
  *   limits: typeof DEFAULT_LIMITS,
@@ -205,6 +205,7 @@ export function normalizeProjectConfig(raw, root) {
       protected: pathList(input.paths?.protected, "paths.protected"),
       governance,
       forbidden: pathList(input.paths?.forbidden, "paths.forbidden"),
+      always_readable: pathList(input.paths?.always_readable ?? ["AGENTS.md"], "paths.always_readable"),
       design_reference_prefix: designPrefix,
     },
     refs: {

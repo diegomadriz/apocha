@@ -55,6 +55,47 @@ test("project config rejects unknown keys, unknown checks, and bad paths", () =>
   );
 });
 
+test("always_readable defaults, canonical validation, and config digest", () => {
+  const raw = { version: 1, checks: {} };
+  const defaults = normalizeProjectConfig(raw, "/repo");
+  assert.deepEqual(defaults.paths.always_readable, ["AGENTS.md"]);
+  const explicit = normalizeProjectConfig({ ...raw, paths: { always_readable: ["AGENTS.md"] } }, "/repo");
+  assert.equal(defaults.digest, explicit.digest);
+  for (const entries of [[], ["docs/guide.md"], ["notes/"]]) {
+    const custom = normalizeProjectConfig({ ...raw, paths: { always_readable: entries } }, "/repo");
+    assert.deepEqual(custom.paths.always_readable, entries);
+    assert.notEqual(defaults.digest, custom.digest);
+  }
+  for (const entry of ["../AGENTS.md", "./AGENTS.md", "a//AGENTS.md", ".git/config"]) {
+    assert.throws(() => normalizeProjectConfig({ ...raw, paths: { always_readable: [entry] } }, "/repo"));
+  }
+});
+
+test("initial_context accepts always_readable while forbidden paths still win", () => {
+  const raw = {
+    task_id: "instructions",
+    description: "read instructions",
+    acceptance_criteria: ["read"],
+    allowed_paths: ["src/"],
+    initial_context: ["sub/AGENTS.md"],
+  };
+  assert.deepEqual(validateTask(raw, config).initial_context, ["sub/AGENTS.md"]);
+  assert.throws(() => validateTask({ ...raw, initial_context: ["private/AGENTS.md"] }, config), /forbidden/);
+  const disabled = normalizeProjectConfig(
+    { version: 1, checks: {}, paths: { always_readable: [] } },
+    "/repo",
+  );
+  assert.throws(() => validateTask(raw, disabled), /outside allowed/);
+  const custom = normalizeProjectConfig(
+    { version: 1, checks: {}, paths: { always_readable: ["docs/guide.md", "notes/"] } },
+    "/repo",
+  );
+  assert.deepEqual(
+    validateTask({ ...raw, initial_context: ["docs/guide.md", "notes/info.md"] }, custom).initial_context,
+    ["docs/guide.md", "notes/info.md"],
+  );
+});
+
 test("check selection unions every matching rule", () => {
   assert.deepEqual(selectChecks(config, ["web/app.ts"]), ["lint"]);
   assert.deepEqual(selectChecks(config, ["web/app.ts", "tests/test_x.py"]), ["lint", "test"]);

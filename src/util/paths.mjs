@@ -49,6 +49,19 @@ export function inAnyScope(candidate, scopes) {
 }
 
 /**
+ * Match always-readable basenames at any depth, or ordinary path scopes.
+ * @param {string} candidate
+ * @param {readonly string[]} entries
+ */
+export function isAlwaysReadable(candidate, entries) {
+  return entries.some((entry) =>
+    entry.includes("/")
+      ? inScope(candidate, entry)
+      : !candidate.endsWith("/") && path.posix.basename(candidate) === entry,
+  );
+}
+
+/**
  * Case-insensitive match against forbidden scopes, so `Private/` cannot dodge `private/`.
  * @param {string} candidate
  * @param {readonly string[]} forbidden

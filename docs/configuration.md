@@ -162,6 +162,7 @@ agent starts or the run becomes RUNNING. This policy comes from the base commit.
 | `protected` | Never changed by any task |
 | `governance` | Protected unless the run uses `--allow-governance-edits --reason "<text>"`. The operator's Git identity and the reason go into the receipt. |
 | `forbidden` | Never readable by agents, never materialized for checks, and denied to sandboxed checks in the source checkout. Matching ignores case. |
+| `always_readable` | Files every agent may read without task scopes; default `["AGENTS.md"]`, `[]` disables it. Entries without `/` match basenames at any depth; entries with `/` match exact paths, or prefixes when ending in `/`. Forbidden paths still win; this grants no write access. Explicit search paths may use this rule; default search scopes stay unchanged. `initial_context` may name these files. |
 | `design_reference_prefix` | Where `design_reference` files must live |
 
 ### `refs`

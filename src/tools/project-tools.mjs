@@ -23,7 +23,7 @@ import {
   writeJsonAtomic,
 } from "../util/fs-safe.mjs";
 import { git, gitBuffer } from "../util/git.mjs";
-import { canonicalPath, inAnyScope, isForbidden } from "../util/paths.mjs";
+import { canonicalPath, inAnyScope, isAlwaysReadable, isForbidden } from "../util/paths.mjs";
 import { loadSchema, validateAgainst } from "../util/schema.mjs";
 
 /**
@@ -167,7 +167,11 @@ export function createProjectTools(session) {
     if (isForbidden(relative, session.forbidden_paths))
       throw toolError(`path is not readable: ${relative}`, "forbidden");
     // The reviewer may read the whole candidate (minus forbidden paths) to judge the change in context.
-    if (session.role !== "reviewer" && !inAnyScope(relative, readableScopes)) {
+    if (
+      session.role !== "reviewer" &&
+      !inAnyScope(relative, readableScopes) &&
+      !isAlwaysReadable(relative, session.project.paths.always_readable)
+    ) {
       throw toolError(`path is outside allowed_paths and read_only_paths: ${relative}`, "out_of_scope");
     }
     return relative;
@@ -323,6 +327,12 @@ export function createProjectTools(session) {
     let bytes = 0;
     for (const relative of [...new Set(files)].sort()) {
       if (deleted.has(relative)) continue;
+      if (
+        session.role !== "reviewer" &&
+        !inAnyScope(relative, readableScopes) &&
+        !isAlwaysReadable(relative, session.project.paths.always_readable)
+      )
+        continue;
       const absolute = path.join(root, relative);
       const stat = lstatSync(absolute);
       if (stat.size > TOOL_LIMITS.maxRangeFileBytes) continue;

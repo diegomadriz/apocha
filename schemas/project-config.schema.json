@@ -62,6 +62,7 @@
         "protected": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
         "governance": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
         "forbidden": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
+        "always_readable": { "description": "Files every agent may read without the task listing them. A name without / matches that file name in any directory. Default [\"AGENTS.md\"].", "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" }, "default": ["AGENTS.md"] },
         "design_reference_prefix": { "$ref": "#/$defs/path" }
       }
     },
