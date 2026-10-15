@@ -27,7 +27,7 @@
       "items": {
         "type": "object", "additionalProperties": false, "required": ["paths", "checks"],
         "properties": {
-          "paths": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/path" } },
+          "paths": { "description": "Entries match directory prefixes ending in / without wildcards, exact paths, or * wildcards in basenames at any depth or only the last component under a literal directory; * never crosses /, and **, directory wildcards, ?, [, ], {, and } are unsupported.", "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/path" } },
           "checks": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/check_id" } }
         }
       }
@@ -52,7 +52,7 @@
     "tests": {
       "type": "object", "additionalProperties": false,
       "properties": {
-        "paths": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
+        "paths": { "description": "Entries match directory prefixes ending in / without wildcards, exact paths, or * wildcards in basenames at any depth or only the last component under a literal directory; * never crosses /, and **, directory wildcards, ?, [, ], {, and } are unsupported.", "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
         "run_files": { "$ref": "#/$defs/run_files" }
       }
     },
@@ -100,7 +100,7 @@
     "run_files": {
       "type": "object", "additionalProperties": false, "required": ["run"],
       "properties": {
-        "paths": { "description": "Test files this command can run; others get no execution evidence. Same syntax as tests.paths.", "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
+        "paths": { "description": "Entries match directory prefixes ending in / without wildcards, exact paths, or * wildcards in basenames at any depth or only the last component under a literal directory; * never crosses /, and **, directory wildcards, ?, [, ], {, and } are unsupported.", "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
         "run": {
           "description": "argv with exactly one whole {files} element, expanded to individual test paths.",
           "type": "array", "minItems": 1, "maxItems": 50, "items": { "type": "string", "minLength": 1, "maxLength": 2000 }

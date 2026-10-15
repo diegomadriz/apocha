@@ -138,7 +138,7 @@ export function normalizeProjectConfig(raw, root) {
       throw new HarnessError("config", "unknown_check", `${where} names unknown check: ${id}`);
   };
   const selection = (input.check_selection ?? []).map((rule, index) => {
-    for (const entry of rule.paths) canonicalPath(entry, `check_selection[${index}].paths`);
+    for (const entry of rule.paths) validatePathPattern(entry, `check_selection[${index}].paths`);
     for (const id of rule.checks) known(id, `check_selection[${index}]`);
     return { paths: [...rule.paths], checks: [...rule.checks] };
   });
@@ -152,6 +152,8 @@ export function normalizeProjectConfig(raw, root) {
         throw new HarnessError("config", "invalid_path", `${label} may not name .git`);
       return entry;
     });
+  const patternList = (list, label) =>
+    pathList(list, label).map((entry) => validatePathPattern(entry, label));
   const receipts = {
     allowed_signers: input.receipts?.allowed_signers ?? ".apocha/allowed_signers",
     require_signed: input.receipts?.require_signed ?? false,
@@ -189,12 +191,12 @@ export function normalizeProjectConfig(raw, root) {
             run_files: {
               ...normalizeCheck("tests-on-base", input.tests.run_files),
               ...(input.tests.run_files.paths !== undefined
-                ? { paths: pathList(input.tests.run_files.paths, "tests.run_files.paths") }
+                ? { paths: patternList(input.tests.run_files.paths, "tests.run_files.paths") }
                 : {}),
             },
           }
         : {}),
-      paths: pathList(
+      paths: patternList(
         input.tests?.paths ?? ["test/", "tests/", "__tests__/", "*.test.*", "*.spec.*"],
         "tests.paths",
       ),
@@ -276,11 +278,7 @@ export function loadProjectConfig(root, options = {}) {
 export function selectChecks(config, changedFiles) {
   const selected = new Set(config.default_checks);
   for (const rule of config.check_selection) {
-    if (
-      changedFiles.some((file) =>
-        rule.paths.some((scope) => (scope.endsWith("/") ? file.startsWith(scope) : file === scope)),
-      )
-    ) {
+    if (changedFiles.some((file) => matchesPathPatterns(rule.paths, file))) {
       for (const id of rule.checks) selected.add(id);
     }
   }
@@ -288,22 +286,39 @@ export function selectChecks(config, changedFiles) {
 }
 
 /**
- * Match test directory prefixes, basename wildcards, or exact repository paths.
+ * Match test paths using the shared path-pattern syntax.
  * @param {ProjectConfig} config
  * @param {string} relativePath
  */
 export function isTestPath(config, relativePath) {
-  return matchesTestPaths(config.tests.paths, relativePath);
+  return matchesPathPatterns(config.tests.paths, relativePath);
 }
 
 /** @param {ProjectConfig} config @param {string} relativePath */
 export function canRunTestPath(config, relativePath) {
   const paths = config.tests.run_files?.paths;
-  return paths === undefined || matchesTestPaths(paths, relativePath);
+  return paths === undefined || matchesPathPatterns(paths, relativePath);
+}
+
+/** @param {string} entry @param {string} label */
+function validatePathPattern(entry, label) {
+  canonicalPath(entry, label);
+  if (
+    entry.includes("**") ||
+    /[?[\]{}]/.test(entry) ||
+    entry.slice(0, entry.lastIndexOf("/") + 1).includes("*")
+  ) {
+    throw new HarnessError(
+      "config",
+      "invalid_path_pattern",
+      `${label} contains an unsupported path pattern: ${JSON.stringify(entry)}`,
+    );
+  }
+  return entry;
 }
 
 /** @param {string[]} paths @param {string} relativePath */
-function matchesTestPaths(paths, relativePath) {
+function matchesPathPatterns(paths, relativePath) {
   return paths.some((entry) => {
     if (entry.endsWith("/")) return relativePath.startsWith(entry);
     if (!entry.includes("*")) return relativePath === entry;
@@ -311,7 +326,9 @@ function matchesTestPaths(paths, relativePath) {
       .split("*")
       .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
       .join("[^/]*");
-    return new RegExp(`^${pattern}$`).test(path.posix.basename(relativePath));
+    return new RegExp(`^${pattern}$`).test(
+      entry.includes("/") ? relativePath : path.posix.basename(relativePath),
+    );
   });
 }
 

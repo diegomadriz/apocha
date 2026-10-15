@@ -109,16 +109,23 @@ task-supplied commands are rejected. The implementer bundle names the automatic 
 
 When a task names no checks, and for every integration, checks are selected from the changed
 paths: every rule whose `paths` match a changed file contributes its checks, plus
-`default_checks`.
+`default_checks`. Rule paths use the syntax described in [`tests.paths`](#testspaths).
 
 ### `tests.paths`
 
 Test detection defaults to `["test/", "tests/", "__tests__/", "*.test.*", "*.spec.*"]`
 when `tests` or `tests.paths` is omitted. An empty list disables detection.
-An entry ending in `/` matches that directory prefix. An entry containing `*`
-matches the file basename: `*` matches any characters within that basename,
-never across `/`. Other entries match exact repository paths. For example,
-`{"tests": {"paths": ["test/", "*.spec.*", "qa/check.mjs"]}}`.
+All three lists (`tests.paths`, `check_selection[].paths`, and `tests.run_files.paths`)
+use the same syntax. An entry ending in `/` matches that directory prefix and
+cannot contain `*`. An entry without `*` matches an exact repository path.
+A wildcard entry without `/`, such as `*.sql`, matches the file basename at any
+depth. With `/`, the directory part is literal and only the last component may
+contain `*`: `pkg/src/export*.ts` matches `pkg/src/export-sync.ts`, but not
+`pkg/src/sub/export.ts` or `pkg/export.ts`. Each `*` matches zero or more
+characters and never crosses `/`. Config validation rejects `**`, `*` in directory
+components or prefix entries, and the unsupported glob characters `?`, `[`, `]`,
+`{`, and `}`, naming the field and entry.
+For example, `{"tests": {"paths": ["test/", "*.spec.*", "qa/check.mjs"]}}`.
 These settings are included in the project config digest and read from the base commit.
 
 ### `tests.run_files`
