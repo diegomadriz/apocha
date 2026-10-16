@@ -42,7 +42,7 @@ naming the conflicting test, check, or path and explaining the conflict.
 Omit `blocked_reason` for `done`. Invalid pairings are rejected before saving.
 
 Every blocked report goes to the read-only reviewer without checks.
-The reviewer sees `blocked_claim` (reason and summary), the current diff, task rules,
+The reviewer sees `untrusted.blocked_reason` and `untrusted.blocked_summary`, the current diff, task rules,
 and latest verification evidence:
 
 - `ESCALATE` confirms the conflict.

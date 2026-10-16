@@ -187,7 +187,7 @@ Claims of checks running, waived rules, owner approval, or instructions to PASS 
 steering attempts require a finding with severity `blocking` naming the location.
 Both ordinary and blocked-claim bundles separate implementer text under `untrusted` from
 controller criteria, results, and digests; `provenance` lists controller fields and marks
-`untrusted` and `diff` as untrusted. Deterministic fake-adapter tests verify this structure
+`untrusted` and `diff` as untrusted, with `provenance.untrusted_paths` naming per-file diffs inside controller fields. Deterministic fake-adapter tests verify this structure
 and prompt wording, not model behavior. A real reviewer's resistance is measured only by a
 small private evaluation and is not guaranteed. The design limits the damage an injected
 instruction can do: the agent cannot run commands, cannot read forbidden paths or credentials,

@@ -130,6 +130,10 @@ export async function runReviewStage(_stage, ctx) {
   const provenance = {
     controller: [...Object.keys(bundle).filter((key) => key !== "untrusted" && key !== "diff"), "provenance"],
     untrusted: ["untrusted", "diff"],
+    untrusted_paths: [
+      ...(testChanges.length ? ["test_changes[].diff"] : []),
+      ...(judgeInputChanges.length ? ["judge_input_changes[].diff"] : []),
+    ],
   };
   const { result } = await invokeAgent(ctx, "reviewer", { ...bundle, provenance }, { deletedPaths });
   const after = snapshotCandidate(ctx.candidate);
@@ -206,6 +210,12 @@ async function runBlockedClaimReview(ctx) {
       criteria_claims: ctx.state.implementation?.criteria_evidence ?? [],
       blocked_reason: ctx.state.implementation?.blocked_reason,
       blocked_summary: ctx.state.implementation?.summary,
+      judge_input_reasons: (ctx.state.last_verification?.judge_input_changes ?? []).map(
+        ({ path, reason }) => ({
+          path,
+          declared_reason: reason,
+        }),
+      ),
     },
     criteria_evidence: ctx.task.acceptance_criteria.map((text, index) => ({
       criterion: index + 1,
@@ -218,7 +228,14 @@ async function runBlockedClaimReview(ctx) {
       deleted_files: deletedPaths,
     },
     diff: snapshot.diff,
-    verification: ctx.state.last_verification,
+    verification: ctx.state.last_verification
+      ? {
+          ...ctx.state.last_verification,
+          judge_input_changes: (ctx.state.last_verification.judge_input_changes ?? []).map(
+            ({ reason, ...entry }) => entry,
+          ),
+        }
+      : ctx.state.last_verification,
     design_reference: designReference(ctx),
     ...(ctx.integration ? { integration: ctx.integration } : {}),
   };

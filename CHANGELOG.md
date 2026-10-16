@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reviewer provenance now marks per-file test and judge input diffs as untrusted; blocked-claim verification moves implementer judge input reasons under `untrusted`.
+
 - macOS home read exceptions never reopen the home directory itself, including through PATH bin parents, Node prefixes, or symlinks. Credential denies now cover toolchain credential files and additional credential stores, and still override home allows.
 
 - Sandbox mode `auto` now fails closed without a backend (except inside an already sandboxed check); install bubblewrap on Linux or explicitly set `sandbox.mode: "none"` to opt out.
