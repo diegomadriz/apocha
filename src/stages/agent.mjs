@@ -67,6 +67,8 @@ export function implementerBundle(ctx) {
     allowed_paths: ctx.task.allowed_paths,
     read_only_paths: ctx.task.read_only_paths,
     protected_paths: effectiveProtectedPaths(ctx.task, ctx.config, ctx.governance.edits_allowed),
+    judge_inputs: ctx.config.paths.judge_inputs,
+    declared_judge_input_changes: ctx.task.judge_input_changes,
     checks,
     fixers: ctx.task.fixers.map((id) => ({
       id,
@@ -95,6 +97,7 @@ export async function runImplementStage(stage, ctx) {
   const { result } = await invokeAgent(ctx, "implementer", bundle);
   ctx.state.implementation = {
     summary: result.summary,
+    judge_input_changes: result.judge_input_changes ?? [],
     criteria_evidence: result.criteria_evidence ?? [],
     unresolved_uncertainties: result.unresolved_uncertainties ?? [],
   };

@@ -59,6 +59,7 @@
     "paths": {
       "type": "object", "additionalProperties": false,
       "properties": {
+        "judge_inputs": { "description": "Additional judge input patterns; built-in patterns always apply. Basenames match at any depth, case-insensitively.", "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/path" } },
         "protected": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
         "governance": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
         "forbidden": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },

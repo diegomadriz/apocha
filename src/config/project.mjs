@@ -45,6 +45,26 @@ export const DEFAULT_DENY_SOCKETS = Object.freeze([
   "~/.local/share/containers/podman/machine/podman.sock",
 ]);
 
+/** Files whose contents decide what checks accept; project entries only add to these. */
+export const DEFAULT_JUDGE_INPUTS = Object.freeze([
+  "biome.json",
+  "biome.jsonc",
+  "tsconfig.json",
+  "tsconfig.*.json",
+  "jsconfig.json",
+  ".eslintrc*",
+  "eslint.config.*",
+  "jest.config.*",
+  "vitest.config.*",
+  "conftest.py",
+  "pytest.ini",
+  "tox.ini",
+  "setup.cfg",
+  "pyproject.toml",
+  "package.json",
+  "AGENTS.md",
+]);
+
 export const DEFAULT_LIMITS = Object.freeze({
   max_repair_attempts: 2,
   default_repair_attempts: 1,
@@ -67,7 +87,7 @@ export const DEFAULT_LIMITS = Object.freeze({
  *   tests: { paths: string[], run_files?: CheckDefinition & { paths?: string[] } },
  *   review: { require_independent: boolean },
  *   receipts: { allowed_signers: string, require_signed: boolean },
- *   paths: { protected: string[], governance: string[], forbidden: string[], always_readable: string[], design_reference_prefix: string },
+ *   paths: { judge_inputs: string[], protected: string[], governance: string[], forbidden: string[], always_readable: string[], design_reference_prefix: string },
  *   refs: { batch_prefix: string, notes: string },
  *   sandbox: { mode: "auto" | "required" | "none", network: "deny" | "allow", deny_read: string[], deny_sockets: string[] },
  *   limits: typeof DEFAULT_LIMITS,
@@ -204,6 +224,12 @@ export function normalizeProjectConfig(raw, root) {
     review: { require_independent: input.review?.require_independent ?? false },
     receipts,
     paths: {
+      judge_inputs: [
+        ...new Set([
+          ...DEFAULT_JUDGE_INPUTS,
+          ...patternList(input.paths?.judge_inputs, "paths.judge_inputs"),
+        ]),
+      ],
       protected: pathList(input.paths?.protected, "paths.protected"),
       governance,
       forbidden: pathList(input.paths?.forbidden, "paths.forbidden"),
@@ -292,6 +318,19 @@ export function selectChecks(config, changedFiles) {
  */
 export function isTestPath(config, relativePath) {
   return matchesPathPatterns(config.tests.paths, relativePath);
+}
+
+/**
+ * Judge basenames match at any depth, including literal names, case-insensitively.
+ * @param {ProjectConfig} config
+ * @param {string} relativePath
+ */
+export function isJudgeInput(config, relativePath) {
+  const lower = relativePath.toLowerCase();
+  return config.paths.judge_inputs.some((entry) => {
+    const pattern = entry.toLowerCase();
+    return matchesPathPatterns([pattern], pattern.includes("/") ? lower : path.posix.basename(lower));
+  });
 }
 
 /** @param {ProjectConfig} config @param {string} relativePath */

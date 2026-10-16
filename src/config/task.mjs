@@ -11,9 +11,10 @@ import {
   isForbidden,
 } from "../util/paths.mjs";
 import { assertValid } from "../util/schema.mjs";
-import { isTestPath, selectChecks } from "./project.mjs";
+import { isJudgeInput, isTestPath, selectChecks } from "./project.mjs";
 
 /**
+ * @typedef {{ path: string, kind: "tighten" | "migrate" | "extend" | "fix", reason: string }} JudgeInputChange
  * @typedef {{
  *   task_id: string,
  *   description: string,
@@ -25,6 +26,7 @@ import { isTestPath, selectChecks } from "./project.mjs";
  *   design_reference: string[],
  *   checks: string[],
  *   fixers: string[],
+ *   judge_input_changes: JudgeInputChange[],
  *   test_changes: { path: string, kind: "behaviour" | "refactor" | "fixture", reason: string }[],
  *   test_edits: "justified" | "additive" | "new-files" | "allowed",
  *   new_tests_must_fail_on_base: boolean,
@@ -76,6 +78,26 @@ export function validateTask(raw, config, baseCommit = "HEAD") {
           `read_only_paths entry ${read} overlaps allowed_paths entry ${edit}`,
         );
     }
+  }
+  const judgeInputChanges = input.judge_input_changes ?? [];
+  const judgeSeen = new Set();
+  for (const entry of judgeInputChanges) {
+    canonicalPath(entry.path, "judge_input_changes.path");
+    if (
+      entry.path.endsWith("/") ||
+      judgeSeen.has(entry.path) ||
+      !inAnyScope(entry.path, allowed) ||
+      !isJudgeInput(config, entry.path) ||
+      inAnyScope(entry.path, [
+        ...config.paths.governance,
+        ...config.paths.protected,
+        ...protectedPaths,
+        ...design,
+      ]) ||
+      isForbidden(entry.path, forbidden)
+    )
+      throw new HarnessError("config", "invalid_path", `invalid judge_input_changes path: ${entry.path}`);
+    judgeSeen.add(entry.path);
   }
   const testChanges = input.test_changes ?? [];
   const seen = new Set();
@@ -155,6 +177,7 @@ export function validateTask(raw, config, baseCommit = "HEAD") {
     design_reference: design,
     checks,
     fixers,
+    judge_input_changes: judgeInputChanges.map((entry) => ({ ...entry })),
     test_changes: testChanges.map((entry) => ({ ...entry })),
     test_edits: input.test_edits ?? "justified",
     new_tests_must_fail_on_base: input.new_tests_must_fail_on_base ?? false,

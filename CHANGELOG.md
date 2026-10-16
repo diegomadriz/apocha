@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Judge input changes now require task or implementer declarations, with configurable additive patterns and verification evidence; tier 0 protections remain unchanged.
+
 - The README and security guide now state that checker config files and inline suppressions are not frozen, describe the `justified` default, and list the sandbox read and reviewer-input gaps.
 - Repository locks now publish complete owner records atomically and release only matching owner tokens; dead owners fail closed immediately, while empty or unparseable locks wait before failing closed. Recover explicitly with `apocha unlock` (`--force` overrides a live owner).
 - `PASS` reviews with blocking findings now escalate, and promotion rejects them in restored state; minor findings and findings without severity still allow promotion.

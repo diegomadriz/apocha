@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { runFixers } from "../checks/fixers.mjs";
 import { checkDefinitionDigest, runCheck } from "../checks/runner.mjs";
-import { canRunTestPath } from "../config/project.mjs";
+import { canRunTestPath, isJudgeInput } from "../config/project.mjs";
 import { effectiveProtectedPaths } from "../config/task.mjs";
 import { snapshotCandidate } from "../git/candidate.mjs";
 import { testEdits } from "../git/test-edits.mjs";
@@ -93,11 +93,13 @@ export async function runChecksStage(_stage, ctx) {
         duration_ms: Date.now() - started,
         candidate_digest: "",
         changed_files: [],
+        judge_input_changes: [],
         fixers,
         checks: [{ id: "candidate-integrity", status: "fail", error: error.message }],
       };
       ctx.event("verification.finished", {
         status: "violation",
+        judge_inputs: [],
         reason: error.message,
         duration_ms: Date.now() - started,
       });
@@ -110,12 +112,55 @@ export async function runChecksStage(_stage, ctx) {
   const protectedHits = snapshot.changed_files.filter(
     (file) => inAnyScope(file, protectedPaths) || isForbidden(file, ctx.config.paths.forbidden),
   );
+  const judgeFiles = snapshot.changed_files.filter(
+    (file) =>
+      isJudgeInput(ctx.config, file) &&
+      !inAnyScope(file, protectedPaths) &&
+      !isForbidden(file, ctx.config.paths.forbidden) &&
+      !(ctx.governance.edits_allowed && inAnyScope(file, ctx.config.paths.governance)),
+  );
+  const judgeDeclarations = new Map(
+    (ctx.state.implementation?.judge_input_changes ?? []).map((entry) => [entry.path, entry]),
+  );
+  for (const entry of ctx.task.judge_input_changes ?? []) judgeDeclarations.set(entry.path, entry);
+  /** @type {NonNullable<import("../core/context.mjs").RunState["last_verification"]>["judge_input_changes"]} */
+  const judgeChanges = [];
+  const undeclaredJudgeInputs = [];
+  for (const file of [...judgeFiles].sort()) {
+    const declaration = judgeDeclarations.get(file);
+    if (!declaration && !ctx.integration) {
+      undeclaredJudgeInputs.push(file);
+      continue;
+    }
+    const existed =
+      git(ctx.candidate.root, ["cat-file", "-e", `${ctx.candidate.base_commit}:${file}`], {
+        allowFailure: true,
+      }).status === 0;
+    const exists =
+      git(ctx.candidate.root, ["cat-file", "-e", `:${file}`], { allowFailure: true }).status === 0;
+    judgeChanges.push({
+      path: file,
+      change: !existed ? "added" : exists ? "modified" : "deleted",
+      kind: declaration?.kind ?? "migrate",
+      reason: declaration?.reason ?? "merged from the integration topic",
+      declared_by: ctx.task.judge_input_changes?.some((entry) => entry.path === file)
+        ? "task"
+        : declaration
+          ? "implementer"
+          : "integration",
+    });
+  }
   const tests = testEdits(ctx.candidate, ctx.config, snapshot.changed_files, ctx.task.test_edits);
   const testPolicyEvidence = {
     effective_policy: tests.effective_policy,
     ...(tests.reason ? { reason: tests.reason } : {}),
   };
   const structural = [
+    {
+      id: "judge-inputs",
+      status: undeclaredJudgeInputs.length ? "fail" : "pass",
+      files: undeclaredJudgeInputs,
+    },
     { id: "allowed-scope", status: outOfScope.length ? "fail" : "pass", files: outOfScope },
     { id: "protected-paths", status: protectedHits.length ? "fail" : "pass", files: protectedHits },
     {
@@ -132,6 +177,7 @@ export async function runChecksStage(_stage, ctx) {
       candidate_digest: snapshot.candidate_digest,
       changed_files: snapshot.changed_files,
       checks: structural,
+      judge_input_changes: judgeChanges,
       ...testPolicyEvidence,
       fixers,
     };
@@ -145,6 +191,7 @@ export async function runChecksStage(_stage, ctx) {
       out_of_scope: outOfScope,
       protected: protectedHits,
       test_edits: tests.offending,
+      judge_inputs: undeclaredJudgeInputs,
       duration_ms: Date.now() - started,
     });
     return "violation";
@@ -443,11 +490,13 @@ export async function runChecksStage(_stage, ctx) {
     structural,
     fixers,
     results,
+    judge_input_changes: judgeChanges,
     test_changes: testChanges,
     tests_on_base: testsOnBase,
   });
   ctx.state.last_verification = {
     status,
+    judge_input_changes: judgeChanges,
     ...testPolicyEvidence,
     duration_ms,
     test_changes: testChanges,
@@ -472,7 +521,12 @@ export async function runChecksStage(_stage, ctx) {
         : []),
     ],
   };
-  ctx.event("verification.finished", { status, candidate_digest: snapshot.candidate_digest, duration_ms });
+  ctx.event("verification.finished", {
+    status,
+    ...(status === "violation" ? { judge_inputs: undeclaredJudgeInputs } : {}),
+    candidate_digest: snapshot.candidate_digest,
+    duration_ms,
+  });
   if (status === "fail") {
     ctx.state.findings = verificationFindings(results);
     ctx.state.verification_history = appendHistory(

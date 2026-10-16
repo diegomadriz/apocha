@@ -261,6 +261,25 @@ commands, so they are ignored by default with a notice on stderr. To trust one, 
   output from their own family higher.
 - The resolved config is hashed into `runtime_config_digest` in every receipt.
 
+## Judge inputs
+
+`paths.judge_inputs` adds up to 100 patterns to the built-in list (it cannot remove
+built-ins). The effective deduplicated list is part of the config digest:
+
+`biome.json`, `biome.jsonc`, `tsconfig.json`, `tsconfig.*.json`, `jsconfig.json`,
+`.eslintrc*`, `eslint.config.*`, `jest.config.*`, `vitest.config.*`, `conftest.py`,
+`pytest.ini`, `tox.ini`, `setup.cfg`, `pyproject.toml`, `package.json`, `AGENTS.md`.
+
+Matching is case-insensitive. A basename matches at any depth; a trailing `/`
+matches a directory prefix; other entries containing `/` match the repository path.
+Only `*` wildcards in the last component are supported, using the existing path
+pattern validator. Existing test and check-selection matching is unchanged.
+
+Changed judge inputs require declarations or the structural `judge-inputs` check
+fails. Protected, forbidden and governance paths follow tier 0 rules only;
+governance edits still require the governance flag and reason. Integration runs
+automatically declare otherwise undeclared judge inputs as migrations.
+
 ## Task manifest
 
 Schema: `schemas/task.schema.json`.
@@ -280,6 +299,7 @@ Schema: `schemas/task.schema.json`.
 | `fail_fast` | | Boolean, default false. After a failing check, skip checks not yet started; running checks finish. |
 | `max_repair_attempts` | | 0 to 2, at most the project limit |
 | `new_tests_must_fail_on_base` | | Boolean, default false. With `tests.run_files` enabled, any `passes_on_base` result fails `tests-fail-before` and goes to repair. Errors do not count as evidence. |
+| `judge_input_changes` | | Up to 50 `{ path, kind, reason }` entries; kind is `tighten`, `migrate`, `extend`, or `fix`, reason is 1–500 characters. Paths must be canonical, unique, inside allowed_paths, judge inputs, and outside governance and protected paths. |
 | `test_edits` | | Policy for existing tests. Default: `justified`. See [Test edit policy](#test-edit-policy). |
 
 ### Test edit policy
@@ -376,3 +396,8 @@ The review bundle also lists undeclared changed test files.
 `read_only_paths` and `allowed_paths` must not overlap: neither may equal,
 contain, or sit inside an entry of the other. For example, read-only
 `schemas/` conflicts with editable `schemas/task.schema.json`.
+
+Implementers may also declare `judge_input_changes` in their latest `submit_result`.
+Task declarations take precedence. Declarations for unchanged files are ignored.
+Verification records each declared change's path, added/modified/deleted status,
+kind, reason and declared_by (`task`, `implementer`, or `integration`).

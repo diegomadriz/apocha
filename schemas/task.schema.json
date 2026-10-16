@@ -145,6 +145,39 @@
           }
         }
       }
+    },
+    "judge_input_changes": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "kind",
+          "reason"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "kind": {
+            "enum": [
+              "tighten",
+              "migrate",
+              "extend",
+              "fix"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      }
     }
   },
   "$defs": {
