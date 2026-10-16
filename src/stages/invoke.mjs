@@ -127,8 +127,14 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
     if (runtime) ctx.state.runtimes[role] = runtime;
     if (run?.usage) addUsage(ctx.state.usage, role, run.usage);
     const finalMessage = typeof run?.final_message === "string" ? run.final_message.slice(0, 2000) : null;
-    if (finalMessage !== null)
-      writeFileSync(path.join(sessionDir, "final-message.txt"), finalMessage, { mode: 0o600, flag: "wx" });
+    let finalMessageSaved = true;
+    if (finalMessage !== null) {
+      try {
+        writeFileSync(path.join(sessionDir, "final-message.txt"), finalMessage, { mode: 0o600 });
+      } catch {
+        finalMessageSaved = false;
+      }
+    }
     const summary = {
       role,
       invocation: index,
@@ -138,6 +144,7 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
       tool_errors: trace.filter((entry) => !entry.ok).length,
       submitted: result !== null,
       ...(finalMessage !== null ? { final_message_chars: finalMessage.length } : {}),
+      ...(!finalMessageSaved ? { final_message_saved: false } : {}),
       ...(failure ? { error: describeError(failure) } : {}),
     };
     ctx.event("agent.finished", summary);
