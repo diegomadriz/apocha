@@ -107,6 +107,8 @@ export async function runReviewStage(_stage, ctx) {
   let invalid = null;
   if (result.candidate_digest !== verified.candidate_digest)
     invalid = "review names a different candidate digest";
+  else if (result.decision === "PASS" && result.findings.some((finding) => finding.severity === "blocking"))
+    invalid = "PASS with a blocking finding";
   else if (result.decision === "FIX" && !result.findings.length) invalid = "FIX without findings";
   else if (result.decision === "ESCALATE" && !result.reason) invalid = "ESCALATE without a reason";
   if (invalid) {

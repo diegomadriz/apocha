@@ -25,6 +25,13 @@ export async function runPromoteStage(_stage, ctx) {
       "promotion requires a PASS review of the verified candidate",
     );
   }
+  if (review.findings.some((finding) => finding.severity === "blocking")) {
+    throw new HarnessError(
+      "integrity",
+      "unreviewed",
+      "promotion requires a PASS review without blocking findings",
+    );
+  }
   const checks = verified.checks
     .filter((check) => check.definition_digest)
     .map((check) => {

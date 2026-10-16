@@ -20,6 +20,8 @@ export default {
 };
 ```
 
+A candidate review returning `PASS` with a `blocking` finding is invalid and becomes `ESCALATE`; promotion also rejects such stored reviews. `PASS` with only `minor` findings or findings without severity remains valid and can promote.
+
 ## Stage kinds
 
 | Kind | Outcomes | What it does |
