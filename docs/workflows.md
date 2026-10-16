@@ -11,7 +11,7 @@ export default {
   start: "implement",
   stages: {
     implement: { kind: "agent", role: "implementer", on: { done: "verify", no_changes: "ESCALATED", blocked: "blocked-review" } },
-    verify: { kind: "checks", on: { pass: "review", fail: "repair", violation: "FAILED", infra_error: "ESCALATED" } },
+    verify: { kind: "checks", on: { pass: "review", fail: "repair", violation: "FAILED", infra_error: "ESCALATED", loosened: "ESCALATED" } },
     repair: { kind: "budget", counter: "repairs", on: { available: "implement", exhausted: "ESCALATED" } },
     "blocked-review": { kind: "review", role: "reviewer", mode: "blocked-claim", on: { PASS: "repair", FIX: "repair", ESCALATE: "ESCALATED", too_large: "ESCALATED" } },
     review: { kind: "review", role: "reviewer", on: { PASS: "promote", FIX: "repair", ESCALATE: "ESCALATED", too_large: "ESCALATED" } },
@@ -27,7 +27,7 @@ A candidate review returning `PASS` with a `blocking` finding is invalid and bec
 | Kind | Outcomes | What it does |
 |---|---|---|
 | `agent` | `done`, `no_changes`, `blocked` | Runs the implementer with the task bundle and any findings; snapshots completed candidates or records a blocked reason |
-| `checks` | `pass`, `fail`, `violation`, `infra_error` | Automatic fixers, then structural checks (scope, protected paths, test edits), then the task's catalog checks, then a re-snapshot. A failure becomes findings for the next attempt. |
+| `checks` | `pass`, `fail`, `violation`, `infra_error`, `loosened` | Automatic fixers, then structural checks (scope, protected paths, test edits), then the task's catalog checks, then a re-snapshot. A failure becomes findings for the next attempt. |
 | `review` | `PASS`, `FIX`, `ESCALATE`, `too_large` | Runs the reviewer on the verified candidate, or confirms a blocked claim with `mode: "blocked-claim"` without checks; validates the decision and its digest binding |
 | `budget` | `available`, `exhausted` | Spends one unit of a counter (`repairs` is bounded by the task) |
 | `human` | `approve`, `reject` | Pauses the run until `apocha resume <run> --decision approve\|reject` |
@@ -132,6 +132,22 @@ A task can set `new_tests_must_fail_on_base: true` to turn passing-on-base files
 into a failing `tests-fail-before` check with findings naming the files.
 Normal repair limits apply, including escalation when exhausted. Errors never
 count as evidence either way. Without `tests.run_files`, no base tests run.
+
+## Base-judge run
+
+When declared judge input changes exist and catalog checks, test-changes, and
+tests-fail-before all pass, verification reruns the task's catalog checks on the
+candidate with every changed judge input restored to its base version. Added
+judge inputs are absent; modified or deleted inputs use the base content.
+The same options, order, concurrency and fail-fast rules apply.
+
+Verification state and JSON record `base_judge` with status, restored paths, and
+check IDs, statuses, exit codes and durations. The `base-judge.finished` event
+records status and failing check IDs without output text. A failed check returns
+`loosened`, routed directly to `ESCALATED` in both workflows without repair or
+promotion. Infrastructure errors return `infra_error`. Promotion requires passing
+base-judge evidence for declared changes, and receipts retain that evidence.
+Without judge input changes there is no extra run or field.
 
 ## Validation
 

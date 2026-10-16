@@ -16,6 +16,7 @@ Schema: `schemas/receipt-v3.schema.json`.
 | `promoted_head`, `tree`, `parents`, `base_commit` | The commit's identity; `base_commit` is the first parent |
 | `candidate_digest` | `sha256({ base_commit, changed_files, diff })` of the verified candidate |
 | `checks[]` | Each check's ID, `pass`, the digest of its definition (argv, cwd, timeout, dependencies, network, env), and the sandbox it ran in |
+| `judge_inputs` | Optional, present only for judge input changes: `changes` records path, change, kind, reason and declared_by; `base_judge` records status `pass`, restored paths and check IDs. Every restored path must appear in changes. Older receipts remain valid. |
 | `tests` | Test edit policy, added test paths, and modified existing test paths (including deletions). Optional in older v3 receipts. |
 | `tests.on_base` | Added and modified test files run against base code, when `tests.run_files` is configured. |
 | `tests.test_changes` | Optional `justified` evidence: path, modification/deletion, `old_on_candidate`, `new_on_base` for modified files, and verdict (`necessary`, `unnecessary`, `weakened`, `error`, `refactor`, `declared_fixture`). Verification and run state keep it; review includes file diffs. Older receipts still verify. |

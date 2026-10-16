@@ -21,7 +21,13 @@ export default {
     },
     verify: {
       kind: "checks",
-      on: { pass: "review", fail: "repair", violation: "FAILED", infra_error: "ESCALATED" },
+      on: {
+        pass: "review",
+        fail: "repair",
+        violation: "FAILED",
+        infra_error: "ESCALATED",
+        loosened: "ESCALATED",
+      },
     },
     repair: { kind: "budget", counter: "repairs", on: { available: "implement", exhausted: "ESCALATED" } },
     "blocked-review": {

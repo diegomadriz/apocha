@@ -198,54 +198,61 @@ export async function runChecksStage(_stage, ctx) {
   }
 
   ctx.event("verification.started", { candidate_digest: snapshot.candidate_digest, checks: ctx.task.checks });
-  /** @type {import("../checks/runner.mjs").CheckResult[]} */
-  const results = [];
   const secretFileCache = (ctx.secretFileCache ??= { files: new Map() });
-  let next = 0;
-  let failed = false;
   const dependencyOptions = {
     onValidation: (/** @type {string} */ source) => ctx.event("dependencies.validation", { source }),
   };
-  const worker = async () => {
-    while (next < ctx.task.checks.length && !ctx.signal?.aborted) {
-      if (ctx.task.fail_fast && failed) return;
-      const index = next++;
-      const id = ctx.task.checks[index];
-      const result = await runCheck({
-        check: ctx.config.checks[id],
-        candidate: ctx.candidate,
-        config: ctx.config,
-        backend: ctx.sandboxBackend,
-        signingKey: ctx.runtimes?.signing?.key,
-        secretFileCache,
-        dependencyOptions,
-        signal: ctx.signal,
-      });
-      results[index] = result;
-      if (result.status !== "pass") failed = true;
-    }
-  };
-  await Promise.all(
-    Array.from({ length: Math.min(ctx.config.limits.check_concurrency, ctx.task.checks.length) }, worker),
-  );
-  if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
-  for (let index = next; index < ctx.task.checks.length; index++) {
-    const id = ctx.task.checks[index];
-    results[index] = {
-      id,
-      status: "skipped",
-      exit_code: null,
-      error: "skipped after a failing check",
-      stdout: "",
-      stderr: "",
-      stdout_truncated: false,
-      stderr_truncated: false,
-      output_digest: "",
-      definition_digest: checkDefinitionDigest(ctx.config.checks[id]),
-      sandbox: ctx.config.checks[id].unsandboxed ? "none" : ctx.sandboxBackend,
-      duration_ms: 0,
+  /** @param {string[]} [baseFiles] */
+  const runCatalog = async (baseFiles) => {
+    /** @type {import("../checks/runner.mjs").CheckResult[]} */
+    const results = [];
+    let next = 0;
+    let failed = false;
+    const worker = async () => {
+      while (next < ctx.task.checks.length && !ctx.signal?.aborted) {
+        if (ctx.task.fail_fast && failed) return;
+        const index = next++;
+        const id = ctx.task.checks[index];
+        const result = await runCheck({
+          check: ctx.config.checks[id],
+          candidate: ctx.candidate,
+          config: ctx.config,
+          backend: ctx.sandboxBackend,
+          signingKey: ctx.runtimes?.signing?.key,
+          secretFileCache,
+          dependencyOptions,
+          signal: ctx.signal,
+          ...(baseFiles ? { baseFiles } : {}),
+        });
+        results[index] = result;
+        if (result.status !== "pass") failed = true;
+      }
     };
-  }
+    await Promise.all(
+      Array.from({ length: Math.min(ctx.config.limits.check_concurrency, ctx.task.checks.length) }, worker),
+    );
+    if (ctx.signal?.aborted) throw new HarnessError("infra", "aborted", "run aborted");
+    for (let index = next; index < ctx.task.checks.length; index++) {
+      const id = ctx.task.checks[index];
+      results[index] = {
+        id,
+        status: "skipped",
+        exit_code: null,
+        error: "skipped after a failing check",
+        stdout: "",
+        stderr: "",
+        stdout_truncated: false,
+        stderr_truncated: false,
+        output_digest: "",
+        definition_digest: checkDefinitionDigest(ctx.config.checks[id]),
+        sandbox: ctx.config.checks[id].unsandboxed ? "none" : ctx.sandboxBackend,
+        duration_ms: 0,
+      };
+    }
+
+    return results;
+  };
+  const results = await runCatalog();
   // Publish evidence only after all workers finish, in the task's order.
   for (const result of results) {
     ctx.event("check.finished", {
@@ -466,17 +473,50 @@ export async function runChecksStage(_stage, ctx) {
       ctx.event("check.finished", { id: "tests-fail-before", status: "fail", error: reason });
     }
   }
+  /** @type {NonNullable<import("../core/context.mjs").RunState["last_verification"]>["base_judge"]} */
+  let baseJudge;
+  if (
+    results.every((result) => result.status === "pass") &&
+    judgeChanges.length &&
+    snapshotCandidate(ctx.candidate).candidate_digest === snapshot.candidate_digest
+  ) {
+    const restored = judgeChanges.map((change) => change.path);
+    const baseResults = await runCatalog(restored);
+    const status = baseResults.some((result) => result.status === "infra_error")
+      ? "infra_error"
+      : baseResults.some((result) => result.status === "fail")
+        ? "fail"
+        : "pass";
+    baseJudge = {
+      status,
+      restored,
+      checks: baseResults.map(({ id, status, exit_code, duration_ms }) => ({
+        id,
+        status,
+        exit_code,
+        duration_ms,
+      })),
+    };
+    const failing = baseResults.filter((result) => result.status === "fail").map((result) => result.id);
+    ctx.event("base-judge.finished", { status, failed_checks: failing });
+    if (status === "fail")
+      ctx.state.reason = `declared judge input changes are needed for checks to pass: ${failing.join(", ")} fail with the base versions of ${restored.join(", ")}`;
+  }
   const after = snapshotCandidate(ctx.candidate);
   const changedDuringChecks = after.candidate_digest !== snapshot.candidate_digest;
 
   const statuses = results.map((result) => result.status);
   const status = changedDuringChecks
     ? "violation"
-    : statuses.includes("infra_error")
+    : baseJudge?.status === "infra_error"
       ? "infra_error"
-      : statuses.includes("fail")
-        ? "fail"
-        : "pass";
+      : baseJudge?.status === "fail"
+        ? "loosened"
+        : statuses.includes("infra_error")
+          ? "infra_error"
+          : statuses.includes("fail")
+            ? "fail"
+            : "pass";
   const evidenceFile = path.join(
     ctx.store.dir(ctx.runId),
     `verification-${String(ctx.state.attempt).padStart(2, "0")}.json`,
@@ -490,12 +530,14 @@ export async function runChecksStage(_stage, ctx) {
     structural,
     fixers,
     results,
+    ...(baseJudge ? { base_judge: baseJudge } : {}),
     judge_input_changes: judgeChanges,
     test_changes: testChanges,
     tests_on_base: testsOnBase,
   });
   ctx.state.last_verification = {
     status,
+    ...(baseJudge ? { base_judge: baseJudge } : {}),
     judge_input_changes: judgeChanges,
     ...testPolicyEvidence,
     duration_ms,

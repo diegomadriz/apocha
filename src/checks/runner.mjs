@@ -217,6 +217,14 @@ export async function runCheck({
         if (isForbidden(file, config.paths.forbidden)) throw new Error(`base file is forbidden: ${file}`);
         const target = path.resolve(execRoot, file);
         if (!isInside(target, execRoot)) throw new Error("base file escapes the tree");
+        const existsAtBase =
+          git(candidate.root, ["cat-file", "-e", `${candidate.base_commit}:${file}`], {
+            allowFailure: true,
+          }).status === 0;
+        if (!existsAtBase) {
+          rmSync(target, { force: true });
+          continue;
+        }
         const contents = gitBuffer(candidate.root, ["show", `${candidate.base_commit}:${file}`]);
         mkdirSync(path.dirname(target), { recursive: true });
         rmSync(target, { force: true });

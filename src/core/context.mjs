@@ -33,6 +33,7 @@
  *     effective_policy?: import("../config/task.mjs").Task["test_edits"], reason?: string,
  *     fixers?: import("../checks/fixers.mjs").FixerResult[],
  *     judge_input_changes?: (import("../config/task.mjs").JudgeInputChange & { change: "added" | "modified" | "deleted", declared_by: "task" | "implementer" | "integration" })[],
+ *     base_judge?: { status: "pass" | "fail" | "infra_error", restored: string[], checks: { id: string, status: string, exit_code: number | null, duration_ms: number }[] },
  *     test_changes?: TestChangeEvidence[],
  *     tests_on_base?: { path: string, result: "passes_on_base" | "fails_on_base" | "error" | "not_run" }[],
  *     checks: { id: string, status: string, exit_code?: number | null, error?: string | null, definition_digest?: string, sandbox?: string, output_digest?: string, duration_ms?: number, files?: string[] }[],

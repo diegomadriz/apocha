@@ -287,7 +287,10 @@
                 "properties": {
                   "verdict": {
                     "not": {
-                      "enum": ["declared_fixture", "unevaluated"]
+                      "enum": [
+                        "declared_fixture",
+                        "unevaluated"
+                      ]
                     }
                   }
                 }
@@ -553,6 +556,90 @@
           "criterion",
           "evidence"
         ]
+      }
+    },
+    "judge_inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changes",
+        "base_judge"
+      ],
+      "properties": {
+        "changes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "change",
+              "kind",
+              "reason",
+              "declared_by"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "change": {
+                "enum": [
+                  "added",
+                  "modified",
+                  "deleted"
+                ]
+              },
+              "kind": {
+                "enum": [
+                  "fix",
+                  "extend",
+                  "migrate"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "declared_by": {
+                "enum": [
+                  "task",
+                  "implementer",
+                  "integration"
+                ]
+              }
+            }
+          }
+        },
+        "base_judge": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "restored",
+            "checks"
+          ],
+          "properties": {
+            "status": {
+              "const": "pass"
+            },
+            "restored": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "checks": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
       }
     }
   },

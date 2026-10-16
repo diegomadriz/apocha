@@ -17,7 +17,7 @@ export const TERMINAL_STATES = Object.freeze(["PASSED", "FAILED", "ESCALATED"]);
 export const STAGE_OUTCOMES = Object.freeze({
   seed: ["done", "conflict", "empty"],
   agent: ["done", "no_changes", "blocked"],
-  checks: ["pass", "fail", "violation", "infra_error"],
+  checks: ["pass", "fail", "violation", "infra_error", "loosened"],
   budget: ["available", "exhausted"],
   review: ["PASS", "FIX", "ESCALATE", "too_large"],
   human: ["approve", "reject"],

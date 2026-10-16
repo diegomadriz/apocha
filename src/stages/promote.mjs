@@ -16,6 +16,8 @@ import { GENERATOR } from "../version.mjs";
 export async function runPromoteStage(_stage, ctx) {
   const verified = ctx.state.last_verification;
   const review = ctx.state.last_review;
+  if (verified?.judge_input_changes?.length && verified.base_judge?.status !== "pass")
+    throw new HarnessError("integrity", "judge_not_verified", "promotion requires a passing base-judge run");
   if (verified?.status !== "pass")
     throw new HarnessError("integrity", "unverified", "promotion requires a passing verification");
   if (review?.decision !== "PASS" || review.candidate_digest !== verified.candidate_digest) {
@@ -83,6 +85,18 @@ export async function runPromoteStage(_stage, ctx) {
       base_commit: promotion.old_head,
       candidate_digest: verified.candidate_digest,
       checks,
+      ...(verified.judge_input_changes?.length
+        ? {
+            judge_inputs: {
+              changes: verified.judge_input_changes,
+              base_judge: {
+                status: "pass",
+                restored: verified.base_judge.restored,
+                checks: verified.base_judge.checks.map((check) => check.id),
+              },
+            },
+          }
+        : {}),
       ...(ctx.state.implementation?.criteria_evidence
         ? { criteria_evidence: ctx.state.implementation.criteria_evidence }
         : {}),

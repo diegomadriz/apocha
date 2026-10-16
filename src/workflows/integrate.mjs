@@ -16,7 +16,13 @@ export default {
     merge: { kind: "seed", on: { done: "verify", conflict: "ESCALATED", empty: "FAILED" } },
     verify: {
       kind: "checks",
-      on: { pass: "review", fail: "repair", violation: "FAILED", infra_error: "ESCALATED" },
+      on: {
+        pass: "review",
+        fail: "repair",
+        violation: "FAILED",
+        infra_error: "ESCALATED",
+        loosened: "ESCALATED",
+      },
     },
     repair: { kind: "budget", counter: "repairs", on: { available: "implement", exhausted: "ESCALATED" } },
     implement: {

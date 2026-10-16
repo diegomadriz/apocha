@@ -176,6 +176,12 @@ export function verifyReceipt(
     const violation = legacyViolation(receipt);
     if (violation) return invalid(violation);
   }
+  if (receipt.judge_inputs) {
+    const paths = new Set(receipt.judge_inputs.changes.map((change) => change.path));
+    for (const restored of receipt.judge_inputs.base_judge.restored)
+      if (!paths.has(restored))
+        return invalid(`judge_inputs restored path is missing from changes: ${restored}`);
+  }
   if (receipt.promoted_head !== commit) return invalid("promoted_head does not match the commit");
   if (receipt.tree !== actual.tree) return invalid("tree does not match the commit");
   if (
