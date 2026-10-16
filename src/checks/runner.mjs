@@ -18,7 +18,6 @@ import { describeError } from "../util/errors.mjs";
 import { git, gitBuffer, gitCommonDir } from "../util/git.mjs";
 import {
   canonicalPath,
-  expandHome,
   forbiddenDenyPaths,
   forbiddenMaterializedPaths,
   isForbidden,
@@ -63,6 +62,56 @@ export function sourceSecretFiles(sourceRoot) {
     .filter(Boolean)
     .map((relative) => path.resolve(sourceRoot, relative))
     .sort();
+}
+
+/**
+ * Existing home read exceptions, resolved without consulting the process environment.
+ * @param {{
+ *   hostHome: string, workspace: string, sourceRoot: string, execPath: string,
+ *   pathEntries: string[], corepackHome?: string, browser: boolean, allowRead: string[],
+ * }} input
+ * @returns {string[]}
+ */
+export function homeReadAllowList({
+  hostHome,
+  workspace,
+  sourceRoot,
+  execPath,
+  pathEntries,
+  corepackHome,
+  browser,
+  allowRead,
+}) {
+  const home = realpathSync(hostHome);
+  const allowed = new Set();
+  /** @param {string} entry */
+  const resolve = (entry) =>
+    realpathSync(entry === "~" ? home : entry.startsWith("~/") ? path.join(home, entry.slice(2)) : entry);
+  /** @param {string} entry */
+  const allow = (entry) => {
+    try {
+      const resolved = resolve(entry);
+      if (resolved !== home && isInside(resolved, home)) allowed.add(resolved);
+    } catch {}
+  };
+  allow(workspace);
+  allow(sourceRoot);
+  try {
+    allow(path.dirname(path.dirname(resolve(execPath))));
+  } catch {}
+  for (const entry of pathEntries) {
+    if (!entry) continue;
+    try {
+      const resolved = resolve(entry);
+      if (!statSync(resolved).isDirectory() || !isInside(resolved, home)) continue;
+      allow(resolved);
+      if (path.basename(resolved) === "bin") allow(path.dirname(resolved));
+    } catch {}
+  }
+  if (corepackHome) allow(corepackHome);
+  if (browser) allow(path.join(home, "Library/Caches/ms-playwright"));
+  for (const entry of allowRead) allow(entry);
+  return [...allowed];
 }
 
 /** Digest of a check definition, recorded in receipts so a changed command is visible. @param {import("../config/project.mjs").CheckDefinition} check */
@@ -323,39 +372,27 @@ export async function runCheck({
         config.sandbox.deny_sockets,
       );
       const denyReadTrees = [];
-      const allowRead = new Set();
+      let allowRead = [];
       if (backend === "seatbelt" && config.sandbox.home_reads === "deny") {
         const hostHome = realpathSync(os.homedir());
         denyReadTrees.push(hostHome);
-        /** @param {string} entry */
-        const allow = (entry) => {
-          try {
-            const resolved = realpathSync(expandHome(entry));
-            if (isInside(resolved, hostHome)) allowRead.add(resolved);
-          } catch {}
-        };
-        allow(workspace);
-        allow(sourceRoot);
-        allow(path.dirname(path.dirname(realpathSync(process.execPath))));
-        for (const entry of env.PATH.split(path.delimiter)) {
-          if (!entry) continue;
-          try {
-            const resolved = realpathSync(entry);
-            if (!statSync(resolved).isDirectory() || !isInside(resolved, hostHome)) continue;
-            allow(resolved);
-            if (path.basename(resolved) === "bin") allow(path.dirname(resolved));
-          } catch {}
-        }
-        if (env.COREPACK_HOME) allow(env.COREPACK_HOME);
-        if (check.browser) allow(path.join(hostHome, "Library/Caches/ms-playwright"));
-        for (const entry of config.sandbox.allow_read) allow(entry);
+        allowRead = homeReadAllowList({
+          hostHome,
+          workspace,
+          sourceRoot,
+          execPath: process.execPath,
+          pathEntries: env.PATH.split(path.delimiter),
+          corepackHome: env.COREPACK_HOME,
+          browser: check.browser,
+          allowRead: config.sandbox.allow_read,
+        });
       }
       const wrapped = wrapCommand(
         backend,
         {
           writable: [workspace],
           denyReadTrees,
-          allowRead: [...allowRead],
+          allowRead,
           denyRead,
           denySockets,
           network,

@@ -204,10 +204,15 @@ set `sandbox.mode: "none"` to run checks without an OS sandbox. Runs needing no 
 check or fixer can still start. Linux reads outside the deny list remain possible;
 bubblewrap is unchanged and has not yet been run on a real Linux host.
 
-Seatbelt allows home paths for the check workspace, source checkout, Node install prefix,
-directories on the check\'s PATH (and their parent when named `bin`), `COREPACK_HOME`,
-and `~/Library/Caches/ms-playwright` for browser checks. These exceptions and `allow_read`
-never override credential, source history, secret or forbidden-path denies.
+With `sandbox.home_reads: "deny"`, Seatbelt allows only existing realpaths strictly
+inside the host home directory for the check workspace, source checkout, Node's install
+prefix, each directory on the check's PATH and its parent when the directory is named
+`bin` (unless that parent is the home directory), the corepack home (`COREPACK_HOME`),
+the Playwright cache (`~/Library/Caches/ms-playwright`) for browser checks, and
+`sandbox.allow_read` entries. Missing paths are skipped. The home directory itself is
+never allowed, even through `sandbox.allow_read: ["~"]` or a symlink; use
+`sandbox.home_reads: "allow"` to allow home reads. Credential, source history, secret
+and forbidden-path denies come after the allow list and still win.
 
 ### `limits`
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- macOS home read exceptions never reopen the home directory itself, including through PATH bin parents, Node prefixes, or symlinks. Credential denies now cover toolchain credential files and additional credential stores, and still override home allows.
+
 - Sandbox mode `auto` now fails closed without a backend (except inside an already sandboxed check); install bubblewrap on Linux or explicitly set `sandbox.mode: "none"` to opt out.
 - macOS checks deny home directory reads except the workspace, source checkout and toolchain directories. `sandbox.allow_read` adds exceptions and `sandbox.home_reads: "allow"` opts out; credential and source denies still win. Linux bubblewrap is unchanged, reads outside its deny list remain possible, and it has not yet been run on a real Linux host.
 

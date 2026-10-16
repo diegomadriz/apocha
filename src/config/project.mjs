@@ -30,6 +30,18 @@ export const DEFAULT_DENY_READ = Object.freeze([
   "~/.docker",
   "~/.kube",
   "~/.git-credentials",
+  "~/.cargo/credentials",
+  "~/.cargo/credentials.toml",
+  "~/.gem/credentials",
+  "~/.gradle/gradle.properties",
+  "~/.m2/settings.xml",
+  "~/.m2/settings-security.xml",
+  "~/.terraform.d/credentials.tfrc.json",
+  "~/.vault-token",
+  "~/.password-store",
+  "~/.local/share/keyrings",
+  "~/.config/op",
+  "~/.pub-cache/credentials.json",
   "~/Library/Keychains",
 ]);
 

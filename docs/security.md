@@ -62,9 +62,24 @@ excludes them. Only the controller runs them during verification, after structur
 Every path those self-test selection rules select on is also a governance path in Apocha's
 own config. Projects using `unsandboxed: true` should follow the same pattern.
 
+With `sandbox.home_reads: "deny"`, Seatbelt allows only existing realpaths strictly
+inside the host home directory for the check workspace, source checkout, Node's install
+prefix, each directory on the check's PATH and its parent when the directory is named
+`bin` (unless that parent is the home directory), the corepack home (`COREPACK_HOME`),
+the Playwright cache (`~/Library/Caches/ms-playwright`) for browser checks, and
+`sandbox.allow_read` entries. Missing paths are skipped. The home directory itself is
+never allowed, even through `sandbox.allow_read: ["~"]` or a symlink; use
+`sandbox.home_reads: "allow"` to allow home reads. Credential, source history, secret
+and forbidden-path denies come after the allow list and still win.
+
 The default deny list covers `~/.ssh`, `~/.aws`, `~/.azure`, `~/.config/gcloud`, `~/.config/gh`,
 `~/.codex`, `~/.claude`, `~/.pi`, `~/.gnupg`, `~/.netrc`, `~/.npmrc`, `~/.pypirc`, `~/.docker`,
-`~/.kube`, `~/.git-credentials`, and `~/Library/Keychains`. Add more with `sandbox.deny_read`.
+`~/.kube`, `~/.git-credentials`, `~/Library/Keychains`, `~/.cargo/credentials`,
+`~/.cargo/credentials.toml`, `~/.gem/credentials`, `~/.gradle/gradle.properties`,
+`~/.m2/settings.xml`, `~/.m2/settings-security.xml`,
+`~/.terraform.d/credentials.tfrc.json`, `~/.vault-token`, `~/.password-store`,
+`~/.local/share/keyrings`, `~/.config/op`, and `~/.pub-cache/credentials.json`.
+Add more with `sandbox.deny_read`.
 
 Sandboxed checks also deny reads of untracked files in the source checkout, including ignored
 files, whose basenames match `.env`, `.env.*`, `*.pem`, `*.key`, `id_rsa*`, or
