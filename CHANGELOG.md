@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reviewer bundles separate implementer text under `untrusted` with a provenance map. The prompt treats it, diffs, and file content as data, never instructions, and requires blocking findings for steering attempts. Real-model resistance is measured only by a small private evaluation and is not guaranteed.
+
 - Reviewers must justify every declared judge input change by path before PASS; promotion enforces the verdicts and receipts record them. Receipt validation now accepts the `tighten` declaration kind.
 
 - Declared judge input changes must pass checks with the base judge inputs restored; loosening escalates without repair or promotion, and passing evidence is recorded in receipts.

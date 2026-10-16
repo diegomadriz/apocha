@@ -124,7 +124,6 @@ for (const kind of ["fix", "tighten"]) {
         change: "modified",
         kind,
         declared_by: "implementer",
-        declared_reason: declaration.reason,
         diff: String(
           git(repo.root, [
             "diff",
@@ -139,6 +138,9 @@ for (const kind of ["fix", "tighten"]) {
           ]).stdout,
         ),
       });
+      assert.deepEqual(bundles[0].untrusted.judge_input_reasons, [
+        { path: judgePath, declared_reason: declaration.reason },
+      ]);
       assert.match(entry.diff, /-"?\{"linter"/);
       assert.ok(entry.diff.includes(after.trim()));
       assert.deepEqual(bundles[0].base_judge, verification.base_judge);

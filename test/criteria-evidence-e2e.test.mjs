@@ -89,9 +89,9 @@ test("criteria evidence rejects invalid submissions, resubmits, pairs review cla
           criteria.map((text, index) => ({
             criterion: index + 1,
             acceptance_criterion: text,
-            evidence: claims.find((entry) => entry.criterion === index + 1).evidence,
           })),
         );
+        assert.deepEqual(context.bundle.untrusted.criteria_claims, claims);
         await passReviewer(context);
       },
     },
@@ -170,9 +170,9 @@ for (const repair of [false, true]) {
             criteria.map((text, index) => ({
               criterion: index + 1,
               acceptance_criterion: text,
-              evidence: expected.find((entry) => entry.criterion === index + 1).evidence,
             })),
           );
+          assert.deepEqual(context.bundle.untrusted.criteria_claims, expected);
           if (repair && reviews === 1) {
             await context.call("submit_result", {
               decision: "FIX",
@@ -227,7 +227,7 @@ test("blocked submissions through the controller need no criterion evidence", as
         });
       },
       reviewer: async ({ bundle, call }) => {
-        assert.equal(bundle.blocked_claim.blocked_reason, "check.mjs conflicts with required value");
+        assert.equal(bundle.untrusted.blocked_reason, "check.mjs conflicts with required value");
         await call("submit_result", {
           decision: "ESCALATE",
           findings: [],

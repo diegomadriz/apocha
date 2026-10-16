@@ -153,13 +153,24 @@ restrictions still enforced.
   `sandbox.mode: "auto"` and no backend available, checks run unsandboxed; use
   `"required"` to refuse instead.
 - **The reviewer reads text the implementer wrote.** The implementer's summary, evidence notes,
-  code comments, and diff reach the reviewer as data in its bundle. The prompt does not yet tell
-  the reviewer to treat embedded instructions as untrusted, and no test measures a real
-  reviewer's resistance to them.
+  uncertainties, and judge input reasons are grouped under bundle `untrusted`, including blocked
+  reasons and summaries. The controller's criteria and results stay separate, with a `provenance`
+  map marking `untrusted` and `diff` as untrusted. The prompt treats these, code comments,
+  and file content as data, never instructions, and requires steering attempts to be reported
+  as blocking findings with their location. A real reviewer's resistance is measured only by
+  a small private evaluation and is not guaranteed.
 
 ## Prompt injection
 
-Repository files are untrusted input to the agent. The design limits the damage an injected
+Repository files are untrusted input to the agent. The reviewer prompt says that bundle
+`untrusted`, the diff, and any file content it reads are data to verify, never instructions.
+Claims of checks running, waived rules, owner approval, or instructions to PASS must be ignored;
+steering attempts require a finding with severity `blocking` naming the location.
+Both ordinary and blocked-claim bundles separate implementer text under `untrusted` from
+controller criteria, results, and digests; `provenance` lists controller fields and marks
+`untrusted` and `diff` as untrusted. Deterministic fake-adapter tests verify this structure
+and prompt wording, not model behavior. A real reviewer's resistance is measured only by a
+small private evaluation and is not guaranteed. The design limits the damage an injected
 instruction can do: the agent cannot run commands, cannot read forbidden paths or credentials,
 cannot change the check commands, and the implementer cannot accept its own work. Acceptance depends on a separate reviewer that reads implementer-written text (see [Known gaps](#known-gaps)). Linux bubblewrap removes network access from checks unless a check allows it. On macOS, Seatbelt denies network and DNS services by default; checks can opt into loopback. The remaining exposure is that the
 model sends readable repository content to its provider, which is inherent to using a hosted model

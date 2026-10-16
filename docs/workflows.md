@@ -147,7 +147,8 @@ records status and failing check IDs without output text. A failed check returns
 `loosened`, routed directly to `ESCALATED` in both workflows without repair or
 promotion. Infrastructure errors return `infra_error`. Promotion requires passing
 base-judge evidence for declared changes, and receipts retain that evidence.
-The reviewer receives each declared change's diff and `declared_reason` claim, plus
+The reviewer receives each declared change's diff and its `declared_reason` claim under
+`untrusted.judge_input_reasons`, plus
 `base_judge` evidence. Passing the old judge proves only that this diff passes those
 checks. For `PASS`, `judge_input_verdicts` must contain exactly one `justified` verdict
 per declared path, with no unknown paths or duplicates; missing or unjustified verdicts

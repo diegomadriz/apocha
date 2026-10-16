@@ -59,10 +59,10 @@ for (const [changed, reason] of [
         },
         async ({ bundle, call }) => {
           reviews += 1;
-          assert.deepEqual(bundle.blocked_claim, {
-            blocked_reason: reason,
-            summary: "Task conflicts with check",
-          });
+          assert.deepEqual(
+            { blocked_reason: bundle.untrusted.blocked_reason, summary: bundle.untrusted.blocked_summary },
+            { blocked_reason: reason, summary: "Task conflicts with check" },
+          );
           assert.equal(bundle.verification, null);
           assert.equal(bundle.task.task_id, "set-value");
           assert.deepEqual(bundle.acceptance_criteria, ["src/value.txt contains 2"]);
@@ -148,7 +148,7 @@ for (const decision of ["FIX", "PASS"]) {
         },
         async ({ bundle, call, ...rest }) => {
           reviews += 1;
-          if (!bundle.blocked_claim) return passReviewer({ bundle, call, ...rest });
+          if (!bundle.untrusted.blocked_reason) return passReviewer({ bundle, call, ...rest });
           assert.equal(bundle.diff, "");
           assert.equal(bundle.verification, null);
           await call("submit_result", {

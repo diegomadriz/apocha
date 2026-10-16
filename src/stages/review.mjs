@@ -60,7 +60,6 @@ export async function runReviewStage(_stage, ctx) {
   }
   const judgeInputChanges = (verified.judge_input_changes ?? []).map(({ reason, ...entry }) => ({
     ...entry,
-    declared_reason: reason,
     diff: String(
       git(ctx.candidate.root, [
         "diff",
@@ -83,14 +82,20 @@ export async function runReviewStage(_stage, ctx) {
     return "too_large";
   }
   const bundle = {
+    untrusted: {
+      implementer_summary: ctx.state.implementation?.summary ?? null,
+      implementer_uncertainties: ctx.state.implementation?.unresolved_uncertainties ?? [],
+      criteria_claims: ctx.state.implementation?.criteria_evidence ?? [],
+      judge_input_reasons: (verified.judge_input_changes ?? []).map(({ path, reason }) => ({
+        path,
+        declared_reason: reason,
+      })),
+    },
     judge_input_changes: judgeInputChanges,
     base_judge: verified.base_judge,
     criteria_evidence: ctx.task.acceptance_criteria.map((text, index) => ({
       criterion: index + 1,
       acceptance_criterion: text,
-      evidence:
-        ctx.state.implementation?.criteria_evidence?.find((entry) => entry.criterion === index + 1)
-          ?.evidence ?? [],
     })),
     test_changes: testChanges,
     refactors_to_check: testChanges
@@ -114,8 +119,6 @@ export async function runReviewStage(_stage, ctx) {
       candidate_digest: snapshot.candidate_digest,
       changed_files: snapshot.changed_files,
       deleted_files: deletedPaths,
-      implementer_summary: ctx.state.implementation?.summary ?? null,
-      implementer_uncertainties: ctx.state.implementation?.unresolved_uncertainties ?? [],
     },
     diff: snapshot.diff,
     verification: { checks: verified.checks.map((check) => ({ id: check.id, status: check.status })) },
@@ -124,7 +127,11 @@ export async function runReviewStage(_stage, ctx) {
     design_reference: designReference(ctx),
     ...(ctx.integration ? { integration: ctx.integration } : {}),
   };
-  const { result } = await invokeAgent(ctx, "reviewer", bundle, { deletedPaths });
+  const provenance = {
+    controller: [...Object.keys(bundle).filter((key) => key !== "untrusted" && key !== "diff"), "provenance"],
+    untrusted: ["untrusted", "diff"],
+  };
+  const { result } = await invokeAgent(ctx, "reviewer", { ...bundle, provenance }, { deletedPaths });
   const after = snapshotCandidate(ctx.candidate);
   if (after.candidate_digest !== verified.candidate_digest)
     throw new HarnessError("integrity", "candidate_changed_in_review", "candidate changed during review");
@@ -193,23 +200,33 @@ async function runBlockedClaimReview(ctx) {
     allowed_paths: ctx.task.allowed_paths,
     read_only_paths: ctx.task.read_only_paths,
     protected_paths: effectiveProtectedPaths(ctx.task, ctx.config, ctx.governance.edits_allowed),
-    blocked_claim: {
+    untrusted: {
+      implementer_summary: ctx.state.implementation?.summary ?? null,
+      implementer_uncertainties: ctx.state.implementation?.unresolved_uncertainties ?? [],
+      criteria_claims: ctx.state.implementation?.criteria_evidence ?? [],
       blocked_reason: ctx.state.implementation?.blocked_reason,
-      summary: ctx.state.implementation?.summary,
+      blocked_summary: ctx.state.implementation?.summary,
     },
+    criteria_evidence: ctx.task.acceptance_criteria.map((text, index) => ({
+      criterion: index + 1,
+      acceptance_criterion: text,
+    })),
     candidate: {
       base_commit: snapshot.base_commit,
       candidate_digest: snapshot.candidate_digest,
       changed_files: snapshot.changed_files,
       deleted_files: deletedPaths,
-      implementer_summary: ctx.state.implementation?.summary ?? null,
     },
     diff: snapshot.diff,
     verification: ctx.state.last_verification,
     design_reference: designReference(ctx),
     ...(ctx.integration ? { integration: ctx.integration } : {}),
   };
-  const { result } = await invokeAgent(ctx, "reviewer", bundle, { deletedPaths });
+  const provenance = {
+    controller: [...Object.keys(bundle).filter((key) => key !== "untrusted" && key !== "diff"), "provenance"],
+    untrusted: ["untrusted", "diff"],
+  };
+  const { result } = await invokeAgent(ctx, "reviewer", { ...bundle, provenance }, { deletedPaths });
   if (snapshotCandidate(ctx.candidate).candidate_digest !== snapshot.candidate_digest)
     throw new HarnessError("integrity", "candidate_changed_in_review", "candidate changed during review");
   if (result.candidate_digest !== snapshot.candidate_digest)
@@ -243,7 +260,8 @@ async function runBlockedClaimReview(ctx) {
   });
   ctx.state.blocked_claims ??= [];
   ctx.state.blocked_claims.push({
-    ...bundle.blocked_claim,
+    blocked_reason: bundle.untrusted.blocked_reason,
+    summary: bundle.untrusted.blocked_summary,
     decision: result.decision,
     confirmed,
     reviewer_reason: result.reason,
