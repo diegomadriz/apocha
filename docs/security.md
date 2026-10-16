@@ -155,8 +155,9 @@ restrictions still enforced.
   the edit must be a declared refactor, or keep every existing assertion and make the test fail
   on the old code; otherwise it is rejected. A failing old test may be changed or deleted as
   `necessary`; the reviewer decides whether the behaviour change matches the task. Added early
-  exits and new hook files such as `conftest.py` are left to the reviewer, who is instructed to
-  flag weakened or special-cased tests. For high-stakes tasks,
+  exits in existing tests are left to the reviewer, who is instructed to
+  flag weakened or special-cased tests. Hook files that are judge inputs, such as `conftest.py`,
+  `pytest.ini`, and `setup.cfg`, follow the judge input rule below. For high-stakes tasks,
   protect the test directory and put new tests in a separate task.
 - **Judge input coverage is bounded.** Inputs in the built-in list plus `paths.judge_inputs`
   may change only inside `allowed_paths`, with a declaration and justification for each.

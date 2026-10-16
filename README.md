@@ -48,8 +48,9 @@ task.json ─► candidate (private clone at the base commit)
   default falls back to `additive`, which accepts only added lines and new files. A test whose
   old version fails on the new code may be changed or deleted (verdict `necessary`), and the
   reviewer decides whether that behaviour change is what the task asks for. Added lines can still
-  change how a test runs (an early `return`, `process.exit(0)`, or a new `conftest.py`), so the
-  reviewer remains the check on those. The `new-files` policy forbids any change to existing tests.
+  change how an existing test runs (an early `return` or `process.exit(0)`), so the
+  reviewer remains the check on those. Hook files that are judge inputs, such as `conftest.py`,
+  `pytest.ini`, and `setup.cfg`, follow the judge input rule above. The `new-files` policy forbids any change to existing tests.
 - **Agents act only through the harness tools.** No shell, no runtime built-in tools, no
   connectors. Each adapter disables its runtime's own capabilities and fails the run if the
   runtime uses one anyway. `apocha doctor --live` asks each runtime to escape and reports
@@ -162,6 +163,7 @@ The repository includes a GitHub Action that verifies the receipts of every comm
 - [Receipts](docs/receipts.md): what a receipt proves and how `land` uses it
 - [Security](docs/security.md): threat model, sandbox policy, and known gaps
 - [Operations](docs/operations.md): runs, pause and resume, metrics, and troubleshooting
+- [Metrics](docs/metrics.md): Apocha's self-hosted run history, denominators, and reproduction limits
 - [AGENTS.md](AGENTS.md): how to work on this repository
 
 ## License

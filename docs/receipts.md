@@ -77,6 +77,17 @@ Temporary verification files live in a private directory removed after use.
 pass consistency checks, including older receipts. Verification can use a specified Git
 commit for trust; the receipt CLI uses HEAD.
 
+### Checking signatures
+
+Fetch the notes with `git fetch origin refs/notes/apocha:refs/notes/apocha`.
+Make sure the target branch's allowed_signers file (`receipts.allowed_signers`, default
+`.apocha/allowed_signers`, read from the target tip) lists the operator's key.
+With HEAD at that target tip, run `apocha receipt <commit>` and check for
+`signature.status: valid` with the principal, or run
+`apocha verify-range <base>..<head> --require-signed` with `<base>` set to the target tip.
+This repository's existing receipts are unsigned; verify signatures only from the commit
+where signing was turned on.
+
 ## Landing
 
 `apocha land <source> --target <branch>`:

@@ -247,6 +247,7 @@ Two views, kept apart on purpose:
 
 Reporting only the delivery view overstates success, since a task that never passes leaves no
 receipt. Publish both, with their definitions and date range.
+See [Apocha's run history](metrics.md) for its self-hosted numbers and denominators.
 
 ## Analytics
 

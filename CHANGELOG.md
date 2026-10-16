@@ -2,21 +2,15 @@
 
 ## Unreleased
 
+- Publish Apocha's self-hosted run history with denominators and reproduction limits, document signature checks, and clarify judge input rules for test hooks.
 - Reviewer provenance now marks per-file test and judge input diffs as untrusted; blocked-claim verification moves implementer judge input reasons under `untrusted`.
-
 - macOS home read exceptions never reopen the home directory itself, including through PATH bin parents, Node prefixes, or symlinks. Credential denies now cover toolchain credential files and additional credential stores, and still override home allows.
-
 - Sandbox mode `auto` now fails closed without a backend (except inside an already sandboxed check); install bubblewrap on Linux or explicitly set `sandbox.mode: "none"` to opt out.
 - macOS checks deny home directory reads except the workspace, source checkout and toolchain directories. `sandbox.allow_read` adds exceptions and `sandbox.home_reads: "allow"` opts out; credential and source denies still win. Linux bubblewrap is unchanged, reads outside its deny list remain possible, and it has not yet been run on a real Linux host.
-
 - Reviewer bundles separate implementer text under `untrusted` with a provenance map. The prompt treats it, diffs, and file content as data, never instructions, and requires blocking findings for steering attempts. Real-model resistance is measured only by a small private evaluation and is not guaranteed.
-
 - Reviewers must justify every declared judge input change by path before PASS; promotion enforces the verdicts and receipts record them. Receipt validation now accepts the `tighten` declaration kind.
-
 - Declared judge input changes must pass checks with the base judge inputs restored; loosening escalates without repair or promotion, and passing evidence is recorded in receipts.
-
 - Judge input changes now require task or implementer declarations, with configurable additive patterns and verification evidence; tier 0 protections remain unchanged.
-
 - The README and security guide now state that checker config files and inline suppressions are not frozen, describe the `justified` default, and list the sandbox read and reviewer-input gaps.
 - Repository locks now publish complete owner records atomically and release only matching owner tokens; dead owners fail closed immediately, while empty or unparseable locks wait before failing closed. Recover explicitly with `apocha unlock` (`--force` overrides a live owner).
 - `PASS` reviews with blocking findings now escalate, and promotion rejects them in restored state; minor findings and findings without severity still allow promotion.
