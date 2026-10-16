@@ -11,7 +11,7 @@ base commit, and the runtime CLIs are trusted**.
 | The verdict | Agent edits tests, checks, or config to pass | Closed check catalog in the config read from the base commit; config, `.apocha/`, and governance paths are protected; tasks cannot supply commands; declared judge input changes require base-judge checks and reviewer verdicts by path; structural checks before any catalog check |
 | The repository outside the task | Agent edits files it should not | Tool scopes (`allowed_paths`), protected paths, structural scope check on the final diff |
 | Private files in the repository | Agent reads and leaks them through output or a model call | `paths.forbidden` are unreadable by tools, removed from the tree checks run in, and denied to sandboxed checks in the source checkout |
-| Credentials on the host | Agent-written code (run by checks) reads them | Sandbox deny list for credential stores; scratch `HOME`; env allowlist without provider keys |
+| Credentials on the host | Agent-written code (run by checks) reads them | macOS home read restrictions and sandbox deny list for credential stores; scratch `HOME`; env allowlist without provider keys |
 | The host | Agent-written code writes outside its tree or calls out | Sandbox: writes only in the per-check workspace; network denied unless a check allows it; macOS loopback requires explicit opt-in |
 | History | Unverified commits reach a branch | Receipts bound to content; `land` checks every first-parent commit; promotion by compare-and-swap |
 
@@ -35,9 +35,9 @@ index (no `.git`, no untracked or ignored files, no forbidden paths), under an O
 
 | Backend | Platform | Policy |
 |---|---|---|
-| Seatbelt | macOS (`/usr/bin/sandbox-exec`) | Writes only in the check workspace (its tree, scratch `HOME`, and `TMPDIR`). Reads denied for credential stores, the candidate clone, the source `.git`, and forbidden paths. Deny by default, with explicit process and system-service allows. Broad toolchain reads remain intentional. DNS, host loopback and outside Unix sockets are denied unless network is allowed; `loopback: true` permits loopback only. For headless Chromium checks, `browser: true` allows registration and lookup of `org.chromium.*` Mach services only; it implies no loopback, network or other allow. Browsers usually also need loopback for a local test server. Workspace Unix sockets work. Listed local daemon sockets stay denied. |
+| Seatbelt | macOS (`/usr/bin/sandbox-exec`) | Writes only in the check workspace (its tree, scratch `HOME`, and `TMPDIR`). Reads denied for credential stores, the candidate clone, the source `.git`, and forbidden paths. Deny by default, with explicit process and system-service allows. Home reads are limited to the workspace, source checkout and toolchain directories by default; `sandbox.allow_read` adds exceptions and `sandbox.home_reads: "allow"` opts out. DNS, host loopback and outside Unix sockets are denied unless network is allowed; `loopback: true` permits loopback only. For headless Chromium checks, `browser: true` allows registration and lookup of `org.chromium.*` Mach services only; it implies no loopback, network or other allow. Browsers usually also need loopback for a local test server. Workspace Unix sockets work. Listed local daemon sockets stay denied. |
 | bubblewrap | Linux | Read-only view of the host root, writable workspace, read-only tmpfs (`--tmpfs` followed by `--remount-ro`) over denied directories, read-only `/dev/null` over denied files, `--unshare-net` unless the check allows network, `--unshare-pid`, `--die-with-parent` |
-| none | anywhere | Scratch `HOME` and `TMPDIR` and the env allowlist still apply. Recorded as `none` in the receipt. Set `sandbox.mode: "required"` to refuse running without a backend. |
+| none | anywhere | Scratch `HOME` and `TMPDIR` and the env allowlist still apply. Recorded as `none` in the receipt. Both `auto` and `required` refuse a missing backend, except `auto` inside an already sandboxed check. |
 
 A catalog check can set `unsandboxed: true` to skip the OS sandbox even when
 `sandbox.mode` is `required`. Agent-written code executed by that check runs without
@@ -97,8 +97,9 @@ Without an OS sandbox these socket restrictions cannot be enforced.
 
 Seatbelt starts from `(deny default)` when network is denied. It explicitly permits process
 execution, self introspection, sysctl reads, and logging, notification and user/group lookup
-services. It grants no DNS or network-configuration service access. Reads remain broad for
-host toolchains, with the deny lists overriding them; metadata reads remain available everywhere.
+services. It grants no DNS or network-configuration service access. Home reads are limited to
+explicit workspace, source and toolchain allows, with the deny lists overriding them;
+metadata reads remain available everywhere.
 Writes stay confined to the workspace and `/dev/tty`, `/dev/null`, `/dev/zero`, and `/dev/fd/*`.
 Other terminals (`/dev/ttys*`) and pseudo-terminals (`/dev/pty*`, `/dev/ptmx`) are denied. Unix sockets inside the
 workspace support tool IPC. `checks.<id>.loopback: true` allows loopback binding, listening and
@@ -148,10 +149,13 @@ restrictions still enforced.
   needed to pass; the reviewer must accept each change by name, and the receipt records it.
   Inline suppressions such as `// @ts-nocheck`, files imported or extended from outside the
   list, and config formats the list does not name remain outside this coverage.
-- **Sandboxed reads are a denylist.** Checks cannot read credential stores or this repository's
-  secrets, but they can read other files on the host, including other checkouts. With
-  `sandbox.mode: "auto"` and no backend available, checks run unsandboxed; use
-  `"required"` to refuse instead.
+- **Host read isolation differs by platform.** On macOS, checks cannot read the user's home
+  directory apart from the workspace, source checkout and toolchain directories; add paths with
+  `sandbox.allow_read` or opt out with `sandbox.home_reads: "allow"`. Credential, source history,
+  secret and forbidden-path denies still win. On Linux, reads outside the deny list remain
+  possible: bubblewrap is unchanged and has not yet been run on a real Linux host.
+  `sandbox.mode: "auto"` refuses to run checks without a backend; set `sandbox.mode: "none"`
+  to run without an OS sandbox. Inside an already sandboxed check, `auto` uses the outer sandbox.
 - **The reviewer reads text the implementer wrote.** The implementer's summary, evidence notes,
   uncertainties, and judge input reasons are grouped under bundle `untrusted`, including blocked
   reasons and summaries. The controller's criteria and results stay separate, with a `provenance`

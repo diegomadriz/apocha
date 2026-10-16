@@ -89,7 +89,7 @@ export const DEFAULT_LIMITS = Object.freeze({
  *   receipts: { allowed_signers: string, require_signed: boolean },
  *   paths: { judge_inputs: string[], protected: string[], governance: string[], forbidden: string[], always_readable: string[], design_reference_prefix: string },
  *   refs: { batch_prefix: string, notes: string },
- *   sandbox: { mode: "auto" | "required" | "none", network: "deny" | "allow", deny_read: string[], deny_sockets: string[] },
+ *   sandbox: { mode: "auto" | "required" | "none", network: "deny" | "allow", home_reads: "deny" | "allow", allow_read: string[], deny_read: string[], deny_sockets: string[] },
  *   limits: typeof DEFAULT_LIMITS,
  *   digest: string,
  * }} ProjectConfig
@@ -243,6 +243,8 @@ export function normalizeProjectConfig(raw, root) {
     sandbox: {
       mode: input.sandbox?.mode ?? "auto",
       network: input.sandbox?.network ?? "deny",
+      home_reads: input.sandbox?.home_reads ?? "deny",
+      allow_read: [...(input.sandbox?.allow_read ?? [])],
       deny_read: [...new Set([...DEFAULT_DENY_READ, ...(input.sandbox?.deny_read ?? [])])],
       deny_sockets: [...new Set([...DEFAULT_DENY_SOCKETS, ...(input.sandbox?.deny_sockets ?? [])])],
     },

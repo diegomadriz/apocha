@@ -1,7 +1,8 @@
 // @ts-check
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { cpSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { checkDefinitionDigest, runCheck } from "../src/checks/runner.mjs";
@@ -222,3 +223,85 @@ console.log("DENIED");`,
     });
   });
 }
+
+test("home read config defaults, validation and digest", () => {
+  const raw = { version: 1, checks: { probe: { run: ["node"] } } };
+  const config = normalizeProjectConfig(raw, "/");
+  assert.equal(config.sandbox.home_reads, "deny");
+  assert.deepEqual(config.sandbox.allow_read, []);
+  for (const sandbox of [{ home_reads: "allow" }, { allow_read: ["~/tools"] }]) {
+    assert.notEqual(normalizeProjectConfig({ ...raw, sandbox }, "/").digest, config.digest);
+  }
+  assert.throws(() => normalizeProjectConfig({ ...raw, sandbox: { home_reads: "invalid" } }, "/"));
+  assert.throws(() =>
+    normalizeProjectConfig({ ...raw, sandbox: { allow_read: Array(51).fill("~/tools") } }, "/"),
+  );
+  assert.throws(() => normalizeProjectConfig({ ...raw, sandbox: { allow_read: [42] } }, "/"));
+});
+
+test("Seatbelt home deny precedes allows and credential and source denies", () => {
+  const profile = seatbeltProfile({
+    writable: [],
+    network: false,
+    denyReadTrees: ["/home/example"],
+    allowRead: [realpathSync(os.tmpdir()), realpathSync(process.execPath)],
+    denyRead: ["/home/example/.ssh/key", "/home/example/source/.git/HEAD"],
+  });
+  const broad = profile.indexOf("(allow file-read*)");
+  const home = profile.indexOf('(deny file-read* (subpath "/home/example"))');
+  const directory = profile.indexOf(
+    `(allow file-read* (subpath ${JSON.stringify(realpathSync(os.tmpdir()))}))`,
+  );
+  const file = profile.indexOf(
+    `(allow file-read* (literal ${JSON.stringify(realpathSync(process.execPath))}))`,
+  );
+  const credentials = profile.indexOf('(deny file-read* (literal "/home/example/.ssh/key")');
+  const source = profile.indexOf('(literal "/home/example/source/.git/HEAD")');
+  const metadata = profile.indexOf("(allow file-read-metadata)");
+  assert.ok(broad >= 0 && broad < home && home < directory && directory < file);
+  assert.ok(file < credentials && credentials < source && source < metadata);
+});
+
+test("seatbelt: home reads require an explicit allow and source reads still work", {
+  skip: available === "seatbelt" ? false : unavailable,
+}, async () => {
+  const directory = mkdtempSync(path.join(os.homedir(), ".apocha-home-probe-"));
+  const secret = path.join(directory, ".env");
+  writeFileSync(secret, "other-checkout-secret");
+  const repo = makeRepo({
+    files: {
+      "probe.mjs": `import { readFileSync } from "node:fs";
+import assert from "node:assert/strict";
+assert.match(readFileSync(process.argv[2] + "/README.md", "utf8"), /fixture/);
+try { console.log(readFileSync(${JSON.stringify(secret)}, "utf8")); }
+catch { console.log("BLOCKED"); }`,
+    },
+  });
+  const source = path.join(directory, "source");
+  cpSync(repo.root, source, { recursive: true });
+  const candidate = testCandidate(source, "main");
+  try {
+    for (const sandbox of [
+      { home_reads: "deny" },
+      { home_reads: "allow" },
+      { allow_read: [directory] },
+      { allow_read: [`~/${path.basename(directory)}`, path.join(directory, "missing")] },
+    ]) {
+      const config = normalizeProjectConfig(
+        {
+          version: 1,
+          checks: { probe: { run: ["node", "probe.mjs", "{source}"] } },
+          sandbox: { mode: "required", ...sandbox },
+        },
+        source,
+      );
+      const result = await runCheck({ check: config.checks.probe, candidate, config, backend: "seatbelt" });
+      passed(result);
+      assert.equal(result.stdout.trim(), sandbox.home_reads === "deny" ? "BLOCKED" : "other-checkout-secret");
+    }
+  } finally {
+    candidate.cleanup();
+    repo.cleanup();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

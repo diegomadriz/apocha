@@ -183,8 +183,10 @@ from another harness can keep its existing refs, so its old receipts stay checka
 
 | Field | Values | Meaning |
 |---|---|---|
-| `mode` | `auto` (default), `required`, `none` | `auto` uses Seatbelt or bubblewrap when present. `required` makes a missing backend an infrastructure error. |
+| `mode` | `auto` (default), `required`, `none` | `auto` and `required` make a missing backend an infrastructure error; `auto` reuses an outer sandbox inside a sandboxed check. `none` explicitly runs without an OS sandbox. |
 | `network` | `deny` (default), `allow` | Project-wide network default for checks |
+| `home_reads` | `deny` (default), `allow` | Seatbelt only: restrict home reads to the workspace, source checkout and toolchain directories, or opt out with `allow` |
+| `allow_read` | paths, default `[]`, max 50 | Seatbelt home read exceptions; `~/` expanded, existing paths resolved with realpath, missing paths skipped. Credential and source denies still win. |
 | `deny_read` | paths, `~/` allowed | Added to the built-in list of credential locations (`~/.ssh`, `~/.aws`, `~/.codex`, `~/.claude`, `~/.npmrc`, `~/.netrc`, `~/Library/Keychains`, and more) |
 | `deny_sockets` | paths, `~/` allowed | Added to the built-in local daemon socket deny list, regardless of the network setting |
 
@@ -197,8 +199,15 @@ User entries extend these defaults. Home paths are expanded and existing symlink
 targets are included. Seatbelt denies outbound connections; bubblewrap binds
 `/dev/null` over each existing socket path.
 
-`apocha init` writes mode `required`. In `auto` mode, a run with no available
-backend emits a warning event and a stderr warning suggesting `sandbox.mode: required`.
+`apocha init` writes mode `required`. With no backend, install bubblewrap on Linux or
+set `sandbox.mode: "none"` to run checks without an OS sandbox. Runs needing no sandboxed
+check or fixer can still start. Linux reads outside the deny list remain possible;
+bubblewrap is unchanged and has not yet been run on a real Linux host.
+
+Seatbelt allows home paths for the check workspace, source checkout, Node install prefix,
+directories on the check\'s PATH (and their parent when named `bin`), `COREPACK_HOME`,
+and `~/Library/Caches/ms-playwright` for browser checks. These exceptions and `allow_read`
+never override credential, source history, secret or forbidden-path denies.
 
 ### `limits`
 

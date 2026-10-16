@@ -18,6 +18,7 @@ import { describeError } from "../util/errors.mjs";
 import { git, gitBuffer, gitCommonDir } from "../util/git.mjs";
 import {
   canonicalPath,
+  expandHome,
   forbiddenDenyPaths,
   forbiddenMaterializedPaths,
   isForbidden,
@@ -184,8 +185,8 @@ export async function runCheck({
     /** @type {{ command: string, args: string[], cwd: string, env: Record<string, string> }} */
     let prepared;
     try {
-      if (!check.unsandboxed && backend === "none" && config.sandbox.mode === "required")
-        backend = resolveBackend("required");
+      if (!check.unsandboxed && backend === "none" && config.sandbox.mode !== "none")
+        backend = resolveBackend(config.sandbox.mode);
       workspace = makeTempDir("check", { repository: gitCommonDir(candidate.repository_root) });
       const execRoot = path.join(workspace, "tree");
       const home = path.join(workspace, "home");
@@ -321,10 +322,40 @@ export async function runCheck({
       const denySockets = (backend === "bwrap" ? resolveDenyPaths : resolveSocketPaths)(
         config.sandbox.deny_sockets,
       );
+      const denyReadTrees = [];
+      const allowRead = new Set();
+      if (backend === "seatbelt" && config.sandbox.home_reads === "deny") {
+        const hostHome = realpathSync(os.homedir());
+        denyReadTrees.push(hostHome);
+        /** @param {string} entry */
+        const allow = (entry) => {
+          try {
+            const resolved = realpathSync(expandHome(entry));
+            if (isInside(resolved, hostHome)) allowRead.add(resolved);
+          } catch {}
+        };
+        allow(workspace);
+        allow(sourceRoot);
+        allow(path.dirname(path.dirname(realpathSync(process.execPath))));
+        for (const entry of env.PATH.split(path.delimiter)) {
+          if (!entry) continue;
+          try {
+            const resolved = realpathSync(entry);
+            if (!statSync(resolved).isDirectory() || !isInside(resolved, hostHome)) continue;
+            allow(resolved);
+            if (path.basename(resolved) === "bin") allow(path.dirname(resolved));
+          } catch {}
+        }
+        if (env.COREPACK_HOME) allow(env.COREPACK_HOME);
+        if (check.browser) allow(path.join(hostHome, "Library/Caches/ms-playwright"));
+        for (const entry of config.sandbox.allow_read) allow(entry);
+      }
       const wrapped = wrapCommand(
         backend,
         {
           writable: [workspace],
+          denyReadTrees,
+          allowRead: [...allowRead],
           denyRead,
           denySockets,
           network,

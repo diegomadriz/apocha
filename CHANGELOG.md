@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Sandbox mode `auto` now fails closed without a backend (except inside an already sandboxed check); install bubblewrap on Linux or explicitly set `sandbox.mode: "none"` to opt out.
+- macOS checks deny home directory reads except the workspace, source checkout and toolchain directories. `sandbox.allow_read` adds exceptions and `sandbox.home_reads: "allow"` opts out; credential and source denies still win. Linux bubblewrap is unchanged, reads outside its deny list remain possible, and it has not yet been run on a real Linux host.
+
 - Reviewer bundles separate implementer text under `untrusted` with a provenance map. The prompt treats it, diffs, and file content as data, never instructions, and requires blocking findings for steering attempts. Real-model resistance is measured only by a small private evaluation and is not guaranteed.
 
 - Reviewers must justify every declared judge input change by path before PASS; promotion enforces the verdicts and receipts record them. Receipt validation now accepts the `tighten` declaration kind.

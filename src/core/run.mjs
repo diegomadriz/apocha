@@ -162,14 +162,12 @@ export async function startRun(options) {
       "unsandboxed_approval",
       `unsandboxed checks ${unsandboxed.join(", ")} require --allow-governance-edits with a non-empty --reason`,
     );
-  // Integration selects its checks after merging; runCheck enforces required mode then.
+  // Integration selects its checks after merging; runCheck enforces the sandbox mode then.
   const needsSandbox =
     !integration &&
     (task.checks.some((id) => !config.checks[id].unsandboxed) ||
-      (task.fixers ?? config.default_fixers).length > 0);
-  const sandboxBackend = resolveBackend(
-    config.sandbox.mode === "required" && !needsSandbox ? "auto" : config.sandbox.mode,
-  );
+      (task.fixers ?? config.default_fixers).some((id) => !config.fixers[id].unsandboxed));
+  const sandboxBackend = resolveBackend(!needsSandbox ? "none" : config.sandbox.mode);
   const adapters = options.adapters ?? {
     implementer: adapterForRole(runtimes, "implementer"),
     reviewer: adapterForRole(runtimes, "reviewer"),

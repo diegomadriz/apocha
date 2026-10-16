@@ -6,9 +6,19 @@ import path from "node:path";
 import { test } from "node:test";
 import { runCheck } from "../src/checks/runner.mjs";
 import { normalizeProjectConfig } from "../src/config/project.mjs";
+import { startRun } from "../src/core/run.mjs";
 
 import { bwrapArgs, detectBackend, resolveBackend, seatbeltProfile } from "../src/sandbox/index.mjs";
-import { testCandidate as createCandidate, makeRepo, testTempDir } from "./helpers.mjs";
+import {
+  testCandidate as createCandidate,
+  createFakeAdapter,
+  fakeRuntimes,
+  makeRepo,
+  passReviewer,
+  testTempDir,
+  valueTask,
+  writeValue,
+} from "./helpers.mjs";
 
 const backend = detectBackend();
 const skip = backend ? false : "no sandbox backend on this host";
@@ -55,10 +65,28 @@ async function sandboxed(script, options = {}) {
 
 test("resolveBackend honors the configured mode", () => {
   assert.equal(resolveBackend("none"), "none");
-  assert.equal(
-    resolveBackend("auto", () => null),
-    "none",
-  );
+  const markers = ["APOCHA_SANDBOX", "PANAGENT_SANDBOX"];
+  const previous = markers.map((key) => process.env[key]);
+  try {
+    for (const key of markers) delete process.env[key];
+    assert.throws(() => resolveBackend("auto", () => null), {
+      code: "sandbox_unavailable",
+      message: /install bubblewrap on Linux.*sandbox.mode to "none"/,
+    });
+    for (const key of markers) {
+      process.env[key] = "seatbelt";
+      assert.equal(
+        resolveBackend("auto", () => null),
+        "none",
+      );
+      delete process.env[key];
+    }
+  } finally {
+    markers.forEach((key, index) => {
+      if (previous[index] === undefined) delete process.env[key];
+      else process.env[key] = previous[index];
+    });
+  }
   assert.throws(() => resolveBackend("required", () => null), /no sandbox backend/);
   assert.equal(
     resolveBackend("required", () => "bwrap"),
@@ -171,4 +199,38 @@ console.log("readme", attempt("README.md"), "git", attempt(".git/HEAD"), "privat
   );
   assert.equal(result.status, "pass", result.stderr);
   assert.match(result.stdout, /readme read git denied private denied/);
+});
+
+test("a run needing no sandboxed check starts without a backend", async () => {
+  const previous = process.env.APOCHA_SANDBOX;
+  process.env.APOCHA_SANDBOX = "seatbelt";
+  const repo = makeRepo({
+    config: {
+      version: 1,
+      checks: { test: { run: ["node", "check.mjs"], unsandboxed: true } },
+      sandbox: { mode: "auto" },
+    },
+  });
+  try {
+    assert.equal(detectBackend(), null);
+    const adapter = createFakeAdapter({
+      handlers: { implementer: writeValue("2"), reviewer: passReviewer },
+    });
+    const summary = await startRun({
+      cwd: repo.root,
+      task: valueTask(),
+      base: "main",
+      batch: "no-sandbox-needed",
+      message: "Set value",
+      runtimes: fakeRuntimes(),
+      adapters: { implementer: adapter, reviewer: adapter },
+      allowGovernanceEdits: true,
+      governanceReason: "Fixture explicitly selects only an unsandboxed check",
+    });
+    assert.equal(summary.outcome, "PASSED");
+  } finally {
+    if (previous === undefined) delete process.env.APOCHA_SANDBOX;
+    else process.env.APOCHA_SANDBOX = previous;
+    repo.cleanup();
+  }
 });

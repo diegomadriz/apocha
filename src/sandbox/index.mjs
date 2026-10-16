@@ -18,8 +18,9 @@ import { expandHome, isInside } from "../util/paths.mjs";
  *
  * Policy for every backend:
  * - writes only inside the exec root and the per-check scratch directories;
- * - reads everywhere except the deny list (credential stores, the candidate
- *   clone and source `.git` with their full history, and forbidden repo paths);
+ * - Seatbelt can restrict home reads to explicit workspace and toolchain paths;
+ *   other reads use a deny list (credential stores, the candidate clone and
+ *   source `.git` with their full history, and forbidden repo paths);
  * - no network unless allowed; Seatbelt loopback requires `loopback: true`.
  *   Workspace Unix sockets and bubblewrap namespace loopback support local IPC.
  */
@@ -63,7 +64,12 @@ export function resolveBackend(mode, detect = detectBackend) {
       "sandbox.mode is 'required' but no sandbox backend is available",
     );
   }
-  return "none";
+  if (process.env[SANDBOX_MARKER] || process.env.PANAGENT_SANDBOX) return "none";
+  throw new HarnessError(
+    "infra",
+    "sandbox_unavailable",
+    'sandbox.mode is "auto" but no sandbox backend is available; install bubblewrap on Linux or set sandbox.mode to "none" to run checks without an OS sandbox',
+  );
 }
 
 /**
@@ -155,7 +161,7 @@ function sbplString(value) {
 }
 
 /**
- * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, loopback?: boolean, browser?: boolean }} policy
+ * @param {{ writable: string[], denyRead: string[], denyReadTrees?: string[], allowRead?: string[], denySockets?: string[], network: boolean, loopback?: boolean, browser?: boolean }} policy
  */
 export function seatbeltProfile(policy) {
   const lines = ["(version 1)", policy.network ? "(allow default)" : "(deny default)"];
@@ -232,6 +238,12 @@ export function seatbeltProfile(policy) {
     "; Other terminals and pseudo-terminals cannot be opened.",
     '(deny file-read* file-write* (regex #"^/dev/(ttys|pty)") (literal "/dev/ptmx"))',
   );
+  for (const entry of policy.denyReadTrees ?? [])
+    lines.push(`(deny file-read* (subpath ${sbplString(entry)}))`);
+  for (const entry of policy.allowRead ?? []) {
+    const filter = statSync(entry).isDirectory() ? "subpath" : "literal";
+    lines.push(`(allow file-read* (${filter} ${sbplString(entry)}))`);
+  }
   if (policy.denyRead.length) {
     const denied = policy.denyRead.map((entry) => {
       let isDirectory = false;
@@ -290,7 +302,7 @@ export function bwrapArgs(policy, argv, socketDirectories = hiddenSocketDirector
 /**
  * Wrap a command for the chosen backend.
  * @param {SandboxBackend} backend
- * @param {{ writable: string[], denyRead: string[], denySockets?: string[], network: boolean, loopback?: boolean, browser?: boolean, cwd: string }} policy
+ * @param {{ writable: string[], denyReadTrees?: string[], allowRead?: string[], denyRead: string[], denySockets?: string[], network: boolean, loopback?: boolean, browser?: boolean, cwd: string }} policy
  * @param {string[]} argv
  * @returns {{ command: string, args: string[] }}
  */
