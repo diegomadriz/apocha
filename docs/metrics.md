@@ -85,8 +85,10 @@ Pass rate: Passed runs as a percentage of finished runs in each runtime group.
 Run and accumulated stage durations use nearest-rank median and p90 over available values.
 Run duration: median 7.5 min, p90 17.9 min.
 
-Receipts: 88 of 102 first-parent commits on main carry a receipt. The rest are manual
-commits, mostly from before the harness ran on itself and release or CI edits.
+Receipts: 88 of 102 first-parent commits on main carry a receipt. The 14 commits without
+a receipt are manual commits: 13 from 2026-10-05, the day the harness was bootstrapped
+(including the first CI workflow and the rename), and one version bump on 2026-10-06;
+every first-parent commit on main after 2026-10-06 carries a receipt.
 Coverage counts first-parent commits carrying a receipt out of all first-parent commits.
 
 ## Reproducing the numbers
