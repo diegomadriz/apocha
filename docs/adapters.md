@@ -126,7 +126,7 @@ file appears outside the harness tools, and the harness tools still work. Run it
 runtime upgrade: a new default-on feature in a runtime is the most likely way for the lock-down to
 weaken.
 
-When available, `agent.finished.final_message` records the invocation’s last assistant text, truncated to 2000 characters: Codex uses the last completed `agent_message`, Claude Code uses its parsed result text, and fake handlers may return `{ final_message }`. Adapters without that text omit the field.
+When available, the invocation’s last assistant text is truncated to 2000 characters and kept in `final-message.txt` in its session directory with mode `0o600`. The `agent.finished` event records only the bounded text’s length as `final_message_chars`, never the text itself. Codex uses the last completed `agent_message`, Claude Code uses its parsed result text, and fake handlers may return `{ final_message }`. Adapters without that text omit the file and length field. Old events written by earlier versions are not rewritten.
 
 ## Errors and retries
 

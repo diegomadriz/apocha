@@ -1,6 +1,8 @@
 // @ts-check
 import assert from "node:assert/strict";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import os from "node:os";
+import path from "node:path";
 import { test } from "node:test";
 import { inspectCodexEvent } from "../src/adapters/codex/index.mjs";
 import { runJsonlProcess } from "../src/adapters/process.mjs";
@@ -36,13 +38,13 @@ async function run(implementer, reviewer = passReviewer, budget = 50) {
     adapters: { implementer: fake, reviewer: fake },
   });
   const store = new RunStore(repo.root);
-  return { summary, state: store.read(summary.run_id).state, events: store.events(summary.run_id) };
+  return { summary, store, state: store.read(summary.run_id).state, events: store.events(summary.run_id) };
 }
 
 test("continuation keeps the candidate, attempt and normal prompt with separate tool budgets", async () => {
   let invocations = 0;
   const prompts = [];
-  const { summary, state, events } = await run(async ({ call, bundle, taskPrompt, root }) => {
+  const { summary, store, state, events } = await run(async ({ call, bundle, taskPrompt, root }) => {
     invocations += 1;
     prompts.push({ taskPrompt, bundle, root });
     assert.equal(bundle.attempt, 0);
@@ -73,9 +75,17 @@ test("continuation keeps the candidate, attempt and normal prompt with separate 
   assert.equal(continued[0].previous_tool_calls, 50);
   assert.equal(events.filter((event) => event.type === "agent.retry").length, 0);
   const finished = events.filter((event) => event.type === "agent.finished");
-  assert.equal(finished[0].final_message, "Continuing soon");
-  assert.equal(finished[1].final_message, "x".repeat(2000));
-  assert.ok(!("final_message" in finished[2]));
+  assert.equal(finished.length, 3);
+  for (const event of finished) assert.ok(!("final_message" in event));
+  assert.equal(finished[0].final_message_chars, 15);
+  assert.equal(finished[1].final_message_chars, 2000);
+  assert.ok(!("final_message_chars" in finished[2]));
+  for (const [index, text] of ["Continuing soon", "x".repeat(2000)].entries()) {
+    const file = path.join(store.sessionDir(summary.run_id, index + 1), "final-message.txt");
+    assert.equal(readFileSync(file, "utf8"), text);
+    assert.equal(statSync(file).mode & 0o777, 0o600);
+  }
+  assert.ok(!existsSync(path.join(store.sessionDir(summary.run_id, 3), "final-message.txt")));
 });
 
 for (const secondCalls of [true, false]) {
@@ -107,8 +117,10 @@ test("no-tool invocations retry without continuation and record available final 
   assert.equal(events.filter((event) => event.type === "implementer.continued").length, 0);
   const retries = events.filter((event) => event.type === "agent.retry");
   assert.equal(retries[0].reason.code, "no_result_no_tools");
-  for (const event of events.filter((entry) => entry.type === "agent.finished"))
-    assert.equal(event.final_message, "No tools used");
+  for (const event of events.filter((entry) => entry.type === "agent.finished")) {
+    assert.ok(!("final_message" in event));
+    assert.equal(event.final_message_chars, 13);
+  }
 });
 
 test("a reviewer with tool calls and no result never continues", async () => {

@@ -1,5 +1,5 @@
 // @ts-check
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { effectiveProtectedPaths } from "../config/task.mjs";
 import { existingTestFiles } from "../git/test-edits.mjs";
@@ -126,6 +126,9 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
     const runtime = run?.runtime ?? /** @type {any} */ (failure)?.details?.runtime ?? null;
     if (runtime) ctx.state.runtimes[role] = runtime;
     if (run?.usage) addUsage(ctx.state.usage, role, run.usage);
+    const finalMessage = typeof run?.final_message === "string" ? run.final_message.slice(0, 2000) : null;
+    if (finalMessage !== null)
+      writeFileSync(path.join(sessionDir, "final-message.txt"), finalMessage, { mode: 0o600, flag: "wx" });
     const summary = {
       role,
       invocation: index,
@@ -134,7 +137,7 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
       tool_calls: trace.length,
       tool_errors: trace.filter((entry) => !entry.ok).length,
       submitted: result !== null,
-      ...(typeof run?.final_message === "string" ? { final_message: run.final_message.slice(0, 2000) } : {}),
+      ...(finalMessage !== null ? { final_message_chars: finalMessage.length } : {}),
       ...(failure ? { error: describeError(failure) } : {}),
     };
     ctx.event("agent.finished", summary);
