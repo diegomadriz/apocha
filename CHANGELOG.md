@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Repository locks now fail closed on stale or unparseable owners and release only matching owner tokens; recover explicitly with `apocha unlock` (`--force` overrides a live owner).
+
 - `PASS` reviews with blocking findings now escalate, and promotion rejects them in restored state; minor findings and findings without severity still allow promotion.
 
 - Test edits now default to `justified`: an existing test may change only when its old version fails on the new code, or when the edit keeps every existing assertion and makes the test fail on the old code (verdict `strengthened`). Edits that make a test pass on both old and new code are rejected. Without `tests.run_files`, only additions are allowed.

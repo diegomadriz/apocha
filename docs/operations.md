@@ -296,7 +296,20 @@ though its default `additive` policy does not trigger the warning.
 | `PAUSED` with "usage limit reached" | The runtime's plan limit | `apocha resume <run-id>` after the reset time |
 | `ESCALATED` with `policy_violation` | The runtime used a capability outside the harness | Run `apocha doctor --live`; update the adapter's disable list |
 | `land` refuses with "no valid receipt" | A commit between target and source was not promoted by a run | Integrate it through `apocha integrate`, or land up to the last receipted commit |
-| `repository is locked by pid ...` | Another Apocha process holds the lock | Wait; a dead owner's lock is recovered automatically |
+| `repository is locked by pid ...` | Another Apocha process holds the lock | Wait until it finishes; live owners retain the normal lock timeout |
+| `infra/stale_lock` | The owner pid is dead, or the lock cannot be parsed | Confirm no Apocha command is still running for this repository, then run `apocha unlock` |
+
+Locks fail closed: stale or unparseable lock files are left untouched, and the error
+names the recorded pid, purpose and time (or unknown values). This trades automatic
+recovery for safety when multiple waiters encounter the same stale lock. Each holder
+writes a random owner token and releases the file only if its token still matches.
+
+To recover, confirm no Apocha command is still running for this repository, then run
+`apocha unlock`. It removes a dead owner's lock only after re-reading and checking
+that the bytes have not changed. A live owner is refused with exit code 2 and its pid.
+`apocha unlock --force` removes the lock regardless of owner and reports the forced
+removal; use it only after confirming that no command is still using the repository.
+With no lock, `apocha unlock` reports that the repository is not locked and exits 0.
 
 ## Test impact before assigning a task
 

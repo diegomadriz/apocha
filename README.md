@@ -127,6 +127,7 @@ To try it without a model, run the test suite: it drives full runs with a script
 | `apocha run <task.json> --base <ref> --batch <name> (--message <text> \| --message-file <path>)` | Run the code-delivery workflow |
 | `apocha integrate <topic> --onto <ref> --batch <name>` | Merge a topic, verify and review the merged tree, promote it |
 | `apocha land <source> --target <branch> [--keep-batch] [--require-signed]` | Fast-forward a branch whose new commits all carry valid receipts (signed, if required), then delete the landed batch branches |
+| `apocha unlock [--force]` | Recover a stale lock after confirming no command is running; refuses live owners unless forced |
 | `apocha receipt <commit>` | Verify and print a receipt |
 | `apocha verify-range <base>..<head> [--require-signed]` | Check that every commit in a range carries a valid receipt; used by the GitHub Action |
 | `apocha runs`, `apocha show <run-id> [--events]` | Run history and the event log of one run |

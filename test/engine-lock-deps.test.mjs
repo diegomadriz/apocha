@@ -71,7 +71,12 @@ test("the lock serializes holders and recovers from a dead owner", async () => {
   ]);
   assert.deepEqual(order, ["a-start", "a-end", "b"]);
   writeFileSync(path.join(dir, "lock"), JSON.stringify({ pid: 999999, purpose: "dead" }));
-  assert.equal(await withLock(dir, "c", () => "recovered", { waitMs: 500 }), "recovered");
+  await assert.rejects(
+    withLock(dir, "c", () => "recovered", { waitMs: 500 }),
+    {
+      code: "stale_lock",
+    },
+  );
   writeFileSync(path.join(dir, "lock"), JSON.stringify({ pid: process.pid, purpose: "alive" }));
   await assert.rejects(
     withLock(dir, "d", () => 1, { waitMs: 200 }),

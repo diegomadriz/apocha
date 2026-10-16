@@ -17,7 +17,7 @@ import {
 import { loadRuntimeConfig, roleProvider } from "../config/runtime.mjs";
 import { validateTask } from "../config/task.mjs";
 import { applyGc, planGc } from "../core/gc.mjs";
-import { withLock } from "../core/lock.mjs";
+import { unlockStale, withLock } from "../core/lock.mjs";
 import { computeMetrics } from "../core/metrics.mjs";
 import { resumeRun, startRun } from "../core/run.mjs";
 import { RunStore, stateDir } from "../core/runs.mjs";
@@ -54,6 +54,7 @@ Commands:
       --onto <ref> --batch <name> [--message <text|@file> | --message-file <path>] [--checks a,b] [--max-repairs 0|1|2]
       [--test-edits <policy>]       additive (default), new-files, allowed; reviewer sees every changed existing test
   land <source> --target <branch> [--keep-batch] [--require-signed]   Fast-forward a branch whose commits all carry valid receipts (never pushes)
+  unlock [--force]              Remove a stale repository lock (--force also removes a live lock)
   gc [--apply] [--keep-days N] [--abandon-paused-days N] [--target <branch>] [--json]
                                 Plan cleanup (dry-run by default)
   status [run-id] [--target <branch>] [--json]   Show repository or run state
@@ -404,6 +405,19 @@ export async function main(argv) {
         for (const entry of result.kept) print(`kept ${entry.ref} ${entry.oid}: ${entry.reason}`);
         print(`land record: ${result.record}`);
       }
+      return EXIT.ok;
+    }
+    case "unlock": {
+      const { values } = parse({ force: { type: "boolean" } }, false);
+      const root = repositoryRoot(cwd);
+      const result = unlockStale(stateDir(root), { force: Boolean(values.force) });
+      print(
+        !result.removed
+          ? "repository is not locked"
+          : result.forced
+            ? "repository lock removed with --force regardless of owner"
+            : "stale repository lock removed",
+      );
       return EXIT.ok;
     }
     case "gc": {
