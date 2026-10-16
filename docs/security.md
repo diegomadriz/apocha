@@ -162,6 +162,6 @@ restrictions still enforced.
 
 Repository files are untrusted input to the agent. The design limits the damage an injected
 instruction can do: the agent cannot run commands, cannot read forbidden paths or credentials,
-cannot change the checks, and the implementer cannot accept its own work. Acceptance depends on a separate reviewer that reads implementer-written text (see [Known gaps](#known-gaps)). Linux bubblewrap removes network access from checks unless a check allows it. On macOS, Seatbelt denies network and DNS services by default; checks can opt into loopback. The remaining exposure is that the
+cannot change the check commands, and the implementer cannot accept its own work. Acceptance depends on a separate reviewer that reads implementer-written text (see [Known gaps](#known-gaps)). Linux bubblewrap removes network access from checks unless a check allows it. On macOS, Seatbelt denies network and DNS services by default; checks can opt into loopback. The remaining exposure is that the
 model sends readable repository content to its provider, which is inherent to using a hosted model
 on that repository.
