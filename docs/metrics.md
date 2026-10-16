@@ -87,7 +87,7 @@ Run duration: median 7.5 min, p90 17.9 min.
 
 Receipts: 88 of 102 first-parent commits on main carry a receipt. The 14 commits without
 a receipt are manual commits: 13 from 2026-10-05, the day the harness was bootstrapped
-(including the first CI workflow and the rename), and one version bump on 2026-10-06;
+(including a CI update and the project rename), and one version bump on 2026-10-06;
 every first-parent commit on main after 2026-10-06 carries a receipt.
 Coverage counts first-parent commits carrying a receipt out of all first-parent commits.
 
