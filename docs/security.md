@@ -133,14 +133,35 @@ restrictions still enforced.
   path, so agents cannot change it, but a person who can commit to the repository can.
 - **Agents can still write weak tests.** The `test_edits` policy governs existing tests:
   `new-files` forbids changes to them, `additive` permits additions but rejects removed lines
-  and deletions, and `allowed` permits edits. The reviewer is instructed to flag weakened
-  or special-cased tests. For high-stakes tasks,
+  and deletions, and `allowed` permits edits. The default, `justified`, permits additions; other
+  changes need the controller's old-test-on-new-code evidence and `tests.run_files`. Without
+  `tests.run_files`, it falls back to `additive`. If the old test still passes on the new code,
+  the edit must be a declared refactor, or keep every existing assertion and make the test fail
+  on the old code; otherwise it is rejected. A failing old test may be changed or deleted as
+  `necessary`; the reviewer decides whether the behaviour change matches the task. Added early
+  exits and new hook files such as `conftest.py` are left to the reviewer, who is instructed to
+  flag weakened or special-cased tests. For high-stakes tasks,
   protect the test directory and put new tests in a separate task.
+- **Checker inputs are not frozen.** The catalog fixes each check's command, not the files the
+  command reads. Tool configs (`tsconfig.json`, `biome.json` at any depth, eslint, jest or vitest
+  configs, `conftest.py`, `pytest.ini`, `pyproject.toml`, `setup.cfg`), inline suppressions such as
+  `// @ts-nocheck`, and `package.json` scripts under `dependencies: "none"` can all change what a
+  check does. Only `dependencies: "npm"` and `"pnpm"` pin `package.json` to the base. List these
+  files under `paths.governance` or keep them out of `allowed_paths`; otherwise the reviewer is the
+  only defence.
+- **Sandboxed reads are a denylist.** Checks cannot read credential stores or this repository's
+  secrets, but they can read other files on the host, including other checkouts. With
+  `sandbox.mode: "auto"` and no backend available, checks run unsandboxed; use
+  `"required"` to refuse instead.
+- **The reviewer reads text the implementer wrote.** The implementer's summary, evidence notes,
+  code comments, and diff reach the reviewer as data in its bundle. The prompt does not yet tell
+  the reviewer to treat embedded instructions as untrusted, and no test measures a real
+  reviewer's resistance to them.
 
 ## Prompt injection
 
 Repository files are untrusted input to the agent. The design limits the damage an injected
 instruction can do: the agent cannot run commands, cannot read forbidden paths or credentials,
-cannot change the checks, and cannot accept its own work. Linux bubblewrap removes network access from checks unless a check allows it. On macOS, Seatbelt denies network and DNS services by default; checks can opt into loopback. The remaining exposure is that the
+cannot change the checks, and the implementer cannot accept its own work. Acceptance depends on a separate reviewer that reads implementer-written text (see [Known gaps](#known-gaps)). Linux bubblewrap removes network access from checks unless a check allows it. On macOS, Seatbelt denies network and DNS services by default; checks can opt into loopback. The remaining exposure is that the
 model sends readable repository content to its provider, which is inherent to using a hosted model
 on that repository.

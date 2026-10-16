@@ -32,14 +32,25 @@ task.json ─► candidate (private clone at the base commit)
 
 ## What it guarantees
 
-- **Agents cannot change what judges them.** Checks come from a closed catalog in `apocha.config.json`.
-  A task can name check IDs but cannot supply commands. Agents cannot edit the config, the checks,
-  or any protected path.
-- **Agents cannot quietly rewrite existing tests.** By default an agent may add tests and add
-  lines to existing test files, but not change or remove existing test lines. A task can allow
-  more, and the reviewer then sees every changed test. Tests a change adds or modifies are also
-  run against the old code, and the result is recorded in the receipt. Added lines can still
-  change how a test runs, so the reviewer remains the check on those.
+- **Agents cannot change the check commands or the harness config.** Checks come from a closed
+  catalog in `apocha.config.json`, read from the base commit. A task can name check IDs but cannot
+  supply commands. Agents cannot edit the config, governance paths, or any protected path. This
+  does not freeze everything a check reads: a tool's own config files (for example
+  `tsconfig.json`, `biome.json` at any depth, `conftest.py`, `pytest.ini`, or `package.json`
+  scripts when the check's `dependencies` is `none`) are ordinary files unless the project lists
+  them as governance or protected paths. An agent allowed to edit them can weaken a check, and only
+  the reviewer stands in the way. Keep them out of `allowed_paths` or list them under
+  `paths.governance`.
+- **Changes to existing tests need evidence.** The default policy, `justified`, lets an agent add
+  tests and add lines to existing test files. Any other change to an existing test needs evidence
+  the controller produces: it runs the old version of the test on the new code. If the old version
+  still passes, the edit must be a declared refactor, or keep every existing assertion and make the
+  test fail on the old code; otherwise it is rejected. This needs `tests.run_files`; without it the
+  default falls back to `additive`, which accepts only added lines and new files. A test whose
+  old version fails on the new code may be changed or deleted (verdict `necessary`), and the
+  reviewer decides whether that behaviour change is what the task asks for. Added lines can still
+  change how a test runs (an early `return`, `process.exit(0)`, or a new `conftest.py`), so the
+  reviewer remains the check on those. The `new-files` policy forbids any change to existing tests.
 - **Agents act only through the harness tools.** No shell, no runtime built-in tools, no
   connectors. Each adapter disables its runtime's own capabilities and fails the run if the
   runtime uses one anyway. `apocha doctor --live` asks each runtime to escape and reports

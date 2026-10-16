@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The README and security guide now state that checker config files and inline suppressions are not frozen, describe the `justified` default, and list the sandbox read and reviewer-input gaps.
+
 - Repository locks now fail closed on stale or unparseable owners and release only matching owner tokens; recover explicitly with `apocha unlock` (`--force` overrides a live owner).
 
 - `PASS` reviews with blocking findings now escalate, and promotion rejects them in restored state; minor findings and findings without severity still allow promotion.
