@@ -147,7 +147,14 @@ records status and failing check IDs without output text. A failed check returns
 `loosened`, routed directly to `ESCALATED` in both workflows without repair or
 promotion. Infrastructure errors return `infra_error`. Promotion requires passing
 base-judge evidence for declared changes, and receipts retain that evidence.
-Without judge input changes there is no extra run or field.
+The reviewer receives each declared change's diff and `declared_reason` claim, plus
+`base_judge` evidence. Passing the old judge proves only that this diff passes those
+checks. For `PASS`, `judge_input_verdicts` must contain exactly one `justified` verdict
+per declared path, with no unknown paths or duplicates; missing or unjustified verdicts
+make the review invalid and escalate. `FIX` and `ESCALATE` need no verdicts.
+Promotion also refuses stored reviews lacking justified verdicts. Receipts record
+`judge_inputs.verdicts` as path and verdict pairs, without reason text.
+Without judge input changes there is no extra run or receipt field.
 
 ## Validation
 

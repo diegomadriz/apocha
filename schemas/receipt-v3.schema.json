@@ -595,7 +595,8 @@
                 "enum": [
                   "fix",
                   "extend",
-                  "migrate"
+                  "migrate",
+                  "tighten"
                 ]
               },
               "reason": {
@@ -636,6 +637,30 @@
               "items": {
                 "type": "string",
                 "minLength": 1
+              }
+            }
+          }
+        },
+        "verdicts": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "verdict"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "verdict": {
+                "enum": [
+                  "justified",
+                  "unjustified"
+                ]
               }
             }
           }

@@ -3,22 +3,93 @@
   "title": "Reviewer result (submit_result)",
   "type": "object",
   "additionalProperties": false,
-  "required": ["decision", "findings", "candidate_digest"],
+  "required": [
+    "decision",
+    "findings",
+    "candidate_digest"
+  ],
   "properties": {
-    "decision": { "enum": ["PASS", "FIX", "ESCALATE"] },
+    "decision": {
+      "enum": [
+        "PASS",
+        "FIX",
+        "ESCALATE"
+      ]
+    },
     "findings": {
-      "type": "array", "maxItems": 30,
+      "type": "array",
+      "maxItems": 30,
       "items": {
-        "type": "object", "additionalProperties": false, "required": ["id", "reason"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "reason"
+        ],
         "properties": {
-          "id": { "type": "string", "minLength": 1, "maxLength": 100 },
-          "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
-          "path": { "type": "string", "minLength": 1, "maxLength": 400 },
-          "severity": { "enum": ["blocking", "minor"] }
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "severity": {
+            "enum": [
+              "blocking",
+              "minor"
+            ]
+          }
         }
       }
     },
-    "reason": { "type": "string", "minLength": 1, "maxLength": 2000 },
-    "candidate_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "candidate_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "judge_input_verdicts": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "verdict",
+          "reason"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400
+          },
+          "verdict": {
+            "enum": [
+              "justified",
+              "unjustified"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      }
+    }
   }
 }

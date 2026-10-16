@@ -8,7 +8,7 @@ base commit, and the runtime CLIs are trusted**.
 
 | Asset | Threat | Control |
 |---|---|---|
-| The verdict | Agent edits tests, checks, or config to pass | Closed check catalog in the config read from the base commit; config, `.apocha/`, and governance paths are protected; tasks cannot supply commands; structural checks before any catalog check |
+| The verdict | Agent edits tests, checks, or config to pass | Closed check catalog in the config read from the base commit; config, `.apocha/`, and governance paths are protected; tasks cannot supply commands; declared judge input changes require base-judge checks and reviewer verdicts by path; structural checks before any catalog check |
 | The repository outside the task | Agent edits files it should not | Tool scopes (`allowed_paths`), protected paths, structural scope check on the final diff |
 | Private files in the repository | Agent reads and leaks them through output or a model call | `paths.forbidden` are unreadable by tools, removed from the tree checks run in, and denied to sandboxed checks in the source checkout |
 | Credentials on the host | Agent-written code (run by checks) reads them | Sandbox deny list for credential stores; scratch `HOME`; env allowlist without provider keys |
@@ -142,13 +142,12 @@ restrictions still enforced.
   exits and new hook files such as `conftest.py` are left to the reviewer, who is instructed to
   flag weakened or special-cased tests. For high-stakes tasks,
   protect the test directory and put new tests in a separate task.
-- **Checker inputs are not frozen.** The catalog fixes each check's command, not the files the
-  command reads. Tool configs (`tsconfig.json`, `biome.json` at any depth, eslint, jest or vitest
-  configs, `conftest.py`, `pytest.ini`, `pyproject.toml`, `setup.cfg`), inline suppressions such as
-  `// @ts-nocheck`, and `package.json` scripts under `dependencies: "none"` can all change what a
-  check does. Only `dependencies: "npm"` and `"pnpm"` pin `package.json` to the base. List these
-  files under `paths.governance` or keep them out of `allowed_paths`; otherwise the reviewer is the
-  only defence.
+- **Judge input coverage is bounded.** Inputs in the built-in list plus `paths.judge_inputs`
+  may change only inside `allowed_paths`, with a declaration and justification for each.
+  The controller re-runs checks with base versions and escalates to a human if the change is
+  needed to pass; the reviewer must accept each change by name, and the receipt records it.
+  Inline suppressions such as `// @ts-nocheck`, files imported or extended from outside the
+  list, and config formats the list does not name remain outside this coverage.
 - **Sandboxed reads are a denylist.** Checks cannot read credential stores or this repository's
   secrets, but they can read other files on the host, including other checkouts. With
   `sandbox.mode: "auto"` and no backend available, checks run unsandboxed; use

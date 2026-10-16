@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reviewers must justify every declared judge input change by path before PASS; promotion enforces the verdicts and receipts record them. Receipt validation now accepts the `tighten` declaration kind.
+
 - Declared judge input changes must pass checks with the base judge inputs restored; loosening escalates without repair or promotion, and passing evidence is recorded in receipts.
 
 - Judge input changes now require task or implementer declarations, with configurable additive patterns and verification evidence; tier 0 protections remain unchanged.

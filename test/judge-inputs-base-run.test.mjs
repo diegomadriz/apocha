@@ -155,6 +155,7 @@ test("non-loosening declaration passes and receipt verifies with base-judge evid
     assert.equal(verified.valid, true, verified.reason ?? "");
     assert.deepEqual(verified.receipt.judge_inputs, {
       changes: [{ ...declaration, change: "modified", declared_by: "implementer" }],
+      verdicts: [{ path: declaration.path, verdict: "justified" }],
       base_judge: { status: "pass", restored: ["src/biome.json"], checks: ["lint", "test"] },
     });
     assert.equal(store.read(summary.run_id).state.last_verification.base_judge.status, "pass");

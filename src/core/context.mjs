@@ -38,7 +38,7 @@
  *     tests_on_base?: { path: string, result: "passes_on_base" | "fails_on_base" | "error" | "not_run" }[],
  *     checks: { id: string, status: string, exit_code?: number | null, error?: string | null, definition_digest?: string, sandbox?: string, output_digest?: string, duration_ms?: number, files?: string[] }[],
  *   },
- *   last_review: null | { decision: string, findings: any[], reason?: string, candidate_digest: string },
+ *   last_review: null | { decision: string, findings: any[], reason?: string, candidate_digest: string, judge_input_verdicts?: { path: string, verdict: "justified" | "unjustified", reason: string }[] },
  *   implementation: null | { judge_input_changes?: import("../config/task.mjs").JudgeInputChange[], summary: string, unresolved_uncertainties: string[], status?: "blocked", blocked_reason?: string, criteria_evidence?: CriteriaEvidence[] },
  *   blocked_claims?: { blocked_reason?: string, summary?: string, decision: string, confirmed: boolean, reviewer_reason?: string }[],
  *   runtimes: { implementer?: any, reviewer?: any },

@@ -150,6 +150,15 @@ export const passReviewer = async ({ bundle, call }) => {
   await call("submit_result", {
     decision: "PASS",
     findings: [],
+    ...(bundle.judge_input_changes?.length
+      ? {
+          judge_input_verdicts: bundle.judge_input_changes.map((entry) => ({
+            path: entry.path,
+            verdict: "justified",
+            reason: "The fixture change is needed and preserves check coverage.",
+          })),
+        }
+      : {}),
     candidate_digest: bundle.candidate.candidate_digest,
   });
 };

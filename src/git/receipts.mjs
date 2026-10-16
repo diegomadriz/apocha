@@ -178,6 +178,13 @@ export function verifyReceipt(
   }
   if (receipt.judge_inputs) {
     const paths = new Set(receipt.judge_inputs.changes.map((change) => change.path));
+    if (receipt.judge_inputs.verdicts) {
+      for (const path of paths)
+        if (
+          !receipt.judge_inputs.verdicts.some((entry) => entry.path === path && entry.verdict === "justified")
+        )
+          return invalid(`judge_inputs missing justified verdict for: ${path}`);
+    }
     for (const restored of receipt.judge_inputs.base_judge.restored)
       if (!paths.has(restored))
         return invalid(`judge_inputs restored path is missing from changes: ${restored}`);

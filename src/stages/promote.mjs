@@ -34,6 +34,20 @@ export async function runPromoteStage(_stage, ctx) {
       "promotion requires a PASS review without blocking findings",
     );
   }
+  if (
+    verified.judge_input_changes?.some(
+      (change) =>
+        review.judge_input_verdicts?.filter((verdict) => verdict.path === change.path).length !== 1 ||
+        !review.judge_input_verdicts?.some(
+          (verdict) => verdict.path === change.path && verdict.verdict === "justified",
+        ),
+    )
+  )
+    throw new HarnessError(
+      "integrity",
+      "unreviewed",
+      "promotion requires a justified review verdict for each declared judge input change",
+    );
   const checks = verified.checks
     .filter((check) => check.definition_digest)
     .map((check) => {
@@ -89,6 +103,7 @@ export async function runPromoteStage(_stage, ctx) {
         ? {
             judge_inputs: {
               changes: verified.judge_input_changes,
+              verdicts: (review.judge_input_verdicts ?? []).map(({ path, verdict }) => ({ path, verdict })),
               base_judge: {
                 status: "pass",
                 restored: verified.base_judge.restored,

@@ -34,13 +34,12 @@ task.json ─► candidate (private clone at the base commit)
 
 - **Agents cannot change the check commands or the harness config.** Checks come from a closed
   catalog in `apocha.config.json`, read from the base commit. A task can name check IDs but cannot
-  supply commands. Agents cannot edit the config, governance paths, or any protected path. This
-  does not freeze everything a check reads: a tool's own config files (for example
-  `tsconfig.json`, `biome.json` at any depth, `conftest.py`, `pytest.ini`, or `package.json`
-  scripts when the check's `dependencies` is `none`) are ordinary files unless the project lists
-  them as governance or protected paths. An agent allowed to edit them can weaken a check, and only
-  the reviewer stands in the way. Keep them out of `allowed_paths` or list them under
-  `paths.governance`.
+  supply commands. Agents cannot edit the config, governance paths, or any protected path. An agent can change a judge input (the built-in list plus
+  `paths.judge_inputs`) only inside `allowed_paths` and by declaring and justifying each change.
+  The controller re-runs the checks with the base versions and escalates to a human if the
+  change is needed to pass. The reviewer must accept each change by name, and the receipt
+  records it. This does not cover inline suppressions such as `// @ts-nocheck`, files imported
+  or extended from outside the list, or config formats the list does not name.
 - **Changes to existing tests need evidence.** The default policy, `justified`, lets an agent add
   tests and add lines to existing test files. Any other change to an existing test needs evidence
   the controller produces: it runs the old version of the test on the new code. If the old version

@@ -58,7 +58,33 @@ export async function runReviewStage(_stage, ctx) {
     ctx.event("review.skipped", { reason: ctx.state.reason });
     return "too_large";
   }
+  const judgeInputChanges = (verified.judge_input_changes ?? []).map(({ reason, ...entry }) => ({
+    ...entry,
+    declared_reason: reason,
+    diff: String(
+      git(ctx.candidate.root, [
+        "diff",
+        "--cached",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--no-color",
+        "--no-renames",
+        snapshot.base_commit,
+        "--",
+        entry.path,
+      ]).stdout,
+    ),
+  }));
+  if (
+    judgeInputChanges.some((entry) => Buffer.byteLength(entry.diff) > ctx.config.limits.review_diff_bytes)
+  ) {
+    ctx.state.reason = "judge input change diff exceeds the review limit";
+    ctx.event("review.skipped", { reason: ctx.state.reason });
+    return "too_large";
+  }
   const bundle = {
+    judge_input_changes: judgeInputChanges,
+    base_judge: verified.base_judge,
     criteria_evidence: ctx.task.acceptance_criteria.map((text, index) => ({
       criterion: index + 1,
       acceptance_criterion: text,
@@ -111,6 +137,16 @@ export async function runReviewStage(_stage, ctx) {
     invalid = "PASS with a blocking finding";
   else if (result.decision === "FIX" && !result.findings.length) invalid = "FIX without findings";
   else if (result.decision === "ESCALATE" && !result.reason) invalid = "ESCALATE without a reason";
+  if (!invalid && result.decision === "PASS" && judgeInputChanges.length) {
+    const verdicts = result.judge_input_verdicts ?? [];
+    const missing = judgeInputChanges.find(
+      (entry) =>
+        verdicts.filter((verdict) => verdict.path === entry.path).length !== 1 ||
+        !verdicts.some((verdict) => verdict.path === entry.path && verdict.verdict === "justified"),
+    );
+    const extra = verdicts.find((verdict) => !judgeInputChanges.some((entry) => entry.path === verdict.path));
+    if (missing || extra) invalid = `PASS without a justified verdict for ${missing?.path ?? extra.path}`;
+  }
   if (invalid) {
     ctx.state.last_review = {
       decision: "ESCALATE",
@@ -127,6 +163,7 @@ export async function runReviewStage(_stage, ctx) {
     findings: result.findings,
     reason: result.reason,
     candidate_digest: result.candidate_digest,
+    ...(result.judge_input_verdicts ? { judge_input_verdicts: result.judge_input_verdicts } : {}),
   };
   ctx.event("review.finished", { decision: result.decision, findings: result.findings.length });
   if (result.decision === "FIX") {
