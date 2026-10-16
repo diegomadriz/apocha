@@ -58,7 +58,7 @@ test("a rejected human stage routes to its reject target", async () => {
   assert.equal(done.reason, "approve: reject");
 });
 
-test("the lock serializes holders and recovers from a dead owner", async () => {
+test("the lock serializes holders and fails closed on a dead owner", async () => {
   const dir = testTempDir("lock");
   const order = [];
   await Promise.all([

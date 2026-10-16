@@ -299,8 +299,7 @@ though its default `additive` policy does not trigger the warning.
 | `repository is locked by pid ...` | Another Apocha process holds the lock | Wait until it finishes; live owners retain the normal lock timeout |
 | `infra/stale_lock` | The owner pid is dead, or the lock cannot be parsed | Confirm no Apocha command is still running for this repository, then run `apocha unlock` |
 
-Locks fail closed: stale or unparseable lock files are left untouched, and the error
-names the recorded pid, purpose and time (or unknown values). This trades automatic
+Locks are published atomically and fail closed: dead-owner locks fail immediately, unparseable locks fail after the wait, and both are left untouched with an error naming the recorded pid, purpose and time (or unknown values). This trades automatic
 recovery for safety when multiple waiters encounter the same stale lock. Each holder
 writes a random owner token and releases the file only if its token still matches.
 

@@ -1,7 +1,7 @@
 // @ts-check
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -39,13 +39,85 @@ test("an unparseable lock fails closed and stays byte-identical", async () => {
   for (const content of ["{broken", "null", "{}"]) {
     writeFileSync(file, content);
     await assert.rejects(
-      withLock(dir, "waiter", () => assert.fail("entered invalid lock")),
+      withLock(dir, "waiter", () => assert.fail("entered invalid lock"), { waitMs: 150 }),
       {
         code: "stale_lock",
       },
     );
     assert.deepEqual(readFileSync(file), Buffer.from(content));
   }
+});
+
+test("empty and unparseable locks wait before failing closed", async () => {
+  const dir = testTempDir("pending-lock");
+  const file = path.join(dir, "lock");
+  for (const content of ["", "{broken"]) {
+    writeFileSync(file, content);
+    const start = Date.now();
+    await assert.rejects(
+      withLock(dir, "waiter", () => assert.fail("entered pending lock"), { waitMs: 150 }),
+      { code: "stale_lock" },
+    );
+    assert.ok(Date.now() - start >= 150);
+    assert.equal(readFileSync(file, "utf8"), content);
+  }
+});
+
+test("an empty lock replaced by a live owner waits and times out as locked", async () => {
+  const dir = testTempDir("pending-live-lock");
+  const file = path.join(dir, "lock");
+  const content = JSON.stringify({ pid: process.pid, token: "live-holder", purpose: "live" });
+  writeFileSync(file, "");
+  const timer = setTimeout(() => writeFileSync(file, content), 20);
+  const start = Date.now();
+  try {
+    await assert.rejects(
+      withLock(dir, "waiter", () => assert.fail("entered live lock"), { waitMs: 150 }),
+      { code: "locked" },
+    );
+    assert.ok(Date.now() - start >= 150);
+    assert.equal(readFileSync(file, "utf8"), content);
+  } finally {
+    clearTimeout(timer);
+  }
+});
+
+test("an empty lock deleted during the wait lets the waiter acquire", async () => {
+  const dir = testTempDir("pending-deleted-lock");
+  const file = path.join(dir, "lock");
+  writeFileSync(file, "");
+  const timer = setTimeout(() => rmSync(file), 20);
+  try {
+    assert.equal(await withLock(dir, "waiter", () => "entered", { waitMs: 500 }), "entered");
+    assert.equal(existsSync(file), false);
+  } finally {
+    clearTimeout(timer);
+  }
+});
+
+test("holders see complete owner JSON and leave no temporary files on success or stale failure", async () => {
+  const dir = testTempDir("atomic-lock");
+  const file = path.join(dir, "lock");
+  const temporaryFiles = () => readdirSync(dir).filter((name) => /^lock\..*\.tmp$/.test(name));
+  await withLock(dir, "holder", async () => {
+    const owner = JSON.parse(readFileSync(file, "utf8"));
+    assert.equal(owner.pid, process.pid);
+    assert.equal(owner.purpose, "holder");
+    assert.ok(Number.isFinite(Date.parse(owner.at)));
+    assert.match(owner.token, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    assert.deepEqual(temporaryFiles(), []);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(JSON.parse(readFileSync(file, "utf8")).token, owner.token);
+  });
+  assert.equal(existsSync(file), false);
+  assert.deepEqual(temporaryFiles(), []);
+  writeFileSync(file, stale);
+  await assert.rejects(
+    withLock(dir, "waiter", () => assert.fail("entered stale lock")),
+    { code: "stale_lock" },
+  );
+  assert.deepEqual(temporaryFiles(), []);
+  assert.equal(readFileSync(file, "utf8"), stale);
 });
 
 test("release preserves a replacement lock and records an owner token", async () => {

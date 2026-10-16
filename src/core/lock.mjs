@@ -1,6 +1,6 @@
 // @ts-check
 import { randomUUID } from "node:crypto";
-import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeSync } from "node:fs";
+import { linkSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { HarnessError } from "../util/errors.mjs";
 
@@ -89,11 +89,20 @@ export async function withLock(stateDir, purpose, body, options = {}) {
   const file = path.join(stateDir, "lock");
   const token = randomUUID();
   const deadline = Date.now() + (options.waitMs ?? 30000);
-  let fd = null;
-  while (fd === null) {
+  const temp = path.join(stateDir, `lock.${token}.tmp`);
+  while (true) {
     try {
-      fd = openSync(file, "wx", 0o600);
-      writeSync(fd, JSON.stringify({ token, pid: process.pid, purpose, at: new Date().toISOString() }));
+      try {
+        writeFileSync(
+          temp,
+          JSON.stringify({ token, pid: process.pid, purpose, at: new Date().toISOString() }),
+          { flag: "wx", mode: 0o600 },
+        );
+        linkSync(temp, file);
+      } finally {
+        rmSync(temp, { force: true });
+      }
+      break;
     } catch (error) {
       if (error.code !== "EEXIST") throw error;
       let content;
@@ -104,7 +113,7 @@ export async function withLock(stateDir, purpose, body, options = {}) {
         throw readError;
       }
       const owner = parseOwner(content);
-      if (!liveOwner(owner)) {
+      if (!liveOwner(owner) && (owner !== null || Date.now() > deadline)) {
         throw new HarnessError(
           "infra",
           "stale_lock",
@@ -124,7 +133,6 @@ export async function withLock(stateDir, purpose, body, options = {}) {
   try {
     return await body();
   } finally {
-    closeSync(fd);
     release(file, token);
   }
 }
