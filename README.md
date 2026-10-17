@@ -7,7 +7,7 @@ Each task names the paths an agent may change and the checks it must pass. An im
 edits a private copy of the repository through a small set of scoped tools. The task's checks run
 in an OS sandbox. A separate reviewer agent judges the verified change. If the review passes, the
 controller commits the change to a batch branch and attaches a receipt to the commit as a Git note.
-`apocha land` fast-forwards a branch only when every new commit carries a receipt that matches its content. Receipts can be signed with an SSH key. With `land --require-signed`, or `receipts.require_signed` in the config, only receipts signed by a key listed in the repository's allowed signers file are accepted. That file is read from the target branch.
+`apocha land` fast-forwards a branch only when every new commit carries a receipt that matches its content. Receipts can be signed with an SSH key. With `land --require-signed`, or `receipts.require_signed` in the config, only receipts signed by a key listed in the repository's allowed signers file are accepted. That file is read from the target branch. Signing is optional in general, but this repository requires signed receipts for new commits from `12e2bad` through `receipts.require_signed`; `apocha land` and `apocha verify-range` reject unsigned or unauthorised receipts for those commits. Earlier receipts are unsigned. A signature proves possession of an authorised key, not that checks or review were sound.
 
 It works with Codex CLI, Claude Code, and Pi as agent runtimes, chosen per role in a config file.
 
@@ -72,7 +72,7 @@ task.json ─► candidate (private clone at the base commit)
   Codex additionally runs with its own read-only sandbox. Run Apocha in a container or VM if
   the repository or the task text could be hostile.
 - A check marked `unsandboxed: true` in the project config runs without an OS sandbox. A run that uses one needs `--allow-governance-edits` with a reason, and agents cannot run it themselves through `run_check`.
-- Signing is opt-in. Without `--require-signed`, `land` checks that each receipt matches its commit, but not who wrote it.
+- Signing is optional in general, but required in this repository from `12e2bad`; earlier receipts are unsigned. Without `--require-signed` or `receipts.require_signed`, `land` checks that each receipt matches its commit, but not who wrote it.
 - A repository's own `.apocha/runtimes.json` is ignored unless you pass `--trust-repo-runtimes`, because it decides which program runs.
 - It does not push, open pull requests, or deploy.
 

@@ -141,9 +141,12 @@ restrictions still enforced.
   the fact. Run `apocha doctor --live` after every runtime upgrade.
 - **Unsigned receipts remain forgeable when signatures are optional.** Require signatures
   with `land --require-signed` or target config `receipts.require_signed` to close this gap.
-  Trust comes from the target branch's allowed_signers file, a governance path. Protect
-  signing keys outside the repository; signatures attest the operator's key, not the truth
-  of the recorded checks. See [receipts.md](receipts.md#limits).
+  This repository requires signatures for new commits from `12e2bad`; earlier receipts are
+  unsigned. Verify with `apocha verify-range 12e2bad..main --require-signed`.
+  Trust comes from the target branch's allowed_signers file, a governance path read from
+  the target tip. Anyone who can change that file on the target branch can authorise a key.
+  Protect signing keys outside the repository; signatures attest the operator's key, not
+  the truth of the recorded checks. See [receipts.md](receipts.md#limits).
 - **Repository-level runtime config requires explicit trust.** `.apocha/runtimes.json` chooses
   runtime commands and is ignored unless you pass `--trust-repo-runtimes`. It is a governance
   path, so agents cannot change it, but a person who can commit to the repository can.
