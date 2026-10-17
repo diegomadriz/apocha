@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "receipts": { "require_signed": true },
   "checks": {
     "lint": { "description": "Biome lint and format check", "run": ["npx", "--no-install", "biome", "check", "."], "cwd": ".", "timeout_ms": 120000, "dependencies": "npm" },
     "typecheck": { "description": "tsc --noEmit over JSDoc types", "run": ["npx", "--no-install", "tsc", "-p", "tsconfig.json"], "cwd": ".", "timeout_ms": 180000, "dependencies": "npm" },

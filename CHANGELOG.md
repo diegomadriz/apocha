@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- This repository now requires signed receipts for new landings; receipts before this commit are unsigned.
 - Publish Apocha's self-hosted run history with denominators and reproduction limits, document signature checks, and clarify judge input rules for test hooks.
 - Reviewer provenance now marks per-file test and judge input diffs as untrusted; blocked-claim verification moves implementer judge input reasons under `untrusted`.
 - macOS home read exceptions never reopen the home directory itself, including through PATH bin parents, Node prefixes, or symlinks. Credential denies now cover toolchain credential files and additional credential stores, and still override home allows.
