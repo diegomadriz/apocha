@@ -26,6 +26,7 @@
         "codex": { "$ref": "#/$defs/adapter" },
         "claude-code": { "$ref": "#/$defs/adapter" },
         "pi": { "$ref": "#/$defs/adapter" },
+        "opencode": { "$ref": "#/$defs/adapter" },
         "fake": { "$ref": "#/$defs/adapter" }
       }
     },
@@ -45,9 +46,10 @@
     "role": {
       "type": "object", "additionalProperties": false, "required": ["adapter"],
       "properties": {
-        "adapter": { "enum": ["codex", "claude-code", "pi", "fake"] },
+        "adapter": { "enum": ["codex", "claude-code", "pi", "opencode", "fake"] },
         "model": { "type": "string", "minLength": 1, "maxLength": 200 },
         "provider": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "variant": { "type": "string", "minLength": 1, "maxLength": 100 },
         "effort": { "enum": ["off", "minimal", "low", "medium", "high", "xhigh", "max"] }
       }
     },

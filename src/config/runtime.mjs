@@ -9,7 +9,7 @@ import { assertValid } from "../util/schema.mjs";
 export const RUNTIME_CONFIG_FILE = "runtimes.json";
 
 /**
- * @typedef {{ adapter: "codex" | "claude-code" | "pi" | "fake", model?: string, provider?: string, effort?: string }} RoleRuntime
+ * @typedef {{ adapter: "codex" | "claude-code" | "pi" | "opencode" | "fake", model?: string, provider?: string, effort?: string, variant?: string }} RoleRuntime
  * @typedef {{ command?: string, min_version?: string, provider?: string, script?: string }} AdapterSettings
  * @typedef {{
  *   version: 1,
@@ -24,9 +24,10 @@ export const RUNTIME_CONFIG_FILE = "runtimes.json";
  */
 
 /**
- * Resolve a role's vendor without starting its adapter. Pi role settings override
- * adapter settings; an unspecified provider remains unknown.
- * @param {{ adapter: string, provider?: string | null }} role
+ * Resolve a role's vendor without starting its adapter. Explicit role providers
+ * override adapter settings. Opencode direct model IDs supply a vendor prefix;
+ * gateway models need an explicit vendor, otherwise their identity stays unknown.
+ * @param {{ adapter: string, model?: string, provider?: string | null }} role
  * @param {{ provider?: string }} [settings]
  * @returns {string}
  */
@@ -34,8 +35,12 @@ export function roleProvider(role, settings = {}) {
   if (role.adapter === "codex") return "openai";
   if (role.adapter === "claude-code") return "anthropic";
   if (role.adapter === "fake") return "fake";
-  const provider = role.provider ?? settings.provider ?? "unknown";
-  return provider === "openai-codex" ? "openai" : provider;
+  let provider = role.provider ?? settings.provider;
+  if (role.adapter === "opencode") {
+    provider ??= role.model?.match(/^([^/]+)\/.+$/)?.[1];
+    if (provider === "opencode") return "unknown";
+  }
+  return provider === "openai-codex" ? "openai" : (provider ?? "unknown");
 }
 
 export const DEFAULT_BUDGETS = Object.freeze({ timeout_ms: 1200000, max_tool_calls: 150 });
@@ -67,6 +72,13 @@ export function normalizeRuntimeConfig(raw, source) {
   const input = /** @type {Record<string, any>} */ (raw);
   for (const role of ["implementer", "reviewer"]) {
     const entry = input.roles[role];
+    if (entry.variant !== undefined && entry.adapter !== "opencode") {
+      throw new HarnessError(
+        "config",
+        "variant_not_supported",
+        `${source}: roles.${role}.variant is supported only for opencode`,
+      );
+    }
     if (entry.adapter !== "fake" && !entry.model) {
       throw new HarnessError(
         "config",

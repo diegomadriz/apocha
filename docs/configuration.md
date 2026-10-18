@@ -267,13 +267,57 @@ commands, so they are ignored by default with a notice on stderr. To trust one, 
 }
 ```
 
-- `roles.<role>.adapter`: `codex`, `claude-code`, `pi`, or `fake` (tests and demos; set
+- `roles.<role>.adapter`: `codex`, `claude-code`, `pi`, experimental `opencode` (see below),
+  or `fake` (tests and demos; set
   `adapters.fake.script` to a module exporting `{ implementer, reviewer }` handlers).
 - `model` is required for real adapters. `effort` maps to each runtime's reasoning setting.
-  `provider` applies to Pi.
+  `provider` applies to Pi and opencode.
 - A reviewer from a different model family than the implementer is recommended: judges score
   output from their own family higher.
 - The resolved config is hashed into `runtime_config_digest` in every receipt.
+
+### Experimental opencode configuration
+
+The config loader accepts `opencode` roles and adapter settings. The runtime
+adapter implementation and factory registration are separate work; this does
+not yet provide a runnable or proven adapter.
+
+An illustrative `runtimes.json` for a future experiment (replace the model and
+provider placeholders with the real model ID and vendor):
+
+```json
+{
+  "version": 1,
+  "roles": {
+    "implementer": {
+      "adapter": "opencode",
+      "model": "opencode/example-free",
+      "provider": "actual-model-vendor",
+      "variant": "reasoning",
+      "effort": "high"
+    },
+    "reviewer": { "adapter": "fake" }
+  },
+  "adapters": {
+    "opencode": { "command": "opencode", "min_version": "1.0.0" }
+  }
+}
+```
+
+`model` is required. `variant` is optional (1–100 characters) and rejected for
+other adapters. `effort` accepts the existing effort values; runtime mapping of
+effort and variant is future work. `command` and `min_version` reuse the existing
+adapter settings; the version above is illustrative, not a verified minimum.
+
+For `opencode/...` gateway models, set the actual vendor in the role's
+`provider` or `adapters.opencode.provider` (the role wins). Without it, identity
+stays `unknown`. Direct `vendor/model` IDs supply the vendor prefix when no
+provider is explicit; `openai-codex` normalizes to `openai`. The gateway name
+`opencode` is never a model vendor. Unknown identity is not evidence of reviewer
+independence.
+
+Use only public code and synthetic data with third-party free models. Do not
+send private code, secrets, or real user data.
 
 ## Judge inputs
 
