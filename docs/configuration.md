@@ -471,18 +471,23 @@ and `src/git/test-edits.mjs` for replay. It compares lexical constructs by regis
 name, ignoring comments, quoted fixtures, formatting, and unchanged or moved skips.
 It recognizes first-statement callback returns, direct `process.exit` before assertions,
 registration `.skip`/`.only` and skip/todo/only options, first-statement runtime context
-skip calls, `pytest.skip`, `pytestmark`, and `@pytest.mark.skip`. New registrations and
-helper returns are excluded. Conditional runtime skips, aliases, computed properties,
+skip calls, `pytest.skip`, `pytestmark`, and `@pytest.mark.skip`. New JS registrations
+(including platform-specific tests) and helper returns are excluded. Added Python skip
+tokens require declarations in existing test files even when the test function is new.
+Undeclared bypasses fail `test-changes`. Conditional runtime skips, aliases, computed properties,
 dynamic registration names, template interpolation, and other dynamic control flow
 remain reviewer responsibilities. Python recognition uses named `test_` functions and
 consecutive single-line decorators. This is a lexical check, not semantic execution proof.
 
-New hooks require kind `fixture` declarations under every test-edit policy, including
-`new-files` and `allowed`. Such declarations
+New hooks require kind `fixture` declarations under `additive` and `justified`, even
+outside `tests.paths`; missing declarations fail `test-changes`. The `new-files` and
+`allowed` policies retain their normal semantics. Such declarations
 do not waive separate `judge_input_changes`, base-judge reruns, or reviewer verdicts
 by path. New hooks are not run individually as test files for base evidence.
 
-Evidence records whether a change was declared, its kind, and reason.
+Declared bypass additions also receive test-change execution evidence when `tests.run_files`
+is configured, even when the edit is additive. Evidence records whether a change was
+declared, its kind, and reason.
 The review bundle also lists undeclared changed test files.
 
 `read_only_paths` and `allowed_paths` must not overlap: neither may equal,

@@ -51,8 +51,8 @@ task.json ─► candidate (private clone at the base commit)
   Under `additive` and `justified`, newly introduced lexical bypasses in existing tests
   need `test_changes` declarations. Conditional runtime skips and dynamic control flow
   remain reviewer responsibilities; this is not semantic execution proof. New built-in
-  and configured hook files need `fixture` declarations, including outside test paths,
-  as well as any separate judge input declarations. The `new-files` policy forbids
+  and configured hook files need `fixture` declarations under `additive` and `justified`,
+  including outside test paths, as well as any separate judge input declarations. The `new-files` policy forbids
   any change to existing tests.
 - **Agents act only through the harness tools.** No shell, no runtime built-in tools, no
   connectors. Each adapter disables its runtime's own capabilities and fails the run if the

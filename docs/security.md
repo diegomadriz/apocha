@@ -162,13 +162,18 @@ restrictions still enforced.
   existing tests require declarations: first-statement callback returns, direct
   `process.exit` before assertions, registration skip/only/options, first-statement
   runtime context skip, and pytest skip/mark tokens. Comments, quoted fixtures,
-  helper returns, new registrations, and unchanged/moved/formatted skips are excluded.
+  helper returns, new JS registrations (including platform-specific tests), and
+  unchanged/moved/formatted skips are excluded. Added Python skip tokens in existing
+  test files need declarations even when their test function is new. Undeclared
+  bypasses fail `test-changes`.
   This is not semantic execution proof: conditional runtime skips, aliases, computed
   properties, template interpolation, dynamic registration names and control flow
   remain reviewer responsibilities. Python identity uses named `test_` functions
   with consecutive single-line decorators. New built-in hooks (`conftest.py`,
   `pytest.ini`, `setup.cfg`) and base-configured `tests.hook_files` patterns need
-  fixture declarations under every test-edit policy, even outside `tests.paths`.
+  fixture declarations under `additive` and `justified`, even outside `tests.paths`;
+  missing declarations fail `test-changes`. `new-files` and `allowed` retain their
+  normal policy semantics.
   Separate judge input declarations,
   base-judge reruns, and per-path reviewer verdicts still apply. For high-stakes tasks,
   protect the test directory and put new tests in a separate task.

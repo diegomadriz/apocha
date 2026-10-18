@@ -180,7 +180,9 @@ test("additive rejects an undeclared early return before review with a candidate
     assert.equal(reviewed, false);
     assert.equal(summary.checks.find((check) => check.id === "test-edits").status, "pass");
     const state = new RunStore(repo.root).read(summary.run_id).state;
-    const bypass = state.last_verification.checks.find((check) => check.id === "test-bypasses");
+    const bypass = state.last_verification.checks.find((check) => check.id === "test-changes");
+    assert.equal(state.findings[0].check_id, "test-changes");
+    assert.equal(new Set(summary.checks.map((check) => check.id)).size, summary.checks.length);
     assert.equal(bypass.status, "fail");
     assert.equal(
       bypass.error,

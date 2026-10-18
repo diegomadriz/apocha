@@ -270,42 +270,26 @@ export async function runChecksStage(_stage, ctx) {
   const testChanges = [];
   const declarations = new Map((ctx.task.test_changes ?? []).map((entry) => [entry.path, entry]));
   const reasons = [];
+  const declaredBypassFiles = [];
   if (tests.effective_policy === "additive" || tests.effective_policy === "justified") {
     for (const file of tests.modified) {
       const next = git(ctx.candidate.root, ["show", `:${file}`], { allowFailure: true });
       if (next.status !== 0) continue;
       const base = String(git(ctx.candidate.root, ["show", `${ctx.candidate.base_commit}:${file}`]).stdout);
       const bypasses = classifyTestBypasses(base, String(next.stdout));
+      if (bypasses.length && declarations.has(file)) declaredBypassFiles.push(file);
       if (bypasses.length && !declarations.has(file))
         for (const bypass of bypasses)
           reasons.push(`${file}:${bypass.line}: ${bypass.reason} requires a test_changes declaration`);
     }
-  }
-  for (const file of snapshot.changed_files.filter((file) => isTestHook(ctx.config, file))) {
-    const existed =
-      git(ctx.candidate.root, ["cat-file", "-e", `${ctx.candidate.base_commit}:${file}`], {
-        allowFailure: true,
-      }).status === 0;
-    if (!existed && declarations.get(file)?.kind !== "fixture")
-      reasons.push(`${file}: new test hook requires a fixture test_changes declaration`);
-  }
-  if (reasons.length) {
-    const reason = reasons.join("\n");
-    results.push({
-      id: "test-bypasses",
-      status: "fail",
-      exit_code: null,
-      error: reason,
-      stdout: "",
-      stderr: reason,
-      stdout_truncated: false,
-      stderr_truncated: false,
-      output_digest: "",
-      definition_digest: "",
-      sandbox: ctx.sandboxBackend,
-      duration_ms: 0,
-    });
-    ctx.event("check.finished", { id: "test-bypasses", status: "fail", error: reason });
+    for (const file of snapshot.changed_files.filter((file) => isTestHook(ctx.config, file))) {
+      const existed =
+        git(ctx.candidate.root, ["cat-file", "-e", `${ctx.candidate.base_commit}:${file}`], {
+          allowFailure: true,
+        }).status === 0;
+      if (!existed && declarations.get(file)?.kind !== "fixture")
+        reasons.push(`${file}: new test hook requires a fixture test_changes declaration`);
+    }
   }
   const addedHookFiles = new Set(
     snapshot.changed_files.filter(
@@ -367,17 +351,17 @@ export async function runChecksStage(_stage, ctx) {
       testsOnBase.push({ path: file, result: classification });
       ctx.event("test-on-base.finished", { path: file, result: classification });
     }
-    const evidenceNeeded = tests.changed.filter(
+    const evidenceFiles = [...new Set([...tests.changed, ...declaredBypassFiles])];
+    const evidenceNeeded = evidenceFiles.filter(
       (file) => !fixtureFiles.has(file) && canRunTestPath(ctx.config, file),
     );
-    const unevaluated = tests.changed.filter(
+    const unevaluated = evidenceFiles.filter(
       (file) => !fixtureFiles.has(file) && !canRunTestPath(ctx.config, file),
     );
     if (
-      tests.effective_policy === "justified" &&
+      (tests.effective_policy === "justified" || declaredBypassFiles.length > 0) &&
       (evidenceNeeded.length || unevaluated.length || fixtureFiles.size)
     ) {
-      const reasons = [];
       if (evidenceNeeded.length > 10)
         reasons.push(`${evidenceNeeded.length} changed existing test files exceeds the limit of 10`);
       for (const file of [...evidenceNeeded.slice(0, 10), ...unevaluated, ...fixtureFiles].sort()) {
@@ -485,27 +469,6 @@ export async function runChecksStage(_stage, ctx) {
         else if (verdict === "error") reasons.push(`could not establish test change evidence for ${file}`);
         ctx.event("test-change.finished", { path: file, old_on_candidate: oldOnCandidate, verdict });
       }
-      const status = testChanges.some((entry) => entry.verdict === "error")
-        ? "infra_error"
-        : reasons.length
-          ? "fail"
-          : "pass";
-      const reason = reasons.join("\n");
-      results.push({
-        id: "test-changes",
-        status,
-        exit_code: null,
-        error: reason || null,
-        stdout: "",
-        stderr: reason,
-        stdout_truncated: false,
-        stderr_truncated: false,
-        output_digest: "",
-        definition_digest: "",
-        sandbox: ctx.sandboxBackend,
-        duration_ms: 0,
-      });
-      ctx.event("check.finished", { id: "test-changes", status, error: reason || null });
     }
     const passing = testsOnBase.filter((entry) => entry.result === "passes_on_base");
     if (ctx.task.new_tests_must_fail_on_base && passing.length) {
@@ -526,6 +489,30 @@ export async function runChecksStage(_stage, ctx) {
       });
       ctx.event("check.finished", { id: "tests-fail-before", status: "fail", error: reason });
     }
+  }
+  // Publish one result after combining declaration failures and execution evidence.
+  if (reasons.length || testChanges.length) {
+    const status = testChanges.some((entry) => entry.verdict === "error")
+      ? "infra_error"
+      : reasons.length
+        ? "fail"
+        : "pass";
+    const reason = reasons.join("\n");
+    results.push({
+      id: "test-changes",
+      status,
+      exit_code: null,
+      error: reason || null,
+      stdout: "",
+      stderr: reason,
+      stdout_truncated: false,
+      stderr_truncated: false,
+      output_digest: "",
+      definition_digest: "",
+      sandbox: ctx.sandboxBackend,
+      duration_ms: 0,
+    });
+    ctx.event("check.finished", { id: "test-changes", status, error: reason || null });
   }
   /** @type {NonNullable<import("../core/context.mjs").RunState["last_verification"]>["base_judge"]} */
   let baseJudge;

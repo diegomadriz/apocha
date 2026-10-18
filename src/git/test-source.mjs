@@ -64,7 +64,8 @@ function bypassTokens(source) {
 }
 
 /** Find newly introduced lexical bypass constructs in preexisting registrations.
- * New registrations, comments, string fixtures, and helper returns are excluded.
+ * New JS registrations, comments, string fixtures, and helper returns are excluded.
+ * Added Python skip tokens require declarations even in new test functions.
  * Conditional runtime skips, aliases, computed properties and dynamic code require review.
  * @param {string} baseText @param {string} newText
  * @returns {{line: number, reason: string}[]}
@@ -87,7 +88,7 @@ export function classifyTestBypasses(baseText, newText) {
     }
     /** @type {{key: string, start: number, end: number, body: number, flags: {index: number, reason: string}[]}[]} */
     const registrations = [];
-    // Python test functions provide identity for new-registration exclusion too.
+    // Python function identity preserves unchanged/moved skip findings.
     for (const match of source.matchAll(/^( *)(?:async\s+)?def\s+(test_\w+)\s*\(/gm)) {
       const offset = match.index;
       const tail = source.slice(offset + match[0].length);
@@ -209,7 +210,8 @@ export function classifyTestBypasses(baseText, newText) {
   return next.findings
     .filter((finding) => {
       const registration = next.registrations.find((r) => r.start <= finding.index && finding.index <= r.end);
-      if (registration && !existing.has(registration.key)) return false;
+      if (registration && !registration.key.startsWith("python:") && !existing.has(registration.key))
+        return false;
       const index = remaining.indexOf(finding.key);
       if (index < 0) return true;
       remaining.splice(index, 1);
