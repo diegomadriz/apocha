@@ -59,6 +59,7 @@ work instead of reporting them as blocked.
 | Codex CLI | MCP over stdio (`src/adapters/mcp-server-main.mjs`) | configured with `-c mcp_servers.apocha.*` |
 | Claude Code | MCP over stdio | `--mcp-config` with `--strict-mcp-config` |
 | Pi | Pi extension (`src/adapters/pi/extension.mjs`) | registers the same tools in-process |
+| Experimental opencode 1.19.3 | isolated local MCP, exact role names | explicit selection only; [design and limits](opencode-adapter-design.md) |
 | fake | direct calls | for tests and demos |
 
 The MCP server uses the official TypeScript SDK (`@modelcontextprotocol/server`). Its
@@ -102,6 +103,34 @@ runtime dependency, and only the tool server process loads it.
 - Stream check: any `tool_execution_start` for a tool outside the harness ends the run.
 - Pi's `openai-codex` provider reaches a ChatGPT subscription through an unofficial path. Prefer
   the `codex` adapter for subscription use.
+
+### Experimental opencode (`--pure run --format json`)
+
+Implemented for **1.19.3 only**, with no support/default claim. Select explicitly.
+A successful version probe establishes installation only and reports experimental status.
+Require synthetic probes for each actual role before any support claim; liveProbe variant
+plumbing and role-specific live validation remain future work.
+
+Only unauthenticated `opencode/model` gateway models are accepted. An explicit actual
+vendor is required in role or adapter settings; the gateway is not a vendor.
+`variant ?? effort` is passed to the CLI. A private 0700 temporary directory isolates
+home, XDG locations, cwd, config and temp files. Only PATH, LANG and LC_ALL are inherited.
+Machine configuration is refused, resolved config is checked before the model call,
+and both permission maps deny `*` while allowing exact role MCP names only.
+The owned config is checked again after preflight. Temporary state is removed in finally.
+
+Use **public/synthetic inputs only**: prompts and tool-returned content reach a third-party
+provider. The pre-call filename scan rejects untracked source secrets and tracked
+secret-looking paths; it cannot prove other data is public. This is CLI configuration
+isolation, not an OS sandbox or a defense against a malicious executable. Stream
+inspection detects violations after possible execution, and does not persist whole events.
+
+Official synthetic CLI probes returned provider HTTP403 stating the free tier is only usable
+within OpenCode under strict all-builtins denial. Ordinary CLI and MCP worked on 1.19.3;
+allowing built-in read at ask also worked, but is unsafe: V1 read stats paths before its
+permission gate. This adapter keeps read and every other built-in denied, preserves provider
+failure, and never adapts the policy or prompts to bypass this gate. No live lockdown success
+is claimed. See the [design](opencode-adapter-design.md) for evidence limits.
 
 ## Reviewer independence
 

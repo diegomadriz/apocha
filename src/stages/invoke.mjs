@@ -108,6 +108,7 @@ export async function invokeAgent(ctx, role, bundle, options = {}) {
         model: roleConfig.model,
         provider: roleConfig.provider,
         effort: roleConfig.effort,
+        variant: roleConfig.variant,
         systemPrompt: rolePrompt(role),
         taskPrompt: renderBundle(role, bundle) + (continuations ? `\n${CONTINUATION_PROMPT}\n` : ""),
         bundle,

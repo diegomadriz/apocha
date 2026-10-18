@@ -1,8 +1,16 @@
 # Experimental opencode adapter design
 
-This is a pre-implementation design, based on source and CLI probes against opencode 1.19.3.
-It does not establish production support. Implementation, registration, tests and live validation
-belong in separate tasks. Do not add a README support claim before actual success.
+The experimental adapter is implemented and registered for opencode **1.19.3 only**.
+Other versions are refused until retested. This design and fake-only regression suite do not
+establish production support or live lockdown success. Explicit selection is required;
+there is no README support/default claim.
+
+Official isolated synthetic probes returned provider HTTP403 stating the free tier is only
+usable within OpenCode under strict all-builtins denial. Ordinary CLI and MCP succeeded on
+this version. Keeping built-in read at ask allowed MCP success, but that workaround is rejected:
+V1 read.ts stats paths before ctx.ask (directory listings and content reads occur after it).
+The adapter retains wildcard deny and exact MCP permissions and preserves provider failure.
+It never adapts tools, permissions or prompts to bypass provider checks.
 
 ## Adapter boundary and invocation
 
@@ -15,14 +23,18 @@ returns `{ runtime, usage, final_message? }` or throws `HarnessError`. The MCP s
 Launch an argument array equivalent to:
 
 ```text
-opencode run --format json --pure --agent apocha -m provider/model [--variant variant]
+opencode --pure run --format json --agent apocha -m opencode/model [--variant variant]
 ```
 
 Send `invocation.taskPrompt` on stdin. Put `invocation.systemPrompt` in the generated `apocha`
-agent definition, without discovering external instructions. Map effort to the model's supported
-variant; propagate an explicitly configured optional variant to `--variant`, with explicit variant
-taking precedence. Validate unsupported combinations rather than silently dropping effort. Variant
-configuration and contract plumbing are future implementation work.
+agent definition, without discovering external instructions. Invocation variant configuration and
+contract plumbing are implemented: pass `variant ?? effort` to `--variant`. Unsupported variants
+are left to the pinned CLI/provider to reject, and those failures are preserved.
+
+The MVP accepts only unauthenticated `opencode/model` IDs and sets
+`enabled_providers: ["opencode"]`. Other provider IDs fail closed with an unsupported
+authentication error. Unknown vendor identity, including an explicit `provider: "opencode"`,
+is rejected before starting the CLI.
 
 Configure only the local `apocha` MCP server, with a command array containing the Node executable
 and the absolute path to `src/adapters/mcp-server-main.mjs`. Its `environment` supplies
@@ -48,12 +60,20 @@ preserves user homes and provider credentials. Never inherit arbitrary `OPENCODE
 unrelated provider credentials. Free public models need no authentication. Explicit paid
 credentials and their scoped injection are future work; credentials must never enter receipts.
 
-Managed machine configuration may still apply. Inspect resolved configuration under the exact
+Machine config locations are checked for existence without reading contents: macOS
+`/Library/Application Support/opencode` and managed preferences (system and per-user), Linux
+`/etc/opencode`, Windows `ProgramData/opencode`. Presence or inability to establish absence
+fails closed, with no policy bypass. Inspect resolved configuration under the exact
 invocation environment before any model call, and fail closed if extra MCP servers, tools,
 plugins, instructions, permissions or other configuration contaminate the generated boundary.
 An unreadable or unverifiable resolved configuration cannot count as clean. Keep the adapter
 experimental until resolved-config inspection and live checks pass, and revalidate after upgrades.
 Temporary homes alone are not evidence that every configuration source was excluded.
+Implemented preflight captures the bounded pretty JSON document in a cancellable helper using
+runJsonlProcess's process group and the invocation's remaining total budget. It compares the
+resolved policy to the generated config, then checks that the on-disk private config was not
+modified. Version queries also use an isolated environment. This trusts the selected executable;
+a malicious executable can lie, and configuration isolation is not an OS sandbox.
 
 ## Tool prevention and detection
 
@@ -115,15 +135,21 @@ prompt/output-bearing stream events in receipts.
 
 ## Doctor, security validation and privacy
 
-Doctor must label the adapter experimental and warn prominently before any free third-party model
+The adapter probe labels it experimental without treating that warning as install failure.
+Doctor must warn prominently before any free third-party model
 use: task prompts and tool-returned source content go to that provider. Never send private content.
 Keep the existing `sourceSecretFiles` check; add rejection of secret-looking repositories before
 model calls rather than treating the current informational `sourceSecretsProbe` as a sufficient
-gate. A secret-file scan is not proof that all other source content is public. Use only synthetic
+gate. Before launching the CLI for a model invocation, the adapter reads the local session policy,
+rejects any sourceSecretFiles result and scans tracked filenames for .env/.env.*, pem/key,
+id_rsa/id_ed25519 (safe example/sample/template tracked names excepted). It never reads secret
+contents or includes rejected path names in diagnostics. A secret-file scan is a filename
+heuristic, not proof that all other source content is public. Use only synthetic
 scratch data for live validation, with no copied user configuration or repository content.
 
-Extend the synthetic `liveProbe` flow: ask for a shell/write outside the harness and a read of
-`/etc/hosts`, then require harness `apply_patch` and `submit_result`. Pass only with no forbidden
+Future work (not implemented here): extend the synthetic `liveProbe` flow and propagate variant
+there. Ask for a shell/write outside the harness and a read of `/etc/hosts`, then require harness
+`apply_patch` and `submit_result`. Pass only with no forbidden
 capability events, no file created outside harness tools, and a verified harness patch/submission.
 The current probe runs an implementer session even when selecting reviewer model settings, so it
 does not establish reviewer-role isolation. Require a separate real synthetic smoke for each actual

@@ -12,6 +12,7 @@
  *   model?: string,
  *   provider?: string,
  *   effort?: string,
+ *   variant?: string,
  *   systemPrompt: string,
  *   taskPrompt: string,
  *   bundle: Record<string, unknown>,

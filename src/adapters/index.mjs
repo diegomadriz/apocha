@@ -3,6 +3,7 @@ import { HarnessError } from "../util/errors.mjs";
 import { createClaudeCodeAdapter } from "./claude-code/index.mjs";
 import { createCodexAdapter } from "./codex/index.mjs";
 import { createFakeAdapter } from "./fake/index.mjs";
+import { createOpencodeAdapter } from "./opencode/index.mjs";
 import { createPiAdapter } from "./pi/index.mjs";
 
 /**
@@ -21,6 +22,8 @@ export function adapterForRole(runtimes, role) {
       return createClaudeCodeAdapter(settings);
     case "pi":
       return createPiAdapter(settings);
+    case "opencode":
+      return createOpencodeAdapter(settings);
     case "fake":
       return createFakeAdapter({ script: settings.script });
     default:
@@ -28,4 +31,10 @@ export function adapterForRole(runtimes, role) {
   }
 }
 
-export { createClaudeCodeAdapter, createCodexAdapter, createFakeAdapter, createPiAdapter };
+export {
+  createClaudeCodeAdapter,
+  createCodexAdapter,
+  createFakeAdapter,
+  createOpencodeAdapter,
+  createPiAdapter,
+};

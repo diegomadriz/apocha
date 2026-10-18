@@ -278,12 +278,12 @@ commands, so they are ignored by default with a notice on stderr. To trust one, 
 
 ### Experimental opencode configuration
 
-The config loader accepts `opencode` roles and adapter settings. The runtime
-adapter implementation and factory registration are separate work; this does
-not yet provide a runnable or proven adapter.
+The experimental adapter is implemented and registered for **1.19.3 only**; other
+versions are refused until retested. Select it explicitly. A version probe reports
+installation and experimental status, not live isolation success.
 
-An illustrative `runtimes.json` for a future experiment (replace the model and
-provider placeholders with the real model ID and vendor):
+An illustrative `runtimes.json` (replace the model and provider placeholders with
+a real free gateway model ID and actual vendor):
 
 ```json
 {
@@ -299,25 +299,35 @@ provider placeholders with the real model ID and vendor):
     "reviewer": { "adapter": "fake" }
   },
   "adapters": {
-    "opencode": { "command": "opencode", "min_version": "1.0.0" }
+    "opencode": { "command": "opencode", "min_version": "1.19.3" }
   }
 }
 ```
 
 `model` is required. `variant` is optional (1–100 characters) and rejected for
-other adapters. `effort` accepts the existing effort values; runtime mapping of
-effort and variant is future work. `command` and `min_version` reuse the existing
-adapter settings; the version above is illustrative, not a verified minimum.
+other adapters. The runtime passes `variant ?? effort` as `--variant`. Only
+`opencode/model` IDs are supported in this MVP; other providers fail closed with
+unsupported authentication. No global credentials/config are copied and no provider
+secrets or ambient OPENCODE variables are inherited. `min_version` defaults to
+1.19.3 and does not relax the exact-version gate.
 
 For `opencode/...` gateway models, set the actual vendor in the role's
 `provider` or `adapters.opencode.provider` (the role wins). Without it, identity
-stays `unknown`. Direct `vendor/model` IDs supply the vendor prefix when no
-provider is explicit; `openai-codex` normalizes to `openai`. The gateway name
-`opencode` is never a model vendor. Unknown identity is not evidence of reviewer
-independence.
+stays `unknown` and the adapter refuses before any CLI/model call.
+An explicit provider `opencode` is also unknown; `openai-codex` normalizes to
+`openai`. The config resolver understands direct vendor prefixes, but the adapter
+currently rejects direct-provider models. The gateway is never a model vendor.
 
 Use only public code and synthetic data with third-party free models. Do not
-send private code, secrets, or real user data.
+send private code, secrets, or real user data. The filename gate cannot prove a repository
+is public. Private HOME/XDG/cwd/temp/config, minimal environment, machine-config refusal,
+and strict resolved-config inspection isolate configuration, not the OS.
+
+Known gate: strict denial of all built-ins returned provider HTTP403 in official synthetic
+probes; ordinary CLI/MCP worked. Allowing built-in read at ask worked but stats paths before
+permission and is deliberately rejected. The adapter preserves the failure and never bypasses
+the provider gate. There is no live lockdown success claim; synthetic validation for each actual
+role is still required. See [adapter limits](adapters.md) and [design](opencode-adapter-design.md).
 
 ## Judge inputs
 
