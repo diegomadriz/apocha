@@ -123,7 +123,13 @@ Resolved config comparison tolerates only CLI metadata (`$schema`, `username`) a
 empty plain objects at `mode`, `command`, and `agent.apocha.options` when absent from
 the expected config. Nonempty values, arrays, null, and every other unexpected field
 remain rejected. The owned config is checked again after preflight to detect on-disk
-mutation even when debug output claims the expected policy. Temporary state is removed in finally.
+mutation even when debug output claims the expected policy. Cleanup is attempted exactly once
+for every allocated private root, including version/config failures, timeout/abort, and
+provider or policy failures. If cleanup also fails, the primary error keeps its class,
+code, retry time, message, and existing safe details, with `details.cleanup_failed: true`.
+This bounded diagnostic includes no filesystem message or path. Cleanup failure after
+an otherwise successful invocation or version probe is `infra/opencode_cleanup` with
+a fixed sanitized message; the probe reports failure.
 
 Use **public/synthetic inputs only**: prompts and tool-returned content reach a third-party
 provider. The pre-call filename scan rejects untracked source secrets and tracked

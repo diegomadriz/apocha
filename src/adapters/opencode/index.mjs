@@ -77,12 +77,16 @@ function assertPublicSource(sessionFile) {
   }
 }
 
-/** @param {string} root */
-function cleanupPrivateDirectory(root) {
+/** @param {string} root @param {HarnessError} [primaryFailure] */
+function cleanupPrivateDirectory(root, primaryFailure) {
   try {
     rmSync(root, { recursive: true, force: true });
   } catch {
-    throw new HarnessError("infra", "opencode_cleanup", "OpenCode private runtime cleanup failed");
+    if (primaryFailure) {
+      primaryFailure.details = { ...primaryFailure.details, cleanup_failed: true };
+    } else {
+      throw new HarnessError("infra", "opencode_cleanup", "OpenCode private runtime cleanup failed");
+    }
   }
 }
 
@@ -280,6 +284,8 @@ export function createOpencodeAdapter(settings = {}) {
       assertPublicSource(invocation.sessionFile);
     }
     const root = mkdtempSync(path.join(os.tmpdir(), "apocha-opencode-"));
+    /** @type {HarnessError | undefined} */
+    let primaryFailure;
     try {
       chmodSync(root, 0o700);
       const env = isolatedEnvironment(root);
@@ -372,10 +378,13 @@ export function createOpencodeAdapter(settings = {}) {
         ...(state.final_message !== undefined ? { final_message: state.final_message } : {}),
       };
     } catch (error) {
-      if (error instanceof HarnessError) throw error;
-      throw new HarnessError("infra", "opencode_failure", "OpenCode private runtime failed");
+      primaryFailure =
+        error instanceof HarnessError
+          ? error
+          : new HarnessError("infra", "opencode_failure", "OpenCode private runtime failed");
+      throw primaryFailure;
     } finally {
-      cleanupPrivateDirectory(root);
+      cleanupPrivateDirectory(root, primaryFailure);
     }
   }
   return {
