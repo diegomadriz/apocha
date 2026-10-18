@@ -11,7 +11,7 @@ import {
   isForbidden,
 } from "../util/paths.mjs";
 import { assertValid } from "../util/schema.mjs";
-import { isJudgeInput, isTestPath, selectChecks } from "./project.mjs";
+import { isJudgeInput, isTestHook, isTestPath, selectChecks } from "./project.mjs";
 
 /**
  * @typedef {{ path: string, kind: "tighten" | "migrate" | "extend" | "fix", reason: string }} JudgeInputChange
@@ -109,7 +109,15 @@ export function validateTask(raw, config, baseCommit = "HEAD") {
     if (seen.has(entry.path))
       throw new HarnessError("config", "invalid_path", `duplicate test_changes path: ${entry.path}`);
     seen.add(entry.path);
-    if (!existing.has(entry.path) || !isTestPath(config, entry.path))
+    if (
+      entry.path.endsWith("/") ||
+      hasGitComponent(entry.path) ||
+      isForbidden(entry.path, forbidden) ||
+      !(
+        (existing.has(entry.path) && isTestPath(config, entry.path)) ||
+        (!existing.has(entry.path) && entry.kind === "fixture" && isTestHook(config, entry.path))
+      )
+    )
       throw new HarnessError(
         "config",
         "invalid_path",

@@ -2,6 +2,8 @@
 import { isTestPath } from "../config/project.mjs";
 import { git } from "../util/git.mjs";
 
+export { classifyTestBypasses } from "./test-source.mjs";
+
 /**
  * @param {Pick<import("./candidate.mjs").Candidate, "root" | "base_commit">} candidate
  * @param {import("../config/project.mjs").ProjectConfig} config

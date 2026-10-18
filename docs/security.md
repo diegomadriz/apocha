@@ -156,11 +156,21 @@ restrictions still enforced.
   changes need the controller's old-test-on-new-code evidence and `tests.run_files`. Without
   `tests.run_files`, it falls back to `additive`. If the old test still passes on the new code,
   the edit must be a declared refactor, or keep every existing assertion and make the test fail
-  on the old code; otherwise it is rejected. A failing old test may be changed or deleted as
-  `necessary`; the reviewer decides whether the behaviour change matches the task. Added early
-  exits in existing tests are left to the reviewer, who is instructed to
-  flag weakened or special-cased tests. Hook files that are judge inputs, such as `conftest.py`,
-  `pytest.ini`, and `setup.cfg`, follow the judge input rule below. For high-stakes tasks,
+  on the old code; otherwise it is rejected. Deleting an existing test requires a
+  `behaviour` declaration and retains execution evidence and review.
+  Under `additive` and `justified`, newly introduced lexical bypass constructs in
+  existing tests require declarations: first-statement callback returns, direct
+  `process.exit` before assertions, registration skip/only/options, first-statement
+  runtime context skip, and pytest skip/mark tokens. Comments, quoted fixtures,
+  helper returns, new registrations, and unchanged/moved/formatted skips are excluded.
+  This is not semantic execution proof: conditional runtime skips, aliases, computed
+  properties, template interpolation, dynamic registration names and control flow
+  remain reviewer responsibilities. Python identity uses named `test_` functions
+  with consecutive single-line decorators. New built-in hooks (`conftest.py`,
+  `pytest.ini`, `setup.cfg`) and base-configured `tests.hook_files` patterns need
+  fixture declarations under every test-edit policy, even outside `tests.paths`.
+  Separate judge input declarations,
+  base-judge reruns, and per-path reviewer verdicts still apply. For high-stakes tasks,
   protect the test directory and put new tests in a separate task.
 - **Judge input coverage is bounded.** Inputs in the built-in list plus `paths.judge_inputs`
   may change only inside `allowed_paths`, with a declaration and justification for each.

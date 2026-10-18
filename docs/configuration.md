@@ -439,13 +439,19 @@ It accepts up to 50 entries:
 
 `{ "path": "test/value.test.mjs", "kind": "behaviour", "reason": "Expected output changes" }`
 
-Each path must exist at the base, match the project's test paths, and be inside
-`allowed_paths`. Duplicate paths are rejected. The task digest covers declarations
+Each path must exist at the base and match the project's test paths, or name a new
+hook with kind `fixture`. All declarations must be inside `allowed_paths`; duplicate
+paths are rejected. New hooks are `conftest.py`, `pytest.ini`, and `setup.cfg` at any
+depth, plus `tests.hook_files` patterns from the base config (the same pattern syntax
+as `tests.paths`). Hook matching applies even outside `tests.paths`. Arbitrary new
+files and new hooks declared as `behaviour` or `refactor` are invalid. The task digest covers declarations
 and reasons.
 
 Under `test_edits: "justified"`:
 
-- `behaviour` uses the normal necessity and weakening rules.
+- `behaviour` uses the normal necessity and weakening rules. Deleting an existing
+  test requires this declaration, including when the old test fails on the new code.
+  An outside-`tests.run_files.paths` rejection takes priority over this diagnostic.
 - `refactor` waives necessity when the old test passes on new code (verdict `refactor`).
   If the old test fails, normal rules apply: `necessary` when the new test fails on
   base, `weakened` when it passes. Evidence notes the mismatch with the declaration.
@@ -457,6 +463,24 @@ Under `test_edits: "justified"`:
 otherwise it is advisory, and a false result alone never fails `test-changes`. Declared refactors with a false result appear in
 `refactors_to_check`, with an explanation for the reviewer to check coverage and
 bypasses. Renamed assertion locals or extracted helpers can cause false results.
+
+Under `additive` and `justified`, newly introduced executable bypasses in existing
+tests require `test_changes` declarations; findings name the file and candidate line.
+`classifyTestBypasses(baseText, newText)` is exported from `src/git/test-source.mjs`
+and `src/git/test-edits.mjs` for replay. It compares lexical constructs by registration
+name, ignoring comments, quoted fixtures, formatting, and unchanged or moved skips.
+It recognizes first-statement callback returns, direct `process.exit` before assertions,
+registration `.skip`/`.only` and skip/todo/only options, first-statement runtime context
+skip calls, `pytest.skip`, `pytestmark`, and `@pytest.mark.skip`. New registrations and
+helper returns are excluded. Conditional runtime skips, aliases, computed properties,
+dynamic registration names, template interpolation, and other dynamic control flow
+remain reviewer responsibilities. Python recognition uses named `test_` functions and
+consecutive single-line decorators. This is a lexical check, not semantic execution proof.
+
+New hooks require kind `fixture` declarations under every test-edit policy, including
+`new-files` and `allowed`. Such declarations
+do not waive separate `judge_input_changes`, base-judge reruns, or reviewer verdicts
+by path. New hooks are not run individually as test files for base evidence.
 
 Evidence records whether a change was declared, its kind, and reason.
 The review bundle also lists undeclared changed test files.

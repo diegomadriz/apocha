@@ -92,7 +92,7 @@ test("additive permits existing test cases and new tests, recording both in the 
   }
 });
 
-test("reviewer rejects an additive early return that passes test-edits", async () => {
+test("reviewer rejects a declared additive early return that passes the bypass gate", async () => {
   const existing =
     'import assert from "node:assert/strict";\nimport { test } from "node:test";\ntest("original", () => {\n  assert.equal(2, 2);\n});\n';
   const repo = makeRepo({ files: { "test/existing.test.mjs": existing } });
@@ -112,7 +112,15 @@ test("reviewer rejects an additive early return that passes test-edits", async (
         });
         await call("submit_result", { summary: "Added early return" });
       },
-      {},
+      {
+        test_changes: [
+          {
+            path: "test/existing.test.mjs",
+            kind: "behaviour",
+            reason: "Exercise reviewer rejection of a declared bypass",
+          },
+        ],
+      },
       async (context) => {
         assert.deepEqual(context.bundle.modified_tests, ["test/existing.test.mjs"]);
         assert.match(context.bundle.diff, /\+ {2}return;/);
@@ -137,6 +145,48 @@ test("reviewer rejects an additive early return that passes test-edits", async (
     const state = new RunStore(repo.root).read(summary.run_id);
     assert.equal(state.state.last_review.decision, "FIX");
     assert.equal(state.state.last_review.findings[0].id, "early-return");
+  } finally {
+    repo.cleanup();
+  }
+});
+
+test("additive rejects an undeclared early return before review with a candidate line finding", async () => {
+  const existing =
+    'import assert from "node:assert/strict";\nimport { test } from "node:test";\ntest("original", () => {\n  assert.equal(2, 2);\n});\n';
+  const repo = makeRepo({ files: { "test/existing.test.mjs": existing } });
+  try {
+    let reviewed = false;
+    const summary = await run(
+      repo.root,
+      async ({ call }) => {
+        await call("apply_patch", {
+          edits: [
+            {
+              path: "test/existing.test.mjs",
+              old_text: "  assert.equal(2, 2);",
+              new_text: "  return;\n  assert.equal(2, 2);",
+            },
+          ],
+        });
+        await call("submit_result", { summary: "Add undeclared early return" });
+      },
+      {},
+      async (context) => {
+        reviewed = true;
+        await passReviewer(context);
+      },
+    );
+    assert.equal(summary.outcome, "ESCALATED", summary.reason ?? "");
+    assert.equal(reviewed, false);
+    assert.equal(summary.checks.find((check) => check.id === "test-edits").status, "pass");
+    const state = new RunStore(repo.root).read(summary.run_id).state;
+    const bypass = state.last_verification.checks.find((check) => check.id === "test-bypasses");
+    assert.equal(bypass.status, "fail");
+    assert.equal(
+      bypass.error,
+      "test/existing.test.mjs:4: first-statement return requires a test_changes declaration",
+    );
+    assert.ok(state.findings.some((entry) => entry.reason.includes(bypass.error)));
   } finally {
     repo.cleanup();
   }

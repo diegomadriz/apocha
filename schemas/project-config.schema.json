@@ -53,6 +53,7 @@
       "type": "object", "additionalProperties": false,
       "properties": {
         "paths": { "description": "Entries match directory prefixes ending in / without wildcards, exact paths, or * wildcards in basenames at any depth or only the last component under a literal directory; * never crosses /, and **, directory or prefix wildcards, ?, {, and } are unsupported. Brackets [ and ] match literally (for example Next.js route folders).", "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
+        "hook_files": { "description": "Additional test hook path patterns, using tests.paths syntax. New hooks require fixture test_changes declarations independently of judge inputs.", "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/path" } },
         "run_files": { "$ref": "#/$defs/run_files" }
       }
     },

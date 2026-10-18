@@ -74,7 +74,18 @@ for (const scenario of [
         batch: "justified",
         message: scenario.name,
         runtimes: fakeRuntimes(),
-        task: valueTask({ allowed_paths: ["src/", "test/"], checks: ["tests"], max_repair_attempts: 0 }),
+        task: valueTask({
+          allowed_paths: ["src/", "test/"],
+          checks: ["tests"],
+          max_repair_attempts: 0,
+          ...(scenario.deleted
+            ? {
+                test_changes: [
+                  { path: testPath, kind: "behaviour", reason: "Remove the obsolete feature test" },
+                ],
+              }
+            : {}),
+        }),
         adapters: { implementer: fake, reviewer: fake },
       });
       const necessary = scenario.verdict === "necessary";
@@ -132,6 +143,58 @@ for (const scenario of [
     }
   });
 }
+
+test("justified rejects an undeclared deletion even when the old test fails on candidate", async () => {
+  const repo = makeRepo({
+    config,
+    files: { [testPath]: oldSource, "src/value.txt": "hello\n", "test/sentinel.test.mjs": "export {};\n" },
+  });
+  try {
+    let reviewed = false;
+    const fake = createFakeAdapter({
+      handlers: {
+        implementer: async ({ call }) => {
+          await call("apply_patch", {
+            edits: [
+              { path: testPath, delete: true },
+              { path: "src/value.txt", old_text: "hello\n", new_text: "world\n" },
+            ],
+          });
+          await call("submit_result", { summary: "Delete without owner declaration" });
+        },
+        reviewer: async (context) => {
+          reviewed = true;
+          await passReviewer(context);
+        },
+      },
+    });
+    const summary = await startRun({
+      cwd: repo.root,
+      base: "main",
+      batch: "undeclared-deletion",
+      message: "Require deletion declaration",
+      runtimes: fakeRuntimes(),
+      task: valueTask({ allowed_paths: ["src/", "test/"], checks: ["tests"], max_repair_attempts: 0 }),
+      adapters: { implementer: fake, reviewer: fake },
+    });
+    assert.equal(summary.outcome, "ESCALATED", summary.reason ?? "");
+    assert.equal(reviewed, false);
+    const state = new RunStore(repo.root).read(summary.run_id).state;
+    const evidence = state.last_verification.test_changes[0];
+    assert.equal(evidence.path, testPath);
+    assert.equal(evidence.change, "deleted");
+    assert.equal(evidence.declared, false);
+    assert.equal(evidence.old_on_candidate, "old_fails_on_candidate");
+    assert.equal(evidence.verdict, "necessary");
+    assert.equal(
+      state.last_verification.checks.find((entry) => entry.id === "test-changes").error,
+      testPath + ": deleting an existing test requires a behaviour test_changes declaration",
+    );
+    assert.ok(state.findings.some((entry) => entry.reason.includes(testPath)));
+  } finally {
+    repo.cleanup();
+  }
+});
 
 const strengtheningBase = testSource("assert.ok(value);\nvalue.toUpperCase();");
 for (const scenario of [

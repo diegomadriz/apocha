@@ -4,11 +4,11 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { runFixers } from "../checks/fixers.mjs";
 import { checkDefinitionDigest, runCheck } from "../checks/runner.mjs";
-import { canRunTestPath, isJudgeInput } from "../config/project.mjs";
+import { canRunTestPath, isJudgeInput, isTestHook } from "../config/project.mjs";
 import { effectiveProtectedPaths } from "../config/task.mjs";
 import { snapshotCandidate } from "../git/candidate.mjs";
 import { testEdits } from "../git/test-edits.mjs";
-import { hasRunnableTests, preservesAssertions } from "../git/test-source.mjs";
+import { classifyTestBypasses, hasRunnableTests, preservesAssertions } from "../git/test-source.mjs";
 import { failureFirst, failureSignalLines, utf8Prefix } from "../util/bounded.mjs";
 import { HarnessError } from "../util/errors.mjs";
 import { writeJsonAtomic } from "../util/fs-safe.mjs";
@@ -269,18 +269,70 @@ export async function runChecksStage(_stage, ctx) {
   /** @type {import("../core/context.mjs").TestChangeEvidence[]} */
   const testChanges = [];
   const declarations = new Map((ctx.task.test_changes ?? []).map((entry) => [entry.path, entry]));
+  const reasons = [];
+  if (tests.effective_policy === "additive" || tests.effective_policy === "justified") {
+    for (const file of tests.modified) {
+      const next = git(ctx.candidate.root, ["show", `:${file}`], { allowFailure: true });
+      if (next.status !== 0) continue;
+      const base = String(git(ctx.candidate.root, ["show", `${ctx.candidate.base_commit}:${file}`]).stdout);
+      const bypasses = classifyTestBypasses(base, String(next.stdout));
+      if (bypasses.length && !declarations.has(file))
+        for (const bypass of bypasses)
+          reasons.push(`${file}:${bypass.line}: ${bypass.reason} requires a test_changes declaration`);
+    }
+  }
+  for (const file of snapshot.changed_files.filter((file) => isTestHook(ctx.config, file))) {
+    const existed =
+      git(ctx.candidate.root, ["cat-file", "-e", `${ctx.candidate.base_commit}:${file}`], {
+        allowFailure: true,
+      }).status === 0;
+    if (!existed && declarations.get(file)?.kind !== "fixture")
+      reasons.push(`${file}: new test hook requires a fixture test_changes declaration`);
+  }
+  if (reasons.length) {
+    const reason = reasons.join("\n");
+    results.push({
+      id: "test-bypasses",
+      status: "fail",
+      exit_code: null,
+      error: reason,
+      stdout: "",
+      stderr: reason,
+      stdout_truncated: false,
+      stderr_truncated: false,
+      output_digest: "",
+      definition_digest: "",
+      sandbox: ctx.sandboxBackend,
+      duration_ms: 0,
+    });
+    ctx.event("check.finished", { id: "test-bypasses", status: "fail", error: reason });
+  }
+  const addedHookFiles = new Set(
+    snapshot.changed_files.filter(
+      (file) =>
+        isTestHook(ctx.config, file) &&
+        git(ctx.candidate.root, ["cat-file", "-e", `${ctx.candidate.base_commit}:${file}`], {
+          allowFailure: true,
+        }).status !== 0,
+    ),
+  );
   const fixtureFiles = new Set(
     tests.modified.filter((file) => {
       if (declarations.get(file)?.kind !== "fixture") return false;
       const base = String(git(ctx.candidate.root, ["show", `${ctx.candidate.base_commit}:${file}`]).stdout);
       const next = git(ctx.candidate.root, ["show", `:${file}`], { allowFailure: true });
-      return !hasRunnableTests(base) && (next.status !== 0 || !hasRunnableTests(String(next.stdout)));
+      return next.status === 0 && !hasRunnableTests(base) && !hasRunnableTests(String(next.stdout));
     }),
   );
   const runFiles = ctx.config.tests.run_files;
   if (runFiles && results.every((result) => result.status === "pass")) {
     const files = [...tests.added, ...tests.modified]
-      .filter((file) => !fixtureFiles.has(file) && existsSync(path.join(ctx.candidate.root, file)))
+      .filter(
+        (file) =>
+          !fixtureFiles.has(file) &&
+          !addedHookFiles.has(file) &&
+          existsSync(path.join(ctx.candidate.root, file)),
+      )
       .sort(
         (a, b) => Number(tests.changed.includes(b)) - Number(tests.changed.includes(a)) || a.localeCompare(b),
       );
@@ -372,6 +424,8 @@ export async function runChecksStage(_stage, ctx) {
           ctx.event("test-change.finished", { path: file, verdict: "unevaluated" });
           continue;
         }
+        if (!modified && declaration?.kind !== "behaviour")
+          reasons.push(`${file}: deleting an existing test requires a behaviour test_changes declaration`);
         const newOnBase = modified ? testsOnBase.find((entry) => entry.path === file)?.result : undefined;
         const result = await runCheck({
           check: runFiles,

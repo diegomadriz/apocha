@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Existing-test lexical bypasses, new built-in/configured hooks, and justified test deletions now require scoped test-change declarations; judge input evidence remains separate.
+
 - This repository now requires signed receipts for new landings; receipts before this commit are unsigned.
 - Publish Apocha's self-hosted run history with denominators and reproduction limits, document signature checks, and clarify judge input rules for test hooks.
 - Reviewer provenance now marks per-file test and judge input diffs as untrusted; blocked-claim verification moves implementer judge input reasons under `untrusted`.

@@ -46,11 +46,14 @@ task.json ─► candidate (private clone at the base commit)
   still passes, the edit must be a declared refactor, or keep every existing assertion and make the
   test fail on the old code; otherwise it is rejected. This needs `tests.run_files`; without it the
   default falls back to `additive`, which accepts only added lines and new files. A test whose
-  old version fails on the new code may be changed or deleted (verdict `necessary`), and the
-  reviewer decides whether that behaviour change is what the task asks for. Added lines can still
-  change how an existing test runs (an early `return` or `process.exit(0)`), so the
-  reviewer remains the check on those. Hook files that are judge inputs, such as `conftest.py`,
-  `pytest.ini`, and `setup.cfg`, follow the judge input rule above. The `new-files` policy forbids any change to existing tests.
+  old version fails on the new code may be changed; deletion also needs a `behaviour`
+  declaration. The reviewer decides whether that behaviour change matches the task.
+  Under `additive` and `justified`, newly introduced lexical bypasses in existing tests
+  need `test_changes` declarations. Conditional runtime skips and dynamic control flow
+  remain reviewer responsibilities; this is not semantic execution proof. New built-in
+  and configured hook files need `fixture` declarations, including outside test paths,
+  as well as any separate judge input declarations. The `new-files` policy forbids
+  any change to existing tests.
 - **Agents act only through the harness tools.** No shell, no runtime built-in tools, no
   connectors. Each adapter disables its runtime's own capabilities and fails the run if the
   runtime uses one anyway. `apocha doctor --live` asks each runtime to escape and reports

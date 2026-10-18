@@ -121,6 +121,17 @@ async function runChange(attack, source) {
       allowed_paths: ["src/", attack.file],
       ...(attack.file.startsWith("src/") ? { allowed_paths: ["src/"] } : {}),
       ...(source === "task" ? { judge_input_changes: [declaration] } : {}),
+      ...(attack.file === "tests/conftest.py" && source !== "none"
+        ? {
+            test_changes: [
+              {
+                path: attack.file,
+                kind: "fixture",
+                reason: "Exercise separate judge input evidence for a new hook",
+              },
+            ],
+          }
+        : {}),
     }),
     adapters: { implementer: fake, reviewer: fake },
     ...(source === "governance"

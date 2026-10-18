@@ -96,7 +96,7 @@ export const DEFAULT_LIMITS = Object.freeze({
  *   default_checks: string[],
  *   fixers: Record<string, CheckDefinition>,
  *   default_fixers: string[],
- *   tests: { paths: string[], run_files?: CheckDefinition & { paths?: string[] } },
+ *   tests: { paths: string[], hook_files?: string[], run_files?: CheckDefinition & { paths?: string[] } },
  *   review: { require_independent: boolean },
  *   receipts: { allowed_signers: string, require_signed: boolean },
  *   paths: { judge_inputs: string[], protected: string[], governance: string[], forbidden: string[], always_readable: string[], design_reference_prefix: string },
@@ -218,6 +218,7 @@ export function normalizeProjectConfig(raw, root) {
     check_selection: selection,
     default_checks: defaults,
     tests: {
+      hook_files: patternList(input.tests?.hook_files, "tests.hook_files"),
       ...(input.tests?.run_files
         ? {
             run_files: {
@@ -345,6 +346,16 @@ export function isJudgeInput(config, relativePath) {
     const pattern = entry.toLowerCase();
     return matchesPathPatterns([pattern], pattern.includes("/") ? lower : path.posix.basename(lower));
   });
+}
+
+/** Hook matching is governed by the base project config, independently of tests.paths.
+ * @param {ProjectConfig} config @param {string} relativePath
+ */
+export function isTestHook(config, relativePath) {
+  return (
+    ["conftest.py", "pytest.ini", "setup.cfg"].includes(path.posix.basename(relativePath)) ||
+    matchesPathPatterns(config.tests.hook_files ?? [], relativePath)
+  );
 }
 
 /** @param {ProjectConfig} config @param {string} relativePath */
