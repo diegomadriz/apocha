@@ -57,7 +57,7 @@ export function assertNoMachineConfig(paths = machineConfigPaths()) {
 /** @param {string} name */
 export function secretLookingPath(name) {
   const base = path.posix.basename(name).toLowerCase();
-  if (/(?:^|[._-])(?:example|sample|template)(?:$|[._-])/.test(base)) return false;
+  if (/^\.env\.(?:example|sample|template)$/.test(base)) return false;
   return /^(?:\.env(?:\..*)?|id_rsa.*|id_ed25519.*)$/.test(base) || /\.(?:pem|key)$/.test(base);
 }
 
@@ -147,13 +147,33 @@ export function opencodeConfig(invocation) {
   };
 }
 
-/** Reject every unexpected config field except non-capability CLI metadata.
- * @param {any} resolved @param {object} expected
+/** @param {any} value */
+function emptyPlainObject(value) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    Object.getPrototypeOf(value) === Object.prototype &&
+    Reflect.ownKeys(value).length === 0
+  );
+}
+
+/** Reject unexpected fields except CLI metadata and three exact empty V1.19.3 defaults.
+ * @param {any} resolved @param {any} expected
  */
 export function validateOpencodeConfig(resolved, expected) {
   const clean = { ...resolved };
   delete clean.$schema;
   delete clean.username;
+  for (const key of ["mode", "command"]) {
+    if (!Object.hasOwn(expected, key) && emptyPlainObject(clean[key])) delete clean[key];
+  }
+  if (
+    !Object.hasOwn(expected.agent?.apocha ?? {}, "options") &&
+    emptyPlainObject(clean.agent?.apocha?.options)
+  ) {
+    clean.agent = { ...clean.agent, apocha: { ...clean.agent.apocha } };
+    delete clean.agent.apocha.options;
+  }
   if (!isDeepStrictEqual(clean, expected))
     throw configError(
       "opencode_config_contamination",

@@ -117,11 +117,20 @@ vendor is required in role or adapter settings; the gateway is not a vendor.
 home, XDG locations, cwd, config and temp files. Only PATH, LANG and LC_ALL are inherited.
 Machine configuration is refused, resolved config is checked before the model call,
 and both permission maps deny `*` while allowing exact role MCP names only.
-The owned config is checked again after preflight. Temporary state is removed in finally.
+Resolved config comparison tolerates only CLI metadata (`$schema`, `username`) and exactly
+empty plain objects at `mode`, `command`, and `agent.apocha.options` when absent from
+the expected config. Nonempty values, arrays, null, and every other unexpected field
+remain rejected. The owned config is checked again after preflight to detect on-disk
+mutation even when debug output claims the expected policy. Temporary state is removed in finally.
 
 Use **public/synthetic inputs only**: prompts and tool-returned content reach a third-party
 provider. The pre-call filename scan rejects untracked source secrets and tracked
-secret-looking paths; it cannot prove other data is public. This is CLI configuration
+secret-looking paths. Key (`.key`), PEM (`.pem`), and SSH (`id_rsa*`, `id_ed25519*`)
+basenames remain secret-looking even with example/sample/template labels. Only exact
+`.env.example`, `.env.sample`, and `.env.template` basenames are exempt from the tracked
+filename heuristic; the existing untracked source-secret check still applies. This is a
+filename heuristic, not content inspection: safe template names can contain secrets, and
+other filenames can conceal them, so it cannot prove data is public. This is CLI configuration
 isolation, not an OS sandbox or a defense against a malicious executable. Stream
 inspection detects violations after possible execution, and does not persist whole events.
 

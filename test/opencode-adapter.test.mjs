@@ -238,8 +238,8 @@ test("machine policy existence and secret-looking source paths fail closed", asy
       rmSync(path.join(f.repo, name));
     }
     assert.equal(existsSync(f.report), false);
-    for (const name of [".env.example", "example.key", "id_rsa.template"])
-      assert.equal(secretLookingPath(name), false);
+    assert.equal(secretLookingPath(".env.example"), false);
+    for (const name of ["example.key", "id_rsa.template"]) assert.equal(secretLookingPath(name), true);
   } finally {
     f.clean();
   }
