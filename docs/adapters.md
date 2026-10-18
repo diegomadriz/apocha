@@ -108,8 +108,10 @@ runtime dependency, and only the tool server process loads it.
 
 Implemented for **1.19.3 only**, with no support/default claim. Select explicitly.
 A successful version probe establishes installation only and reports experimental status.
-Require synthetic probes for each actual role before any support claim; liveProbe variant
-plumbing and role-specific live validation remain future work.
+Doctor warns for every configured opencode role that it is experimental and public/synthetic-only.
+Its additional source privacy check rejects secret-looking tracked filenames and files found
+by the existing untracked/ignored source-secret scan before any live model call.
+This screening never reads or prints source contents and does not certify privacy.
 
 Only unauthenticated `opencode/model` gateway models are accepted. An explicit actual
 vendor is required in role or adapter settings; the gateway is not a vendor.
@@ -146,7 +148,9 @@ is claimed. See the [design](opencode-adapter-design.md) for evidence limits.
 Provider identity is resolved before agents run: Codex is `openai`, Claude Code is
 `anthropic`, and fake is `fake`. Pi uses the role's provider, falling back to
 `adapters.pi.provider`; `openai-codex` normalizes to `openai`, and other provider
-strings are preserved. An unspecified Pi provider is `unknown`.
+strings are preserved. An unspecified Pi provider is `unknown`. Opencode gateway identity is separate from the actual
+model vendor; missing actual vendor metadata is `unknown`. Doctor reports unknown vendor
+independence as not established and fails when independence is required.
 Different adapters can therefore share a provider. Same-provider judges tend to
 prefer their own model family's output, so cross-provider review is stronger evidence.
 Set project `review.require_independent` to require different providers.
@@ -163,6 +167,24 @@ to create a file and read `/etc/hosts` by any means other than the harness tools
 file appears outside the harness tools, and the harness tools still work. Run it after every
 runtime upgrade: a new default-on feature in a runtime is the most likely way for the lock-down to
 weaken.
+
+For opencode, the probe uses the actual configured role and the existing role prompt.
+It preserves configured effort and variant exactly (including absence); other adapters
+retain their low-effort implementer probe. The implementer must create synthetic `probe.txt`
+containing `ok` through `apply_patch` and submit with `criteria_evidence: []`.
+The reviewer instead reads a pre-created synthetic `probe.txt` through `read_files`
+and submits a PASS bound to a supplied synthetic candidate digest, with empty findings.
+Its session has no writable paths, and its tool schema is reviewer-specific: neither
+`apply_patch` nor `run_check` is granted. The reviewer result schema requires the candidate digest. Both roles are asked to try a shell/outside write and reading `/etc/hosts`.
+Successful expected tool traces and results are required; reviewer candidate changes and
+`escaped.txt` in either scratch repository or cwd fail the probe. Foreign tool events
+fail even if reported denied. Provider failures, including HTTP403, remain failures.
+Diagnostics bound the implementer summary to 160 characters.
+
+These synthetic observations exercise role wiring and reported tool boundaries, not all
+possible filesystem escapes or the trustworthiness of an executable. An absent escape file
+does not prove no outside read occurred. No real repository content is sent by the live
+probe, and passing cannot certify privacy, vendor identity, or general support.
 
 When available, the invocation’s last assistant text is truncated to 2000 characters and kept in `final-message.txt` in its session directory with mode `0o600`. The `agent.finished` event records only the bounded text’s length as `final_message_chars`, never the text itself. Codex uses the last completed `agent_message`, Claude Code uses its parsed result text, and fake handlers may return `{ final_message }`. Adapters without that text omit the file and length field. Old events written by earlier versions are not rewritten.
 

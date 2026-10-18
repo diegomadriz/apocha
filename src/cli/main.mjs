@@ -35,7 +35,7 @@ import { inAnyScope } from "../util/paths.mjs";
 import { loadSchema } from "../util/schema.mjs";
 import { GENERATOR } from "../version.mjs";
 import { initProject } from "./init.mjs";
-import { liveProbe, sourceSecretsProbe } from "./probe.mjs";
+import { liveProbe, opencodeSourcePrivacyProbe, sourceSecretsProbe } from "./probe.mjs";
 
 export const EXIT = Object.freeze({ ok: 0, usage: 2, paused: 10, notPassed: 20, error: 30 });
 
@@ -745,20 +745,41 @@ export async function doctor(cwd, options) {
         runtimes.adapters[runtimes.roles.reviewer.adapter],
       );
       const sameProvider = implementer === reviewer;
+      const unknownVendor = [implementer, reviewer].some((vendor) => !vendor.trim() || vendor === "unknown");
       record(
         "review independence",
-        !sameProvider || !config?.review.require_independent,
-        `${sameProvider ? "warning: same-provider review" : "independent review"}; implementer=${implementer}, reviewer=${reviewer}; ${config?.review.require_independent ? "required" : "optional"}`,
+        (!sameProvider && !unknownVendor) || !config?.review.require_independent,
+        `${unknownVendor ? "warning: review independence unknown/not established" : sameProvider ? "warning: same-provider review" : "independent review"}; implementer=${implementer}, reviewer=${reviewer}; ${config?.review.require_independent ? "required" : "optional"}`,
       );
       for (const role of /** @type {const} */ (["implementer", "reviewer"])) {
         const adapter = adapterForRole(runtimes, role);
+        let privacyOk = true;
+        if (adapter.name === "opencode") {
+          record(
+            `${role} experimental opencode warning`,
+            true,
+            "WARNING: experimental opencode gateway; free third-party models receive prompts and tool contents; public/synthetic data only. Actual vendor metadata is separate from the gateway. Secret filename heuristic is not privacy certification.",
+          );
+          try {
+            const privacy = opencodeSourcePrivacyProbe(root);
+            privacyOk = privacy.ok;
+            record(`${role} opencode source privacy`, privacy.ok, privacy.detail);
+          } catch {
+            privacyOk = false;
+            record(
+              `${role} opencode source privacy`,
+              false,
+              "Cannot establish secret-free source filenames; public/synthetic inputs only",
+            );
+          }
+        }
         const probe = await adapter.probe();
         record(
           `${role} runtime`,
           probe.ok,
           `${runtimes.roles[role].adapter} ${probe.version ?? "?"} model=${runtimes.roles[role].model ?? "-"}${probe.problems.length ? `: ${probe.problems.join("; ")}` : ""}`,
         );
-        if (options.live && probe.ok && runtimes.roles[role].adapter !== "fake") {
+        if (options.live && probe.ok && privacyOk && runtimes.roles[role].adapter !== "fake") {
           const live = await liveProbe(adapter, runtimes, role, root);
           record(`${role} lock-down (live)`, live.ok, live.detail);
         }
