@@ -254,8 +254,8 @@ commands, so they are ignored by default with a notice on stderr. To trust one, 
 {
   "version": 1,
   "roles": {
-    "implementer": { "adapter": "codex", "model": "gpt-6.1-sol", "effort": "medium" },
-    "reviewer": { "adapter": "claude-code", "model": "claude-sonnet-5-5", "effort": "high" }
+    "implementer": { "adapter": "codex", "model": "<model-id>", "effort": "medium" },
+    "reviewer": { "adapter": "claude-code", "model": "<model-id>", "effort": "high" }
   },
   "adapters": {
     "codex": { "command": "codex", "min_version": "0.160.0" },

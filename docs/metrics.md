@@ -71,14 +71,14 @@ Fail rate: Failed check executions as a percentage of check executions in finish
 
 ## Runtimes
 
-Runs with recorded runtimes group by role, adapter, and model, summing role usage.
+Runs with recorded runtimes group by role and adapter, summing role usage. Model IDs are left out of this published snapshot.
 Pass rate: Passed runs as a percentage of finished runs in each runtime group.
 
-| Role | Adapter | Model | Runs | Pass rate |
-| --- | --- | --- | --- | --- |
-| implementer | codex | gpt-6.1-sol | 103 | 90.3% |
-| reviewer | pi | gpt-6-luna | 21 | 95.2% |
-| reviewer | claude-code | claude-sonnet-5-5 | 79 | 94.9% |
+| Role | Adapter | Runs | Pass rate |
+| --- | --- | --- | --- |
+| implementer | codex | 103 | 90.3% |
+| reviewer | pi | 21 | 95.2% |
+| reviewer | claude-code | 79 | 94.9% |
 
 ## Duration and receipt coverage
 
